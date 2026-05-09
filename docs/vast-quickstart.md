@@ -57,25 +57,43 @@ Three pasteable blocks. Edit nothing.
 
 ### 1. Setup (~20 min, ~$0.70)
 
+**If repo is private, export `GITHUB_TOKEN` (PAT with `repo` read scope)
+before pasting.** Public repo: skip; the clone line works as-is.
+
 ```bash
 set -euo pipefail
 cd /workspace
-[ -d arc3-wm ] || git clone https://github.com/ssrhaso/ARC_AGI_3.git arc3-wm
+# Vast PyTorch images run as root; no sudo needed and apt-utils is absent.
+[ -d arc3-wm ] || git clone "https://${GITHUB_TOKEN:+${GITHUB_TOKEN}@}github.com/ssrhaso/ARC_AGI_3.git" arc3-wm
 cd arc3-wm
 
-sudo apt-get update -y
-sudo apt-get install -y libgl1 libglib2.0-0 git tmux jq
+apt-get update -y
+apt-get install -y libgl1 libglib2.0-0 git tmux jq
 
-python3.11 -m venv .venv
+# Python 3.11 OR 3.12 both work; danijar/dreamerv3 requires >= 3.11.
+# Vast's vastai/pytorch image ships 3.12 at /usr/bin/python3.12.
+PYBIN="$(command -v python3.11 || command -v python3.12)"
+"$PYBIN" -m venv .venv
 . .venv/bin/activate
 pip install -U pip wheel setuptools
 
 # JAX GPU FIRST — required by danijar/dreamerv3.
 pip install -U "jax[cuda12]==0.4.33" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
+# third_party/ is gitignored (Phase 0 D5, "huge, fetch fresh") so the
+# vendored copies are NOT in the cloned repo. Clone + pin to the same
+# commits the laptop tested against.
+mkdir -p third_party
+[ -d third_party/dreamerv3 ] || git clone https://github.com/danijar/dreamerv3.git third_party/dreamerv3
+(cd third_party/dreamerv3 && git checkout b65cf81)
+[ -d third_party/ARC-AGI-3-Agents ] || git clone https://github.com/arcprize/ARC-AGI-3-Agents.git third_party/ARC-AGI-3-Agents
+(cd third_party/ARC-AGI-3-Agents && git checkout 135f20a)
+
 # DreamerV3 deps + Crafter (not in their requirements.txt) + our project.
+# wandb is required because the launcher's wandb-guarded path and one of
+# our dry-run tests both reach into the real elements.logger.WandBOutput.
 pip install -U -r third_party/dreamerv3/requirements.txt
-pip install crafter
+pip install crafter wandb
 pip install -e .
 pip install pytest pytest-xdist pytest-timeout gdown
 
@@ -93,14 +111,19 @@ chmod 600 .env
 # in os.environ BEFORE importing arc_agi to defeat the env-var-wins quirk.
 python scripts/cache_env_files.py
 
-# Sanity: GPU detected by JAX, then full pytest suite.
-python -c "import jax; assert any('cuda' in d.platform.lower() for d in jax.devices()), f'no CUDA device: {jax.devices()}'; print('JAX devices:', jax.devices())"
-pytest -q
+# Sanity: GPU detected by JAX (check class name not .platform; JAX
+# reports device.platform == 'gpu' for CUDA, the class is CudaDevice).
+python -c "import jax; devs=jax.devices(); assert any('Cuda' in type(d).__name__ for d in devs), f'no CUDA device: {devs}'; print('JAX devices:', devs)"
+
+# WANDB_MODE=offline so the wandb-init path in test_launcher_dry_run
+# doesn't block on missing API auth. (Set this just for pytest; real
+# training runs do NOT set WANDB_PROJECT, so wandb stays disabled.)
+WANDB_MODE=offline pytest -q
 ```
 
 **Pass condition:** the final `pytest -q` line prints a green summary.
 On Vast (with JAX installed) the laptop-skipped `test_launcher_dry_run.py`
-runs — expect **69 passed, 0 skipped**. If anything fails, stop and ask;
+runs — expect **all green, 0 skipped**. If anything fails, stop and ask;
 do not launch milestone (2)/(3).
 
 ### 2. Crafter launch (~30–60 min, ~$1–2)
@@ -216,7 +239,7 @@ tmux kill-session -t $RUN  # if still running
 |---|---|
 | **Task resolution error at launch** (within 30s, before JIT compile). stdout has `KeyError` or unknown task. | Crafter task naming may have shifted; check `third_party/dreamerv3/embodied/envs/crafter.py` for the current task list. Try `--task crafter_noreward` as fallback. |
 | **NaN in loss before 30k steps.** Trace shows `loss_total = nan`. | (a) Check `jax.devices()` returned the H100, not CPU. (b) Re-launch with `--jax.compute_dtype float32` (default is bfloat16; some H100 cards have flaky bf16 stability under specific JAX/CUDA combos). Don't keep retrying without changing something. |
-| **GPU not engaged.** `nvidia-smi` shows 0% util after 15 min, no `Start training loop` in stdout. | `python -c "import jax; print(jax.devices())"` — must show `CudaDevice`. If not, JAX fell back to CPU (env mismatch). Try `pip install -U "jax[cuda12]==0.4.33" --force-reinstall`. **If `jax.devices()` shows CUDA but training stays on CPU**, check stdout for `Could not load cuDNN` — the PyTorch image ships cuDNN 9, JAX 0.4.33 wants cuDNN 8.9. Fix: `pip install -U nvidia-cudnn-cu12==8.9.7.29 --force-reinstall` then re-launch. |
+| **GPU not engaged.** `nvidia-smi` shows 0% util after 15 min, no `Start training loop` in stdout. | `python -c "import jax; print(jax.devices())"` — must show `CudaDevice`. If not, JAX fell back to CPU (env mismatch). Try `pip install -U "jax[cuda12]==0.4.33" --force-reinstall`. The current `jax-cuda12-plugin` resolves `nvidia-cudnn-cu12==9.22.x` (not 8.9 — earlier doc text said 8.9, that's stale); cuDNN 9 + CUDA 12.5 driver works. If pip resolves something older, `pip install -U nvidia-cudnn-cu12 --force-reinstall` then re-launch. |
 | **OOM during JIT compile.** stdout has `RESOURCE_EXHAUSTED`. | size12m at default batch should fit on 80GB H100. If it doesn't: `--batch_size 8` (default 16). If still OOM: instance is wrong — confirm 80GB H100, not 40GB. |
 
 ### vc33 milestone (3)
@@ -227,6 +250,7 @@ tmux kill-session -t $RUN  # if still running
 | **`RuntimeError: ARC3GymEnv requires OFFLINE mode`** at launch. | `.env` not auto-loaded — check CWD when launcher runs (must be repo root) and that `.env` is present (`ls -la .env`). |
 | **dtype mismatch in replay buffer.** Trace mentions `UnifyDtypes` or "expected uint8 got int8". | Our env's `_pack` casts obs to `uint8`. If this fires, it's a regression in `arc3_wm/embodied_env.py::_pack` — re-run `pytest tests/test_embodied_env.py -v` on the instance and capture the failure. Stop and ask; don't try to patch live on the meter. |
 | **`KeyError: 'env.arc3.max_steps'`** at config build. | The `DEFAULT_ARC3_ENV` injection in `scripts/launch_pergame.py:load_merged_configs` regressed (D13). `pytest tests/test_launcher_arg_parsing.py -v` will reproduce. Stop and ask. |
+| **`AssertionError: ('log/...', (N,), dtype(...))`** in `embodied/run/train.py::logfn` at first driver step. | dreamerv3's logfn asserts every `log/*` key in the obs is a SCALAR. Fixed in commit 73c6d09 by dropping `log/action_mask` from `arc3_wm/embodied_env.py`. If a future change re-adds a non-scalar `log/*` key, this row will fire — drop the key or pre-reduce to a scalar. |
 
 ### Rule of thumb
 
