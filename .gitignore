@@ -1,0 +1,41 @@
+# --- Project artifacts (sacred but not committed) ---
+data/
+checkpoints/
+results/
+~/logdir/
+logdir/
+
+# arc_agi local game cache + recordings
+environment_files/
+recordings/
+
+# --- Environments / secrets ---
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Third-party reference clones (huge, fetch fresh) ---
+third_party/
+
+# --- Spec doc (kept out of git per pre-existing .GITIGNORE; flagged for review) ---
+CLAUDE.md

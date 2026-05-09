@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arc3-wm"
+version = "0.0.0"
+description = "DreamerV3 world-model RL on ARC-AGI-3 (NeurIPS 2026 Workshop sprint)"
+requires-python = ">=3.11"
+authors = [{ name = "Haso" }]
+readme = "README.md"
+
+dependencies = [
+    "arc-agi",
+    "gymnasium>=0.29",
+    "numpy",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-xdist",
+    "gdown",
+]
+
+[tool.setuptools.packages.find]
+include = ["arc3_wm*"]
+exclude = ["tests*", "third_party*", "scripts*", "configs*", "docs*", "data*", "checkpoints*", "results*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
