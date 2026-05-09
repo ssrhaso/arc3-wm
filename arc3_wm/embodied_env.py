@@ -41,7 +41,6 @@ from .env import OBS_HW, ARC3GymEnv
 # package on Vast.ai accepts duck-typed envs unchanged.
 
 OBS_KEY = "image"
-MASK_KEY = "log/action_mask"  # 'log/' prefix => agent does not consume.
 ACT_KEY = "action"
 
 
@@ -69,7 +68,6 @@ class ARC3EmbodiedEnv:
     def obs_space(self) -> dict[str, elements.Space]:
         return {
             OBS_KEY: elements.Space(np.uint8, (OBS_HW, OBS_HW, 3), 0, 255),
-            MASK_KEY: elements.Space(bool, (N_ACTIONS,)),
             "reward": elements.Space(np.float32),
             "is_first": elements.Space(bool),
             "is_last": elements.Space(bool),
@@ -123,12 +121,8 @@ class ARC3EmbodiedEnv:
         is_last: bool,
         is_terminal: bool,
     ) -> dict[str, Any]:
-        mask = info.get("action_mask")
-        if mask is None:
-            mask = np.zeros(N_ACTIONS, dtype=bool)
         return {
             OBS_KEY: np.asarray(obs, dtype=np.uint8),
-            MASK_KEY: np.asarray(mask, dtype=bool),
             "reward": np.float32(reward),
             "is_first": np.bool_(is_first),
             "is_last": np.bool_(is_last),
