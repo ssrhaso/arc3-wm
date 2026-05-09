@@ -1,0 +1,19 @@
+# Per-game named blocks for arc3_<game> tasks.
+# Layered on top of dreamerv3 defaults via:
+#   python scripts/launch_pergame.py --configs size12m arc3 --task arc3_vc33
+#
+# The defaults for env.arc3.{max_steps,use_seed} live in scripts/launch_pergame.py
+# (DEFAULT_ARC3_ENV). They are injected into dreamerv3's 'defaults' block so
+# elements.Config.update accepts overrides like --env.arc3.max_steps=500.
+
+arc3:
+  task: arc3_vc33
+  # No replay pre-population (Phase 4 concern); buffer fills from online steps.
+  # No actor masking (D11); the env exposes log/action_mask but the agent
+  # does not consume it.
+
+# Note: no Crafter "sanity" block. Use the dreamerv3-shipped 'crafter' block
+# (train_ratio=512, envs=1, task=crafter_reward) and override --run.steps on
+# the CLI for short runs. An earlier crafter_sanity block here overrode
+# train_ratio=32, which silently breaks the Hafner-tuned Crafter regime —
+# removed to avoid that footgun.
