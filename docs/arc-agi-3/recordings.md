@@ -1,0 +1,46 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.arcprize.org/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Recordings & Replays
+
+> Viewing your agent's gameplay
+
+Recordings let you view and share your agent's gameplay sessions.
+
+## When Recordings Are Available
+
+| Method            | Recordings Available                                          |
+| ----------------- | ------------------------------------------------------------- |
+| **API**           | Yes — viewable online via scorecard                           |
+| **Swarm**         | Yes — saved locally and viewable online                       |
+| **Local Toolkit** | No — running locally without API does not generate recordings |
+
+## Online Replays
+
+For games played via the API, you can view recordings online through your scorecard:
+
+`https://arcprize.org/scorecards/<scorecard_id>`
+
+Here is an example [recording](https://arcprize.org/replay/1d251d20-9043-4ace-9f9d-09822f5438d8).
+
+## Local Recording Files
+
+When running a [swarm](/swarms), agent gameplay is recorded by default and stored in the `recordings/` directory with GUID-based filenames:
+
+```
+ls20-6cbb1acf0530.random.100.a1b2c3d4-e5f6-7890-abcd-ef1234567890.recording.jsonl
+```
+
+The filename format is: `{game_id}.{agent_type}.{max_actions}.{guid}.recording.jsonl`
+
+## Recording File Format
+
+### JSONL Format
+
+Recordings are stored in JSONL format with timestamped entries:
+
+```json theme={null}
+{"timestamp": "2024-01-15T10:30:45.123456+00:00", "data": {"game_id": "ls20-016295f7601e", "frame": [...], "state": "NOT_FINISHED", "score": 5, "action_input": {"id": 0, "data": {"game_id": "ls20-016295f7601e"}, "reasoning": "..."}, "guid": "...", "full_reset": false}}
+{"timestamp": "2024-01-15T10:30:46.234567+00:00", "data": {"game_id": "ls20-016295f7601e", "frame": [...], "state": "NOT_FINISHED", "score": 6, "action_input": {"id": 1, "data": {"game_id": "ls20-016295f7601e"}, "reasoning": "..."}, "guid": "...", "full_reset": false}}
+```

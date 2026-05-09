@@ -1,0 +1,26 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.arcprize.org/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Available Games
+
+> List of ARC-AGI-3 games and how to discover them
+
+ARC-AGI-3 consists of a series of public games that are playable by both humans and AI agents.
+
+## Discovering Games
+
+To see a list of available games:
+
+* Browse games at [arcprize.org/tasks](https://arcprize.org/tasks)
+* Use the ARC-AGI Toolkit to [list games programmatically](/toolkit/list-games)
+
+By default, three games are available to anonymous users after launch. An API key is <u>required</u> to access the remaining public games.
+
+[Get a free API key](/api-keys) to unlock them.
+
+## Example Games
+
+* [ls20](https://arcprize.org/tasks/ls20) - Agent reasoning
+* [ft09](https://arcprize.org/tasks/ft09) - Elementary Logic
+* [vc33](https://arcprize.org/tasks/vc33) - Orchestration

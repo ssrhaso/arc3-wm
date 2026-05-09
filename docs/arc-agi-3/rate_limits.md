@@ -1,0 +1,27 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.arcprize.org/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Rate Limits
+
+> Limiting RPM for your agents
+
+The ARC-AGI API is currently free to use during its research preview and is supported on a best-effort basis. We do not currently offer a formal SLA, uptime guarantee, or guaranteed response times. To prevent abuse and ensure fair access, we implement rate limits with an exponential backoff mechanism.
+
+These limits help maintain system stability by throttling excessive requests. If you encounter rate limiting, your requests will receive a backoff response, requiring you to wait increasingly longer periods before retrying.
+
+Rate limits are set at 600 requests per minute (RPM).
+
+## Requesting Limit Increases
+
+We are open to discussing increases in rate limits, particularly for researchers and teams requiring higher throughput.
+
+If you need elevated limits, please email us at [team@arcprize.org](mailto:team@arcprize.org) with the subject line "Increase Rate Limits" to initiate a conversation.
+
+## Navigating Rate Limits
+
+If you've managed to hit a rate limit, you'll see a standard `429` response.
+
+```json theme={null}
+{"error":"RATE_LIMIT_EXCEEDED","message":"rate limit has been exceeded"}
+```
