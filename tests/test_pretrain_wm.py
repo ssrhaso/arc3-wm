@@ -30,6 +30,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
+import types
 from pathlib import Path
 from typing import Any, List, Optional
 from unittest import mock
@@ -41,6 +42,33 @@ import pytest
 # Importing the not-yet-written module is the red signal. Once the impl
 # lands, this import succeeds and the suite below runs.
 import scripts.pretrain_wm as P  # noqa: E402
+
+
+# Stub embodied.streams in sys.modules for every test that exercises
+# pretrain_wm_loop. Post-D14 the loop imports embodied at runtime to wire
+# Consec; the real package pulls `portal` via embodied.core.clock, which
+# isn't installed on laptops. The test contract is "agent.train gets called
+# with mock batches" — what the stream produces is irrelevant — so a
+# pass-through shim suffices. Autouse so it survives sibling tests
+# (e.g. test_launcher_imports) that pop embodied from sys.modules.
+class _StatelessShim:
+    def __init__(self, fn): self._fn = fn
+    def __iter__(self): return self
+    def __next__(self): return self._fn()
+
+def _consec_shim(source, **_kwargs):
+    return source
+
+@pytest.fixture(autouse=True)
+def _stub_embodied_streams(monkeypatch):
+    fake_streams = types.SimpleNamespace(
+        Stateless=_StatelessShim, Consec=_consec_shim,
+    )
+    fake_embodied = types.ModuleType("embodied")
+    fake_embodied.streams = fake_streams
+    monkeypatch.setitem(sys.modules, "embodied", fake_embodied)
+    monkeypatch.setitem(sys.modules, "embodied.streams", fake_streams)
+    yield
 
 
 # ---------------------------------------------------------------------------

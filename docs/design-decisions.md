@@ -242,6 +242,75 @@ when the named block first tried to define `env.arc3`.
   `pytest tests/test_launcher_arg_parsing.py` after touching any config
   layout.
 
+## D14 — `replay_context: 0` for offline WM-only pretraining
+
+**Decision:** The `pretrain` block in `configs/arc3.yaml` sets
+`replay_context: 0`. Phase 4–5 per-game online runs keep the DreamerV3
+default of `1`.
+
+**Why:** With `replay_context > 0`, `Agent.ext_space` declares
+`enc/*, dyn/*, dec/*` carry-entry keys
+([dreamerv3/agent.py:90-99](../third_party/dreamerv3/dreamerv3/agent.py#L90-L99))
+that the agent's `assert sorted(data.keys()) == sorted(self.spaces.keys())`
+check at [embodied/jax/agent.py:266](../third_party/dreamerv3/embodied/jax/agent.py#L266)
+expects in every training batch. Those keys are written into the replay
+buffer only by the actor's `policy()` call
+([dreamerv3/agent.py:132-134](../third_party/dreamerv3/dreamerv3/agent.py#L132-L134)).
+Offline pretrain on human replays has no actor, so the keys never get
+written — every `agent.train` call would fail the assertion.
+
+The DreamerV3 default of `1` implicitly assumes "an actor exists and is
+writing carry entries into the buffer." That precondition isn't met in
+offline WM-only pretraining, so `replay_context: 0` is the only coherent
+value. This is not a deviation from the DreamerV3 recipe — it's the
+correct setting for the regime DreamerV3's defaults don't cover.
+
+`replay_context` is also strictly a compute optimization: it warm-starts
+the RSSM carry from prior-batch entries to skip re-encoding a `prefix`-
+length window from `is_first` on every sample. In online RL where
+trajectories are sampled thousands of times, that saves real compute. In
+offline pretrain where every chunk starts cold by design, there's
+nothing to amortize. Fabricating zero entries to fake the keys would
+pass the assertion but corrupt `_apply_replay_context`'s `truncate`
+calls — the "tests pass, training silently broken" failure mode CLAUDE.md
+flags as worst-case.
+
+**Implementation:**
+- `configs/arc3.yaml` `pretrain` block sets `replay_context: 0` with an
+  inline comment pointing here.
+- `scripts/pretrain_wm.py::pretrain_wm_loop` wraps `replay.sample` with
+  `embodied.streams.Consec(prefix=args.replay_context, ...)`. With
+  `replay_context: 0`, `Consec` is a clean no-op on the prefix axis
+  (line 132 `stop = start + length + 0`); it still injects the required
+  `consec` key.
+- `make_replay` sizes buffer chunks via `consec*batch_length +
+  replay_context`, so `replay_context: 0` yields 64-step chunks for
+  size12m, consumed cleanly by `Consec(length=64, consec=1, prefix=0)`
+  in strict mode.
+
+**Second-order effects (monitor, not blockers):**
+
+1. With `replay_context: 0`, every chunk starts with `is_first=True` and
+   posterior-from-prior=zeros. Within-chunk dynamics still get full TBPTT
+   via `Consec`'s `length`. **Cross-chunk** dynamics (carry threading
+   between adjacent samples of the same trajectory) is untrained. For
+   offline WM pretrain this is the right semantics — each chunk is a
+   self-contained encode→predict episode — but it means the pretrained
+   checkpoint's dynamics head is conditioned on cold-start initialisation.
+2. When Phase 4 online runs resume from the pretrained checkpoint with
+   `replay_context: 1`, the WM needs to adapt to also handle warm-start
+   carry. Same dynamics function; only the prior at chunk boundaries
+   shifts. Should converge fast — but **monitor `loss/dyn` for a
+   transient bump in the first ~50k online steps**. If it spikes hard,
+   the fix is a short `replay_context: 0` warm-up window before flipping
+   to 1. Not paper-claim-affecting; just a thing to watch.
+3. Paper note: anchor this in the method section as "offline pretrain on
+   actor-less data does not satisfy the precondition for `replay_context`
+   warm-starting." Accurate, defensible, no apology needed.
+
+**Status:** landed at the Phase-3 smoke gate (Vast smoke surfaced the
+agent.train assertion failure that this resolves).
+
 ## Phase-1 rescoping (supersedes the table-row in CLAUDE.md)
 
 CLAUDE.md §"Phases" row 1 says Phase 1 = "Wrapper + replay loader" with

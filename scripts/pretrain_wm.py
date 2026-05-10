@@ -316,6 +316,8 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
     step counter by 1. Termination: ``step >= args.steps``.
     """
     import elements
+    import embodied
+    from functools import partial
 
     logdir = Path(args.logdir)
     logdir.mkdir(parents=True, exist_ok=True)
@@ -337,14 +339,25 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
     if not _load_checkpoint_if_exists(ckpt_dir, agent):
         _save_checkpoint(ckpt_dir, agent)
 
-    # Stream — yield batches from replay.sample. agent.stream() wraps
-    # with internal preprocessing (Prefetch on Vast; pass-through on the
-    # mock-backed laptop tests).
-    def _replay_generator():
-        while True:
-            yield replay.sample(args.batch_size, "train")
-
-    stream = iter(agent.stream(_replay_generator()))
+    # Stream — mirror dreamerv3.main.make_stream exactly. Consec injects
+    # the `consec` extra into every batch and slices buffer chunks of
+    # size (consec*length + replay_context) into `consec` sub-chunks.
+    # agent.stream() then wraps with internal preprocessing (Prefetch on
+    # Vast; pass-through on the mock-backed laptop tests) and stamps the
+    # `seed` key. Bypassing this layer (bare replay.sample) is what the
+    # smoke caught at agent.train's data-keys assertion.
+    base_stream = embodied.streams.Stateless(
+        partial(replay.sample, args.batch_size, "train")
+    )
+    consec_stream = embodied.streams.Consec(
+        base_stream,
+        length=args.batch_length,
+        consec=args.consec_train,
+        prefix=args.replay_context,
+        strict=True,
+        contiguous=True,
+    )
+    stream = iter(agent.stream(consec_stream))
 
     train_updates_per_iter = max(1, int(args.train_ratio))
     step = 0

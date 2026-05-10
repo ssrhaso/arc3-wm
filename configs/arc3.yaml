@@ -20,6 +20,11 @@ arc3:
 pretrain:
   script: pretrain_wm
   task: arc3_pretrain  # logical-only — no env is constructed during pretrain
+  # Offline WM-only pretraining has no actor, so the enc/dyn/dec entry keys
+  # that replay_context > 0 expects in every batch are never written into
+  # the buffer. Set to 0 so ext_space drops those keys and chunks start
+  # cold via is_first. See docs/design-decisions.md §D14.
+  replay_context: 0
   run:
     # Wall-clock-bounded; targets ~5h on H100 at size12m's ~12k FPS
     # ≈ ~220M training steps. The buffer is ~180k transitions so this
