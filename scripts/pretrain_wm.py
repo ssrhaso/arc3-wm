@@ -1,55 +1,24 @@
-"""Stub for scripts/pretrain_wm.py — Phase 3 cross-game WM pretraining.
+"""scripts/pretrain_wm.py — Phase 3 cross-game WM pretraining.
 
-Tests are written first (test-first discipline per CLAUDE.md). The full
-implementation lands after Haso reviews the red test run; this stub
-exists so ``tests/test_pretrain_wm.py`` collects cleanly and fails with
-``NotImplementedError`` against each public symbol rather than a single
-``ModuleNotFoundError`` collection error.
+Sibling of ``scripts/launch_pergame.py``. The launcher trains
+end-to-end on a single arc3_<game> task; this script pretrains the
+World Model only, on a buffer pre-populated with all 340 human
+replays. The actor and critic stay at their initial weights — they're
+trained per-game in Phase 4 starting from this WM checkpoint.
 
-Public surface (matches ``tests/test_pretrain_wm.py`` and the design
-brief in the chat that opened this file):
+Phase-3 contract (see ``docs/phase-checklists.md``):
 
-- ``build_argparser`` / ``parse_args`` — same shape as
-  ``scripts/launch_pergame.py`` but with ``--replays-root`` instead of
-  ``--task``. Default ``--configs`` ladder is ``size12m arc3 pretrain``.
-- ``load_merged_configs`` — re-merges ``dreamerv3/configs.yaml`` +
-  ``configs/arc3.yaml``; the latter must define a ``pretrain`` block
-  (Phase 3 deliverable, not yet on disk).
-- ``build_config(args, leftover)`` — ``elements.Config`` builder. Sets
-  ``script="pretrain_wm"`` so a stray ``embodied.run.train`` invocation
-  trips on an unknown script (defensive belt-and-braces; the actual
-  Phase-3 gate is in the run loop).
-- ``populate_buffer_from_replays(replay, root, *, stats=None)`` —
-  iterates ``arc3_wm.replay_loader.load_replays_directory`` and calls
-  ``replay.add(step)`` for every step dict. Returns the total transition
-  count. ``stats["per_game_counts"]`` exposes the per-game distribution
-  for the Phase-3 even-distribution gate; ``stats["noise_rows_discarded"]``
-  is threaded through from the loader.
-- ``make_wm_only_agent(config)`` — constructs an
-  ``arc3_wm.wm_only_agent.WMOnlyAgent`` (subclass of
-  ``dreamerv3.agent.Agent``) that exposes a ``wm_train`` entry point
-  branching BEFORE ``self.imagine(...)`` so imagination rollouts +
-  actor/critic loss computation are skipped entirely (saves ~2h on the
-  6h budget). The regular ``train`` method is inherited unchanged but
-  never called by the pretrain loop. Phase-3 gate row 2: verified by
-  spying that ``self.opt.step`` count is 0 and ``self.wm_opt.step``
-  count is > 0 across the loop.
-- ``pretrain_wm_loop(agent, replay, logger, args)`` — sibling of
-  ``embodied.run.train``. Custom run loop that calls ``agent.wm_train``
-  on samples from ``replay``, never invokes a Driver, never calls
-  ``agent.policy``, writes checkpoints under ``logdir/ckpt`` and
-  ``cp.load_or_save()`` on entry so resume from preemption works.
-- ``RHAEHeldOutHook(holdout, every_n_steps)`` — callable that returns
-  a metrics dict every ``every_n_steps`` steps and ``None`` otherwise.
-  Uses the agent's reward / continue heads to predict per-step
-  level-up probability on a held-out replay subset; emits keys under
-  the ``rhae/`` prefix.
-- ``main(argv)`` — CLI entry. Imports the heavy DV3 / JAX stack lazily
-  inside helpers so the module is importable on a laptop.
+- All 340 replays load into ``embodied.replay`` (laptop tests use a
+  tiny synthetic buffer; Vast runs the full set).
+- WM-only updates verified by code inspection — ``WMOnlyAgent.wm_train``
+  uses a separate optimizer over [enc, dyn, dec, rew, con] only.
+- All four WM losses (recon, dyn, rew, con) trend down over an epoch.
+- Checkpoint cadence ≥30 min; resume from preemption verified.
+- RHAE held-out hook spikes near actual level-up boundaries.
 
-See ``docs/phase-checklists.md`` §"Phase 3" for the gate matrix and
-``docs/design-decisions.md`` D11/D12 for why we own the launcher
-instead of forking dreamerv3.
+Public surface — see ``tests/test_pretrain_wm.py`` for the binding
+contract on each entry point. Heavy DV3 / JAX deps stay lazy (laptop
+importability matches ``scripts/launch_pergame.py``).
 """
 from __future__ import annotations
 
@@ -65,6 +34,13 @@ _DV3 = _REPO_ROOT / "third_party" / "dreamerv3"
 if _DV3.is_dir() and str(_DV3) not in sys.path:
     sys.path.insert(0, str(_DV3))
 
+ARC3_CONFIG_PATH = _REPO_ROOT / "configs" / "arc3.yaml"
+DREAMERV3_CONFIG_PATH = _DV3 / "dreamerv3" / "configs.yaml"
+
+DEFAULT_CONFIGS_LADDER = ("size12m", "arc3", "pretrain")
+"""Layered on top of dreamerv3's ``defaults`` block. Order matters —
+``pretrain`` is rightmost so its overrides win."""
+
 
 _STUB_MSG = (
     "scripts.pretrain_wm: stub awaiting impl — see "
@@ -72,20 +48,117 @@ _STUB_MSG = (
 )
 
 
+# ----------------------------------------------------------------------
+# Argument parsing
+# ----------------------------------------------------------------------
+
+
 def build_argparser() -> argparse.ArgumentParser:
-    raise NotImplementedError(_STUB_MSG)
+    """Top-level CLI flags. Anything else is forwarded to elements.Flags
+    via parse_known_args, same as scripts/launch_pergame.py."""
+    p = argparse.ArgumentParser(
+        prog="pretrain_wm.py",
+        description="DreamerV3 cross-game World-Model pretraining on ARC-AGI-3 replays.",
+    )
+    p.add_argument(
+        "--logdir",
+        required=True,
+        help="Run directory. Re-using an existing logdir resumes from the last checkpoint.",
+    )
+    p.add_argument(
+        "--replays-root",
+        required=True,
+        help="Root directory containing per-game replay JSONLs "
+             "(e.g. data/replays/). Walked recursively for *.recording.jsonl.",
+    )
+    p.add_argument(
+        "--configs",
+        nargs="+",
+        default=list(DEFAULT_CONFIGS_LADDER),
+        help=f"Config blocks to layer on top of defaults "
+             f"(default: {' '.join(DEFAULT_CONFIGS_LADDER)}).",
+    )
+    p.add_argument("--seed", type=int, default=0)
+    return p
 
 
-def parse_args(argv: Optional[Sequence[str]] = None):
-    raise NotImplementedError(_STUB_MSG)
+def parse_args(argv: Optional[Sequence[str]] = None) -> tuple[argparse.Namespace, list[str]]:
+    """Return (named_args, leftover_args). Leftovers go to elements.Flags."""
+    parser = build_argparser()
+    return parser.parse_known_args(argv)
+
+
+# ----------------------------------------------------------------------
+# Config resolution — mirrors scripts/launch_pergame.py
+# ----------------------------------------------------------------------
 
 
 def load_merged_configs() -> dict:
-    raise NotImplementedError(_STUB_MSG)
+    """Read dreamerv3/configs.yaml + configs/arc3.yaml and return a single dict.
+
+    The arc3.yaml file defines the ``arc3`` and ``pretrain`` blocks;
+    block-name collisions with dreamerv3 raise. This function does NOT
+    inject env-suite defaults — pretrain has no env, so the launcher's
+    ``env.arc3`` injection is unnecessary here.
+    """
+    import ruamel.yaml as yaml
+
+    parser = yaml.YAML(typ="safe")
+    base = parser.load(DREAMERV3_CONFIG_PATH.read_text(encoding="utf-8"))
+    arc3 = parser.load(ARC3_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+
+    if "defaults" not in base:
+        raise RuntimeError(
+            f"{DREAMERV3_CONFIG_PATH} missing 'defaults' block — dreamerv3 changed?"
+        )
+
+    merged = dict(base)
+    for name, block in arc3.items():
+        if name in merged:
+            raise RuntimeError(
+                f"config block name collision: arc3.yaml redefines {name!r} from dreamerv3"
+            )
+        merged[name] = block
+    return merged
 
 
-def build_config(args, leftover):
-    raise NotImplementedError(_STUB_MSG)
+def build_config(args: argparse.Namespace, leftover: Sequence[str]):
+    """Build an elements.Config from argparse + leftover key=value flags.
+
+    Phase-3 belt-and-braces: the merged config is expected to set
+    ``script=pretrain_wm`` (via the ``pretrain`` block in arc3.yaml).
+    A stray ``embodied.run.train`` invocation against this config
+    would trip on the unknown script name.
+    """
+    import elements
+
+    merged = load_merged_configs()
+    config = elements.Config(merged["defaults"])
+    for name in args.configs:
+        if name == "defaults":
+            continue
+        if name not in merged:
+            raise ValueError(
+                f"unknown config block {name!r} (available: {sorted(merged)})"
+            )
+        config = config.update(merged[name])
+
+    config = config.update(
+        logdir=args.logdir,
+        seed=args.seed,
+    )
+
+    if leftover:
+        config = elements.Flags(config).parse(list(leftover))
+
+    if "{timestamp}" in config.logdir:
+        config = config.update(logdir=config.logdir.format(timestamp=elements.timestamp()))
+    return config
+
+
+# ----------------------------------------------------------------------
+# Below: stubs for the remaining steps. Land in subsequent commits.
+# ----------------------------------------------------------------------
 
 
 def populate_buffer_from_replays(
