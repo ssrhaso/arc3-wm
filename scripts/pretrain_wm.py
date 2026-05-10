@@ -167,7 +167,43 @@ def populate_buffer_from_replays(
     *,
     stats: Optional[dict[str, Any]] = None,
 ) -> int:
-    raise NotImplementedError(_STUB_MSG)
+    """Pre-populate ``replay`` from every JSONL under ``root``.
+
+    Walks ``root`` via ``arc3_wm.replay_loader.load_replays_directory``
+    and calls ``replay.add(step)`` for every step dict in every episode.
+    Returns the total transition count.
+
+    ``stats`` is updated in place (if provided):
+
+    - ``per_game_counts``: ``dict[str, int]`` — transitions added per
+      ``game_id`` (parent folder name). Phase-3 gate row 1 expects
+      this distribution to be roughly even.
+    - ``noise_rows_discarded``: int — threaded through from the loader's
+      post-terminal-noise rule (Phase 1.7).
+
+    Each replay-loader episode is added to the buffer as a single
+    "worker" stream (DreamerV3's online buffer interprets episodes
+    via the is_first / is_last flags already in the step dict, so
+    worker numbering is purely for chunking; we use a monotonic
+    counter so chunks are well-isolated).
+    """
+    from arc3_wm.replay_loader import load_replays_directory
+
+    if stats is not None:
+        stats.setdefault("per_game_counts", {})
+        stats.setdefault("noise_rows_discarded", 0)
+
+    n_total = 0
+    worker = 0
+    for game_id, episode in load_replays_directory(Path(root), stats=stats):
+        for step in episode:
+            replay.add(step, worker=worker)
+        if stats is not None:
+            counts = stats["per_game_counts"]
+            counts[game_id] = counts.get(game_id, 0) + len(episode)
+        n_total += len(episode)
+        worker += 1
+    return n_total
 
 
 def make_wm_only_agent(config):
