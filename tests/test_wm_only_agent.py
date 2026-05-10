@@ -84,15 +84,20 @@ def test_wm_loss_source_skips_imagination():
     Runs on laptop (no JAX needed; just ``inspect.getsource``)."""
     import arc3_wm.wm_only_agent as W
     src = inspect.getsource(W.WMOnlyAgent.wm_loss)
+    # Strip the docstring before the forbidden-token scan — the
+    # docstring legitimately mentions tokens like `self.dyn.imagine`
+    # in backticks while explaining what's intentionally absent.
+    body_start = src.find('"""', src.find('"""') + 3) + 3
+    body = src[body_start:]
     forbidden = (
-        "self.imagine",
-        "self.dyn.imagine",
+        "self.imagine(",       # call expression, not a docstring mention
+        "self.dyn.imagine(",
         "imag_loss(",
         "repl_loss(",
     )
     for token in forbidden:
-        assert token not in src, (
-            f"wm_loss source contains forbidden token {token!r} — "
+        assert token not in body, (
+            f"wm_loss source contains forbidden CALL {token!r} — "
             f"imagination path should be skipped entirely, not just "
             f"have its loss terms dropped from the returned dict"
         )
