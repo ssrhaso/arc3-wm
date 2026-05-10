@@ -202,13 +202,70 @@ copy-pasteable launch sequence (Crafter then vc33 in one ~3h session).
 Resume after preemption: re-run with the **same** `--logdir`. embodied's
 training loop auto-loads the latest checkpoint.
 
-### Phase 3 (forthcoming) — cross-game WM pretrain
+### Phase 3 — cross-game WM pretrain
 
-Phase 3 will load all 342 replays into a DreamerV3 buffer and train the
-world model only (encoder + RSSM + decoders + reward + continue heads;
-actor and critic frozen). The entry point script and its replay-loader
-dependency do not yet exist. This section will be rewritten against real
-code when Phase 3 lands.
+Phase 3 loads all 340 staged replays into a DreamerV3 buffer and trains
+the world model only (enc + RSSM + dec + rew + con — the 5 modules in
+`WMOnlyAgent.wm_modules`). Actor + critic stay at their initial weights
+and are trained per-game in Phase 4.
+
+The entry-point script is `scripts/pretrain_wm.py` (full run) +
+`scripts/pretrain_wm_smoke.py` (gating smoke). WM-only enforcement
+lives in `arc3_wm/wm_only_agent.py::WMOnlyAgent` (subclass of
+`dreamerv3.agent.Agent` per D12; the override branches before
+`self.imagine(...)` so the actor/critic optimizer never fires).
+
+#### Phase-3 smoke (must pass before the full pretrain)
+
+The smoke runs a real `WMOnlyAgent` against a tiny ~50-transition
+synthetic buffer for ~1500 steps. Wall-clock ~minutes on H100; emits
+all four WM losses to JSONL so the curves can be eyeballed before
+the RHAE held-out hook (step 5b) wires in.
+
+```bash
+cd ~/arc3-wm   # the cloned repo, third_party/dreamerv3 already pulled
+
+# Sanity check the WM-only assertion suite first (Vast-only tests
+# that skip on the laptop). These exercise the subclass relation,
+# wm_modules == 5, wm_opt distinct from inherited opt, and the
+# loss-tree shape.
+python -m pytest tests/test_wm_only_agent.py -v
+
+# Run the smoke. ~minutes on H100; emits ~scope JSONL under logdir.
+python scripts/pretrain_wm_smoke.py \
+    --logdir ~/logdir/pretrain-smoke-{timestamp} \
+    --steps 1500
+```
+
+Eyeball the curves either via Scope viewer or by tailing the JSONL
+directly:
+
+```bash
+# Scope viewer — open in a browser tab.
+python -m scope.viewer --basedir ~/logdir &
+
+# Or tail-and-grep the metrics JSONL.
+tail -f ~/logdir/pretrain-smoke-*/scope/metrics.jsonl | \
+    grep -oE '"train/loss/(dyn|rew|con|image)":[^,]*'
+```
+
+**Pass criteria (informal, qualitative):**
+
+- All four WM losses emit non-NaN values from step ~10 onward.
+- `train/loss/image` trends down monotonically (or near-so).
+- `train/loss/{dyn,rew,con}` do not explode.
+- No assertion failures, no shape mismatches, no buffer-drain warnings.
+
+If the smoke is clean, sign off on step 5b (RHAEHeldOutHook impl) +
+the full Phase-3 pretrain. If anything looks wrong, flag it before
+proceeding — debug order: action mapping → reward scale → buffer
+schema (per CLAUDE.md risk #3 + Phase-3 anti-pattern guard).
+
+#### Full Phase-3 pretrain (after smoke sign-off + step 5b)
+
+The full pretrain runs on the real 340-replay buffer, ~5h on H100,
+with 30-min checkpoint cadence. Launch sequence (forthcoming once
+step 5b lands; placeholder for the runbook).
 
 ### Preemption-recovery checklist
 

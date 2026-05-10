@@ -207,7 +207,47 @@ def populate_buffer_from_replays(
 
 
 def make_wm_only_agent(config):
-    raise NotImplementedError(_STUB_MSG)
+    """Build a ``WMOnlyAgent`` from the merged config.
+
+    Phase 3 has no env; obs / act spaces are derived from the
+    ``arc3_wm.embodied_env`` contract that the replay loader writes
+    against. Mirrors the filtering pattern in ``dreamerv3.main.make_agent``
+    (exclude the ``reset`` action key — pretrain has no driver).
+    """
+    import elements
+    import numpy as np
+
+    from arc3_wm.action_space import N_ACTIONS
+    from arc3_wm.embodied_env import OBS_HW
+    from arc3_wm.wm_only_agent import WMOnlyAgent
+
+    obs_space = {
+        "image": elements.Space(np.uint8, (OBS_HW, OBS_HW, 3), 0, 255),
+        "reward": elements.Space(np.float32),
+        "is_first": elements.Space(bool),
+        "is_last": elements.Space(bool),
+        "is_terminal": elements.Space(bool),
+    }
+    act_space = {
+        "action": elements.Space(np.int32, (), 0, N_ACTIONS),
+    }
+
+    return WMOnlyAgent(
+        obs_space,
+        act_space,
+        elements.Config(
+            **config.agent,
+            logdir=config.logdir,
+            seed=config.seed,
+            jax=config.jax,
+            batch_size=config.batch_size,
+            batch_length=config.batch_length,
+            replay_context=config.replay_context,
+            report_length=config.report_length,
+            replica=config.replica,
+            replicas=config.replicas,
+        ),
+    )
 
 
 def _save_checkpoint(ckpt_dir: Path, agent: Any) -> None:
