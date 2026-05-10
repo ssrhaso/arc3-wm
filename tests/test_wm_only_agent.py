@@ -1,33 +1,40 @@
 """Tests for ``arc3_wm.wm_only_agent.WMOnlyAgent`` — Phase 3 WM-only train path.
 
-Red skeleton. Surface + source-inspection tests run on the laptop; the
-runtime-construction tests skip cleanly via ``pytest.importorskip`` and
-run on Vast where the full DreamerV3 stack is installed.
+Surface + source-inspection tests run on the laptop; the runtime-
+construction tests skip cleanly via ``pytest.importorskip`` and run on
+Vast where the full DreamerV3 stack is installed.
 
-Contract (sharpenings from chat):
+Contract (option-(A): override ``loss`` and ``train`` rather than add a
+parallel ``wm_train`` path; needed because ``embodied.jax.Agent.__new__``
+hardcodes ``super().__new__(Agent)`` and JIT-wires ``self.model.train`` —
+not ``self.model.wm_train`` — at construction time):
 
 1. Subclass relation: ``WMOnlyAgent`` inherits from
-   ``dreamerv3.agent.Agent``. Override is a trivial diff against
-   upstream ``agent.py:137-216``. ``third_party/dreamerv3/`` is not
+   ``dreamerv3.agent.Agent``. ``third_party/dreamerv3/`` is not
    modified.
-2. ``wm_loss`` branches BEFORE ``self.imagine(...)`` — imagination is
-   skipped entirely, not just dropped from the returned loss tree.
-3. The 4 LOSS TERMS exposed by ``wm_loss`` are
-   ``{recon-key(s), dyn, rew, con}`` (note: each image obs key gets its
-   own recon term; the contract is "no actor/critic loss", not
-   "exactly four float entries"). The 5 MODULES that receive gradients
-   are ``{enc, dyn, dec, rew, con}``. Module count and loss-term count
-   are deliberately distinct.
-4. ``wm_opt`` is a NEW ``embodied.jax.Optimizer`` over ``wm_modules``
-   (5 modules) only. The inherited ``self.opt`` (7 modules) is
-   untouched but never called from this code path.
+2. ``WMOnlyAgent.loss`` overrides upstream ``Agent.loss`` and BRANCHES
+   BEFORE ``self.imagine(...)`` — imagination is skipped entirely, not
+   just dropped from the returned loss tree.
+3. The 4 LOSS TERMS exposed by the override are
+   ``{recon-key(s), dyn, rew, con}`` (each image obs key gets its own
+   recon term; the contract is "no actor/critic loss", not "exactly
+   four float entries"). The 5 MODULES that receive gradients are
+   ``{enc, dyn, dec, rew, con}``. Module count and loss-term count are
+   deliberately distinct.
+4. ``self.opt`` is rebuilt in ``WMOnlyAgent.__init__`` over WM modules
+   only — pol/val params still exist on the model but are not in the
+   optimizer's trainable set. There is NO ``wm_opt``; the WM-only
+   contract lives on the override of the inherited ``opt``.
+5. ``WMOnlyAgent.train`` overrides upstream ``Agent.train`` minimally:
+   identical body except ``self.slowval.update()`` is removed (slow-
+   critic bookkeeping is irrelevant on the WM-only path).
 
 Note on lazy subclass: WMOnlyAgent inherits from
 ``dreamerv3.agent.Agent``, which imports JAX at module load. The impl
-is expected to use a lazy-factory pattern (subclass declared inside a
-function that the package re-exports) so importing
-``arc3_wm.wm_only_agent`` on a laptop doesn't pull JAX. The
-laptop-runnable tests below assume this discipline.
+uses a lazy-factory pattern (subclass declared inside a function that
+the package re-exports) so importing ``arc3_wm.wm_only_agent`` on a
+laptop doesn't pull JAX. The laptop-runnable tests below assume this
+discipline.
 """
 from __future__ import annotations
 
@@ -65,17 +72,35 @@ def test_module_imports_without_jax():
 
 
 def test_public_surface_present():
-    """Public symbols pinned by the chat contract."""
+    """Public symbols pinned by the option-(A) contract.
+
+    ``loss`` and ``train`` are overridden on WMOnlyAgent — the inherited
+    methods are dreamerv3.agent.Agent's full DreamerV3 paths. The
+    overrides must be defined directly on WMOnlyAgent (not just inherited),
+    so we check ``vars(cls)`` rather than ``hasattr`` — the latter is
+    satisfied by inheritance and would silently regress.
+
+    No ``wm_loss`` / ``wm_train`` method exists. The previous design's
+    parallel-method approach is incompatible with embodied.jax.Agent's
+    __new__ pattern (see arc3_wm/wm_only_agent.py docstring)."""
     import arc3_wm.wm_only_agent as W
     assert hasattr(W, "WMOnlyAgent"), "missing WMOnlyAgent class"
     cls = W.WMOnlyAgent
-    for name in ("wm_loss", "wm_train"):
-        assert callable(getattr(cls, name, None)), (
-            f"WMOnlyAgent missing method {name!r}"
+    for name in ("loss", "train"):
+        assert name in vars(cls), (
+            f"WMOnlyAgent must override {name!r} directly (not just inherit) — "
+            f"the embodied.jax.Agent JIT pipeline binds self.model.{name} "
+            f"at construction time, so a missing override means the upstream "
+            f"full-DreamerV3 path runs instead of the WM-only path"
+        )
+    for absent in ("wm_loss", "wm_train"):
+        assert absent not in vars(cls), (
+            f"WMOnlyAgent must NOT define {absent!r} — option-(A) contract "
+            f"says override the inherited method, do not add a parallel one"
         )
 
 
-def test_wm_loss_source_skips_imagination():
+def test_loss_source_skips_imagination():
     """The override BRANCHES before ``self.imagine(...)``. Test checks
     the method source contains no call to imagination / replay-value
     paths from upstream ``loss()`` — burn-in to catch a future
@@ -83,7 +108,7 @@ def test_wm_loss_source_skips_imagination():
 
     Runs on laptop (no JAX needed; just ``inspect.getsource``)."""
     import arc3_wm.wm_only_agent as W
-    src = inspect.getsource(W.WMOnlyAgent.wm_loss)
+    src = inspect.getsource(W.WMOnlyAgent.loss)
     # Strip the docstring before the forbidden-token scan — the
     # docstring legitimately mentions tokens like `self.dyn.imagine`
     # in backticks while explaining what's intentionally absent.
@@ -97,10 +122,26 @@ def test_wm_loss_source_skips_imagination():
     )
     for token in forbidden:
         assert token not in body, (
-            f"wm_loss source contains forbidden CALL {token!r} — "
+            f"loss source contains forbidden CALL {token!r} — "
             f"imagination path should be skipped entirely, not just "
             f"have its loss terms dropped from the returned dict"
         )
+
+
+def test_train_source_skips_slowval_update():
+    """The ``train`` override is upstream's body MINUS
+    ``self.slowval.update()``. That call is the last line of upstream's
+    train (agent.py:137-154) and is the slow-critic bookkeeping that has
+    no business firing on the WM-only path."""
+    import arc3_wm.wm_only_agent as W
+    src = inspect.getsource(W.WMOnlyAgent.train)
+    body_start = src.find('"""', src.find('"""') + 3) + 3
+    body = src[body_start:]
+    assert "self.slowval.update(" not in body, (
+        "train override must skip self.slowval.update() — that's the "
+        "single material difference between upstream's full train and "
+        "the WM-only override"
+    )
 
 
 def test_third_party_dreamerv3_untouched():
@@ -151,25 +192,149 @@ def test_wm_only_agent_subclass_of_dreamerv3_agent():
     )
 
 
-def test_wm_modules_are_five_named_modules():
-    """``wm_modules`` is exactly [enc, dyn, dec, rew, con]. Order is the
-    upstream order from ``Agent.modules`` minus pol+val (lines 74-75 of
-    upstream agent.py)."""
+def _build_minimal_wm_only_agent():
+    """Construct a ``WMOnlyAgent`` against a tiny obs/act space using the
+    ``size12m`` config block. Vast-only (requires JAX); CPU is fine.
+
+    Mirrors ``scripts.pretrain_wm.make_wm_only_agent`` minus the
+    full-config ladder — the size12m block alone is sufficient for the
+    structural assertions below, and avoids loading the full arc3.yaml
+    pretrain block (which the script's main path needs but the tests
+    don't).
+    """
+    import elements
+    import numpy as np
+    import scripts.pretrain_wm as P
+    from arc3_wm.action_space import N_ACTIONS
+    from arc3_wm.embodied_env import OBS_HW
+    from arc3_wm.wm_only_agent import WMOnlyAgent
+
+    merged = P.load_merged_configs()
+    config = elements.Config(merged["defaults"])
+    config = config.update(merged["size12m"])
+    config = config.update(merged["arc3"])
+    config = config.update(merged["pretrain"])
+    config = config.update(logdir="/tmp/wm-only-agent-test", seed=0)
+
+    obs_space = {
+        "image": elements.Space(np.uint8, (OBS_HW, OBS_HW, 3), 0, 255),
+        "reward": elements.Space(np.float32),
+        "is_first": elements.Space(bool),
+        "is_last": elements.Space(bool),
+        "is_terminal": elements.Space(bool),
+    }
+    act_space = {
+        "action": elements.Space(np.int32, (), 0, N_ACTIONS),
+    }
+
+    return WMOnlyAgent(
+        obs_space, act_space,
+        elements.Config(
+            **config.agent,
+            logdir=config.logdir,
+            seed=config.seed,
+            jax=config.jax,
+            batch_size=config.batch_size,
+            batch_length=config.batch_length,
+            replay_context=config.replay_context,
+            report_length=config.report_length,
+            replica=config.replica,
+            replicas=config.replicas,
+        ),
+    )
+
+
+def test_modules_are_five_wm_modules_only():
+    """``self.modules`` (the optimizer's trainable set) is exactly
+    [dyn, enc, dec, rew, con] — upstream's order from ``Agent.modules``
+    (agent.py:74-75) minus pol+val. Pol and val instances still exist on
+    the agent (``agent.model.pol``, ``agent.model.val``) but are absent
+    from ``self.modules`` so the optimizer can't apply grads to them."""
     _require_jax_dv3()
-    pytest.skip("requires a built WMOnlyAgent instance; covered by Phase-3 dry run")
+    agent = _build_minimal_wm_only_agent()
+    names = [getattr(m, "name", type(m).__name__) for m in agent.model.modules]
+    assert names == ["dyn", "enc", "dec", "rew", "con"], (
+        f"WMOnlyAgent.modules expected order [dyn, enc, dec, rew, con]; "
+        f"got {names}"
+    )
+    # Pol/val instances must still exist on the model — we don't delete
+    # them, we just exclude them from the optimizer.
+    assert hasattr(agent.model, "pol"), "agent.model.pol disappeared"
+    assert hasattr(agent.model, "val"), "agent.model.val disappeared"
 
 
-def test_wm_opt_distinct_from_inherited_opt():
-    """``self.wm_opt`` is a separate optimizer instance from inherited
-    ``self.opt``. Spy-on-step tests in test_pretrain_wm.py rely on
-    these being independent objects."""
+def test_opt_covers_wm_modules_only():
+    """The single ``self.opt`` (rebuilt in WMOnlyAgent.__init__) is over
+    the 5 WM modules only. There is no second optimizer; the WM-only
+    contract lives on the rebuilt inherited ``opt``."""
     _require_jax_dv3()
-    pytest.skip("requires a built WMOnlyAgent instance; covered by Phase-3 dry run")
+    agent = _build_minimal_wm_only_agent()
+    # The optimizer's modules attribute is what gets gradients applied.
+    opt_modules = getattr(agent.model.opt, "modules", None)
+    assert opt_modules is not None, (
+        "agent.model.opt.modules attribute missing — embodied.jax.Optimizer "
+        "API surface changed?"
+    )
+    names = [getattr(m, "name", type(m).__name__) for m in opt_modules]
+    assert set(names) == {"dyn", "enc", "dec", "rew", "con"}, (
+        f"opt covers {set(names)}; expected exactly the 5 WM modules"
+    )
+    assert "pol" not in names and "val" not in names, (
+        f"actor/critic leaked into the optimizer's trainable set: {names}"
+    )
+    # And there's no parallel wm_opt — option-(A) contract.
+    assert not hasattr(agent.model, "wm_opt"), (
+        "WMOnlyAgent must NOT define a separate wm_opt — option-(A) "
+        "rebuilds the inherited self.opt over WM modules instead"
+    )
 
 
-def test_wm_loss_emits_no_actor_or_critic_keys():
-    """Loss-tree shape (Vast-only): the dict returned by ``wm_loss``
-    must not contain any of the imagination / actor / critic / replay-
-    value loss keys that upstream ``loss()`` produces."""
+def test_loss_emits_no_actor_or_critic_keys():
+    """Loss-tree shape: the dict returned by the ``loss`` override must
+    not contain any of the imagination / actor / critic / replay-value
+    loss keys that upstream ``loss()`` produces.
+
+    The override returns ``(loss_value, (carry, entries, outs, metrics))``
+    where ``outs['losses']`` is the per-term dict. We construct a minimal
+    batch and call ``loss`` directly — no JIT, no optimizer step, just
+    the loss surface."""
     _require_jax_dv3()
-    pytest.skip("requires a built WMOnlyAgent instance; covered by Phase-3 dry run")
+    import jax.numpy as jnp
+    import numpy as np
+    from arc3_wm.action_space import N_ACTIONS
+    from arc3_wm.embodied_env import OBS_HW
+
+    agent = _build_minimal_wm_only_agent()
+    model = agent.model
+
+    # Tiny synthetic batch — B=2, T=4 to keep dyn happy without burning time.
+    B, T = 2, 4
+    obs = {
+        "image": jnp.zeros((B, T, OBS_HW, OBS_HW, 3), dtype=jnp.uint8),
+        "reward": jnp.zeros((B, T), dtype=jnp.float32),
+        "is_first": jnp.zeros((B, T), dtype=bool).at[:, 0].set(True),
+        "is_last": jnp.zeros((B, T), dtype=bool).at[:, -1].set(True),
+        "is_terminal": jnp.zeros((B, T), dtype=bool).at[:, -1].set(True),
+    }
+    prevact = {"action": jnp.zeros((B, T), dtype=jnp.int32)}
+    carry = model.init_train(B)
+
+    _loss_value, (_carry, _entries, outs, _metrics) = model.loss(
+        carry, obs, prevact, training=False)
+
+    losses = outs.get("losses", {})
+    forbidden = {
+        "policy", "actor", "value", "critic", "repval",
+        "imag_value", "imag_actor", "imag_advantage",
+    }
+    bad = set(losses) & forbidden
+    assert not bad, (
+        f"loss override returned forbidden actor/critic/imag keys: {bad} "
+        f"(full set: {set(losses)})"
+    )
+    # Positive: each WM term family present.
+    families = {"dyn", "rew", "con", "image"}  # 'image' = per-key recon
+    assert families.issubset(set(losses)), (
+        f"loss override missing WM terms: {families - set(losses)} "
+        f"(have {set(losses)})"
+    )

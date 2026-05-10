@@ -61,9 +61,14 @@ if _DV3.is_dir() and str(_DV3) not in sys.path:
     sys.path.insert(0, str(_DV3))
 
 
-N_SYNTHETIC_TRANSITIONS = 50
-"""Tiny by design — enough to get JAX past compile, small enough that a
-1500-step smoke completes in minutes."""
+N_SYNTHETIC_TRANSITIONS = 2000
+"""Just past the warmup gate. The pretrain loop guards on
+``len(replay) >= batch_size * batch_length`` (1024 with size12m
+defaults), and embodied's Replay counts sample-able batch_length
+windows rather than raw steps — so an undersized buffer reports
+len()==0 and the loop breaks before any wm_train fires. 2000 gives
+~30 windows' worth, still small enough that JAX compilation
+dominates wall-clock."""
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -136,7 +141,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         # 30 min — the smoke is < 30 min total.
         "--run.save_every", "60",
         "--run.log_every", "5",
-    ] + list(leftover or []))
+    ])
     config = P.build_config(parsed_args, leftover)
 
     logdir = Path(config.logdir)

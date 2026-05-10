@@ -10,8 +10,11 @@ Phase-3 contract (see ``docs/phase-checklists.md``):
 
 - All 340 replays load into ``embodied.replay`` (laptop tests use a
   tiny synthetic buffer; Vast runs the full set).
-- WM-only updates verified by code inspection — ``WMOnlyAgent.wm_train``
-  uses a separate optimizer over [enc, dyn, dec, rew, con] only.
+- WM-only updates enforced by ``WMOnlyAgent`` overriding
+  ``Agent.loss`` + ``Agent.train`` and rebuilding ``self.opt`` over
+  [dyn, enc, dec, rew, con] only — pol/val never see grads. The
+  pretrain loop calls the inherited ``agent.train`` (which now
+  IS the WM-only path).
 - All four WM losses (recon, dyn, rew, con) trend down over an epoch.
 - Checkpoint cadence ≥30 min; resume from preemption verified.
 - RHAE held-out hook spikes near actual level-up boundaries.
@@ -293,12 +296,15 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
 
     Phase-3 contract (verified by tests/test_pretrain_wm.py):
 
-    - Calls ``agent.wm_train(carry, batch)`` only. Never calls
-      ``agent.train`` (the full DreamerV3 path with imagination +
-      actor + critic).
+    - Calls ``agent.train(carry, batch)``. With ``WMOnlyAgent`` plumbed
+      in (option-(A): override ``Agent.loss`` + ``Agent.train`` rather
+      than add a parallel ``wm_train``), this IS the WM-only path:
+      pol/val are not in ``self.modules``, no imagination runs, no
+      slow-critic update fires.
     - Never invokes ``agent.policy`` — no env, no Driver, no rollouts.
-    - Uses ``self.wm_opt`` (per WMOnlyAgent) for gradient updates;
-      ``self.opt`` (the inherited full optimizer) is left untouched.
+    - The single rebuilt ``self.opt`` (over [dyn, enc, dec, rew, con])
+      is the only optimizer. Pol/val params still exist on the model
+      but receive no gradients.
     - Writes checkpoints under ``logdir/ckpt/latest.pkl`` at
       ``args.save_every`` cadence; loads at entry for resume.
     - Logger receives the WM-loss dict every ``args.log_every`` ticks.
@@ -306,8 +312,8 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
       mechanics are exercised.
 
     The loop is intentionally simple: each iteration does
-    ``int(args.train_ratio)`` ``wm_train`` updates and bumps an
-    integer step counter by 1. Termination: ``step >= args.steps``.
+    ``int(args.train_ratio)`` ``train`` updates and bumps an integer
+    step counter by 1. Termination: ``step >= args.steps``.
     """
     import elements
 
@@ -353,7 +359,7 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
 
         for _ in range(train_updates_per_iter):
             batch = next(stream)
-            carry, _outs, last_metrics = agent.wm_train(carry, batch)
+            carry, _outs, last_metrics = agent.train(carry, batch)
 
         step += 1
 

@@ -1,12 +1,21 @@
 """arc3_wm.wm_only_agent — WM-only DreamerV3 Agent subclass.
 
-Subclass of upstream ``dreamerv3.agent.Agent`` exposing a WM-only train
-path. ``third_party/dreamerv3/`` stays untouched (CLAUDE.md anti-goal +
-D12: "DreamerV3 source is unmodified — env registered via embodied/, no
-fork"). The override is a near-verbatim copy of the upstream WM block
-(``agent.py:156-186``) truncated BEFORE imagination — saves ~2h of pure
-waste on the 6h Phase-3 budget compared to "drop actor/critic terms
-from the returned dict".
+Subclass of upstream ``dreamerv3.agent.Agent`` that overrides ``loss``
+and ``train`` so the inherited DreamerV3 pipeline runs the WM-only
+path instead of the full imagination + actor + critic path.
+``third_party/dreamerv3/`` stays untouched (CLAUDE.md anti-goal +
+D12: "DreamerV3 source is unmodified — env registered via embodied/,
+no fork").
+
+Why an override of ``loss``/``train`` rather than a parallel
+``wm_train`` method: ``embodied.jax.Agent.__new__`` (third_party/
+dreamerv3/embodied/jax/agent.py:38-48) hardcodes
+``super().__new__(Agent)`` for the outer wrapper and JIT-compiles
+``transform.apply(nj.pure(self.model.train), ...)`` at construction.
+The outer wrapper exposes only ``train``/``policy``/``report``; any
+new method on the model class is unreachable via the outer's JIT
+pipeline. So the WM-only path has to live on a method the outer
+already knows about — ``train`` (which calls ``loss``).
 
 Lazy parent (PEP 562 ``__getattr__``):
 - Module load itself imports nothing from ``dreamerv3`` / ``embodied`` /
@@ -25,17 +34,16 @@ Lazy parent (PEP 562 ``__getattr__``):
 Phase-3 contract — see ``tests/test_wm_only_agent.py`` and
 ``tests/test_pretrain_wm.py`` concern-group #4 for the binding tests:
 
-- ``WMOnlyAgent.wm_modules`` = ``[dyn, enc, dec, rew, con]`` (5
-  modules; upstream order minus pol+val).
-- ``WMOnlyAgent.wm_opt`` = a separate ``embodied.jax.Optimizer`` over
-  ``wm_modules`` only. Inherited ``self.opt`` (7 modules) is left
-  intact but never called by the pretrain loop.
-- ``WMOnlyAgent.wm_loss`` returns ``(loss, (carry, entries, outs,
-  metrics))``. Carries/entries/outs match the shape upstream
-  ``train()`` expects (see ``agent.py:144-153``).
-- ``WMOnlyAgent.wm_train`` mirrors upstream ``train()`` but uses
-  ``self.wm_opt`` + ``self.wm_loss``. ``self.slowval.update()`` is NOT
-  called — the slow critic is irrelevant on the WM-only path.
+- ``WMOnlyAgent.loss`` returns ``(loss, (carry, entries, outs,
+  metrics))`` where ``outs['losses']`` contains only
+  ``{recon-key(s), dyn, rew, con}``. No imagination, no replay-value,
+  no policy/value losses.
+- ``WMOnlyAgent.train`` is upstream ``Agent.train`` minus
+  ``self.slowval.update()`` — that's the only material delta.
+- ``self.modules`` and ``self.opt`` are rebuilt in ``__init__`` over
+  ``[dyn, enc, dec, rew, con]`` only. Pol and val instances still exist
+  on the model (they're constructed by the parent ``__init__``) but
+  are absent from the optimizer's trainable set.
 - 4 LOSS TERMS (recon-per-image-key, dyn, rew, con) vs 5 MODULES
   receiving gradients. Module count and loss-term count are
   deliberately distinct.
@@ -86,19 +94,20 @@ def _build_wm_only_agent_class():
                     "ninjax + optax installed."
                 )
             super().__init__(*args, **kwargs)
-            # Build the WM-only optimizer over [dyn, enc, dec, rew, con] —
-            # upstream order from ``Agent.modules`` (agent.py:74-75) minus
-            # pol + val.
+            # Restrict the optimizer to WM modules only. Pol and val
+            # instances still exist as self.pol / self.val (they were
+            # constructed by parent __init__); we just keep them out of
+            # the trainable set so no gradients are applied to them.
             import embodied
-            self.wm_modules = [self.dyn, self.enc, self.dec, self.rew, self.con]
-            self.wm_opt = embodied.jax.Optimizer(
-                self.wm_modules,
+            self.modules = [self.dyn, self.enc, self.dec, self.rew, self.con]
+            self.opt = embodied.jax.Optimizer(
+                self.modules,
                 self._make_opt(**self.config.opt),
                 summary_depth=1,
-                name='wm_opt',
+                name='opt',
             )
 
-        def wm_loss(self, carry, obs, prevact, training):
+        def loss(self, carry, obs, prevact, training):
             """Verbatim copy of upstream ``Agent.loss`` (agent.py:156-186) —
             the World-model block. Branches BEFORE the imagination block at
             agent.py:188 so neither ``self.dyn.imagine`` nor ``imag_loss``
@@ -151,18 +160,19 @@ def _build_wm_only_agent_class():
             outs = {'tokens': tokens, 'repfeat': repfeat, 'losses': losses}
             return loss, (carry, entries, outs, metrics)
 
-        def wm_train(self, carry, data):
-            """Mirror of upstream ``Agent.train`` (agent.py:137-154) but
-            uses ``self.wm_opt`` + ``self.wm_loss``. ``self.slowval.update()``
-            is NOT called — the slow critic is irrelevant on the WM-only
-            path.
+        def train(self, carry, data):
+            """Mirror of upstream ``Agent.train`` (agent.py:137-154) MINUS
+            ``self.slowval.update()``. That single line is the slow-critic
+            bookkeeping; on the WM-only path it must not fire (val isn't
+            in self.modules and isn't being trained).
             """
             import elements
             carry, obs, prevact, stepid = self._apply_replay_context(carry, data)
-            metrics, (carry, entries, outs, mets) = self.wm_opt(
-                self.wm_loss, carry, obs, prevact, training=True, has_aux=True)
+            metrics, (carry, entries, outs, mets) = self.opt(
+                self.loss, carry, obs, prevact, training=True, has_aux=True)
             metrics.update(mets)
-            # NB: deliberately no `self.slowval.update()` — that's the
+            # NB: deliberately omit the slow-critic update from upstream
+            # train (last line of agent.py:137-154) — that's the
             # pol/val-side bookkeeping we want to skip.
             outs = {}
             if self.config.replay_context:

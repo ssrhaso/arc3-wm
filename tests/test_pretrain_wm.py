@@ -156,53 +156,52 @@ class FakeReplay:
         }
 
 
-class _SpyOptimizer:
-    """Records ``step()`` invocations. Stand-in for an embodied.jax.Optimizer.
-
-    The pretrain loop's WM-only gate is enforced by spying on these:
-    the inherited ``self.opt`` (full optimizer over all 7 modules)
-    must register zero ``step`` calls; ``self.wm_opt`` (5 WM modules
-    only) must register one per loop iteration.
-    """
+class _Spy:
+    """Records ``__call__`` invocations. Stand-in for actor/critic
+    grad-application calls (``self.pol.update`` / ``self.val.update``
+    in the real Agent code path)."""
 
     def __init__(self) -> None:
-        self.step_count = 0
+        self.call_count = 0
 
-    def step(self, *args, **kwargs) -> None:
-        self.step_count += 1
+    def __call__(self, *args, **kwargs) -> None:
+        self.call_count += 1
 
 
 class RecordingAgent:
     """Mock agent that records which training entry points were called
-    AND which optimizers fired.
+    and what the WM-only ``train`` path touched.
 
-    Phase 3 gates (sharpened, from chat):
+    Phase 3 gates after option-(A) landing:
 
-    1. Regular ``agent.train`` (full DreamerV3 entry that includes
-       imagination + actor + critic loss) is never called.
+    1. ``agent.train`` IS the WM-only path (no separate ``wm_train``
+       method). The pretrain loop calls ``agent.train`` — the contract
+       no longer hangs on a method-name distinction.
     2. ``agent.policy`` is never called (no env rollouts in pretrain).
-    3. ``self.opt.step`` count is exactly 0 across the run loop —
-       belt-and-braces that even if someone re-wires train() back in,
-       the actor/critic optimizer never fires.
-    4. ``self.wm_opt.step`` count is > 0 — the WM-only optimizer is
-       the one that drives WM gradient updates.
-    5. The 4 LOSS TERMS exposed by wm_train are
-       ``{recon, dyn, rew, con}``. (No actor/critic keys.)
-    6. The 5 MODULES updated are ``{enc, dyn, dec, rew, con}``. (No
+    3. The actor/critic update paths (``self.pol.update`` /
+       ``self.val.update`` spies) are not invoked. Property-based: even
+       if someone wires the full upstream loss back in, the override on
+       WMOnlyAgent.train must not fire those bookkeeping calls.
+    4. The 4 LOSS TERMS exposed by train are ``{recon, dyn, rew, con}``.
+       (No actor/critic keys.)
+    5. The 5 MODULES updated are ``{enc, dyn, dec, rew, con}``. (No
        pol/val.) Module count != loss-term count is intentional.
     """
 
     def __init__(self) -> None:
         self.train_calls = 0
-        self.wm_train_calls = 0
         self.wm_modules_updated: List[str] = []
         self.actor_critic_modules_updated: List[str] = []
         self.last_loss_keys: set[str] = set()
         self.report_calls = 0
         self._carry = object()
-        # Spy optimizers — distinct instances, like the real WMOnlyAgent.
-        self.opt = _SpyOptimizer()       # inherited full optimizer (must stay at 0)
-        self.wm_opt = _SpyOptimizer()    # WM-only optimizer (must fire each iter)
+        # Spies on the actor/critic grad-application paths. The real
+        # upstream Agent.train calls self.slowval.update() unconditionally;
+        # the WM-only override must skip that. We expose pol.update and
+        # val.update as the property-based gate — both must stay at 0.
+        self.pol = type("_Mod", (), {"update": _Spy()})()
+        self.val = type("_Mod", (), {"update": _Spy()})()
+        self.slowval = type("_Mod", (), {"update": _Spy()})()
 
     def init_train(self, batch_size: int):
         return self._carry
@@ -218,18 +217,11 @@ class RecordingAgent:
         return iter(source)
 
     def train(self, carry, batch):
-        # Regular DreamerV3 train path — imagination + actor + critic.
-        # Bumps self.opt.step (the bad path the gate forbids).
+        # WM-only path — 4 loss terms, 5 modules. Mirrors the override
+        # on WMOnlyAgent.train: no slowval.update, no actor/critic
+        # bookkeeping.
         self.train_calls += 1
-        self.actor_critic_modules_updated.extend(["pol", "val"])
-        self.opt.step()
-        return carry, {}, {"loss/total": 0.0}
-
-    def wm_train(self, carry, batch):
-        # WM-only path — 4 loss terms, 5 modules.
-        self.wm_train_calls += 1
         self.wm_modules_updated.extend(["enc", "dyn", "dec", "rew", "con"])
-        self.wm_opt.step()
         # 4 loss terms: recon (one per image obs key — here a single
         # 'image'), dyn, rew, con. NO actor/critic keys.
         loss_dict = {
@@ -449,20 +441,17 @@ def test_populate_buffer_skips_post_terminal_noise(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_pretrain_loop_calls_wm_train_only(tmp_path):
-    """The Phase-3 gate: regular ``agent.train`` (full DreamerV3 path with
-    imagination + actor + critic) is never called. ``agent.wm_train`` is
-    the only training entry point used."""
+def test_pretrain_loop_calls_train(tmp_path):
+    """The Phase-3 gate after option-(A) landing: ``agent.train`` IS the
+    WM-only path. The pretrain loop calls it; correctness is enforced by
+    the property-based assertions below (actor/critic spies stay at 0,
+    only WM modules get updates, loss dict has only WM keys)."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path)
 
     P.pretrain_wm_loop(agent=agent, replay=replay, logger=mock.MagicMock(), args=args)
 
-    assert agent.wm_train_calls > 0, "wm_train was never called"
-    assert agent.train_calls == 0, (
-        f"regular agent.train was called {agent.train_calls}× during pretrain — "
-        "Phase 3 gate: actor/critic imagination path must not run"
-    )
+    assert agent.train_calls > 0, "agent.train was never called"
 
 
 def test_pretrain_loop_does_not_invoke_policy(tmp_path):
@@ -497,23 +486,33 @@ def _seed_replay_and_args(tmp_path, *, n_seed: int = 8, steps: int = 4):
     return replay, args
 
 
-def test_pretrain_loop_zero_actor_critic_optimizer_steps(tmp_path):
-    """SHARPENED GATE (chat sharpening #3): spy on the inherited full
-    optimizer; assert step count == 0 across the run loop. This is
-    additive on top of the train-not-called assertion: even if someone
-    re-wires ``agent.train`` to be called, the inherited ``self.opt``
-    must never fire on the WM-only path."""
+def test_pretrain_loop_actor_critic_paths_not_invoked(tmp_path):
+    """SHARPENED GATE (option-(A) property contract): the actor / critic
+    grad-application paths must not fire during pretrain. Concretely,
+    ``self.pol.update``, ``self.val.update``, and ``self.slowval.update``
+    are spied on — all must stay at zero invocations across the loop.
+
+    This replaces the old "self.opt vs self.wm_opt distinct optimizers"
+    test — there is now exactly one optimizer (over WM modules only),
+    so the gate can no longer be expressed by counting steps on a
+    second optimizer instance."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path)
 
     P.pretrain_wm_loop(agent=agent, replay=replay, logger=mock.MagicMock(), args=args)
 
-    assert agent.opt.step_count == 0, (
-        f"inherited self.opt.step fired {agent.opt.step_count}× during "
-        f"pretrain — actor/critic optimizer must never run on the WM-only path"
+    assert agent.pol.update.call_count == 0, (
+        f"agent.pol.update fired {agent.pol.update.call_count}× — actor "
+        "grad-application must not run on the WM-only path"
     )
-    assert agent.wm_opt.step_count > 0, (
-        "self.wm_opt.step never fired — WM optimizer is not connected"
+    assert agent.val.update.call_count == 0, (
+        f"agent.val.update fired {agent.val.update.call_count}× — critic "
+        "grad-application must not run on the WM-only path"
+    )
+    assert agent.slowval.update.call_count == 0, (
+        f"agent.slowval.update fired {agent.slowval.update.call_count}× — "
+        "slow-critic bookkeeping is upstream Agent.train's last line and "
+        "must be skipped by WMOnlyAgent.train"
     )
     assert agent.actor_critic_modules_updated == [], (
         f"pol/val modules received gradient updates: "
@@ -674,12 +673,11 @@ def test_pretrain_config_block_present():
 
 
 def test_pretrain_config_disables_imagination_loss():
-    """Defensive belt-and-braces: even though the pretrain LOOP only calls
-    wm_train, the merged config must also turn imagination off so any
-    accidental fall-through to agent.train() can't silently update the
-    actor/critic. Specific config keys depend on the impl; the test
-    checks the gate via a documented marker key the impl is expected to
-    set."""
+    """Defensive belt-and-braces: WMOnlyAgent's overridden train is the
+    only WM-only enforcement at the agent level, but the merged config
+    still sets ``script=pretrain_wm`` so a stray invocation of
+    ``embodied.run.train`` against the same config would trip on an
+    unknown script name rather than silently train actor+critic."""
     args, leftover = P.parse_args(
         [
             "--logdir", "/tmp/x",
