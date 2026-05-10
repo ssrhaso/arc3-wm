@@ -312,15 +312,15 @@ def test_action_alignment_matches_convention_B(tmp_path):
     rows = [
         _row(0),                                                  # line 0: RESET
         _row(3),                                                  # line 1: ACTION3 -> idx 2
-        _row(6, action_data={"x": 12, "y": 7, "game_id": "g"}),   # line 2: ACTION6(12,7) -> 5+7*64+12 = 461
+        _row(6, action_data={"x": 12, "y": 7, "game_id": "g"}),   # line 2: ACTION6(12,7) -> 5+7*64+12 = 465
         _row(7, state="WIN"),                                     # line 3: ACTION7 -> 4101
     ]
     p = _write_jsonl(tmp_path / "align.jsonl", rows)
     [ep] = list(load_replay_file(p))
     # Step 0's action = action_input on line 1 = ACTION3 -> flat 2
     assert int(ep[0]["action"]) == 2
-    # Step 1's action = action_input on line 2 = ACTION6(12, 7) -> 461
-    assert int(ep[1]["action"]) == ACTION6_BASE + 7 * 64 + 12 == 461
+    # Step 1's action = action_input on line 2 = ACTION6(12, 7) -> 465
+    assert int(ep[1]["action"]) == ACTION6_BASE + 7 * 64 + 12 == 465
     # Step 2's action = action_input on line 3 = ACTION7 -> 4101
     assert int(ep[2]["action"]) == ACTION7_INDEX
     # Step 3 is the last step -> sentinel 0
@@ -471,6 +471,175 @@ def test_full_reset_emits_warning_but_does_not_split_episode(tmp_path):
     # depends solely on action_input.id == 0 occurrences (post line 0).
     assert len(eps) == 1
     assert len(eps[0]) == 3
+
+
+# ---------------------------------------------------------------------------
+# (9.5) Post-terminal noise + symmetric tripwire
+#
+# Empirical scan of all 39 staged files: every terminal→non-terminal
+# transition (122 of them) goes through an explicit RESET row. The cn04
+# levels_completed drops are post-terminal bookkeeping noise emitted
+# between the player's death (GAME_OVER row) and their explicit RESET
+# (several frames later) — not implicit restarts. Rule:
+#   1. Episode ends at first terminal row.
+#   2. Subsequent terminal-state rows are discarded as noise.
+#   3. Next explicit RESET starts the next episode.
+#   4. NOT_FINISHED + drop → ReplayParseError (tripwire #1).
+#   5. NOT_FINISHED row after a terminal block with no intervening RESET
+#      → ReplayParseError (tripwire #2; symmetric to #1, surfaces a
+#      hypothetical case the survey didn't see).
+# ---------------------------------------------------------------------------
+
+
+def test_post_terminal_noise_after_game_over_is_discarded(tmp_path):
+    """GAME_OVER row → noise rows (still GAME_OVER, levels can drop) →
+    explicit RESET → new episode. The noise rows do NOT appear in any
+    output episode, and the noise count is exposed via stats."""
+    rows = [
+        _row(0, levels_completed=0),                      # ep1 RESET
+        _row(3, levels_completed=1),                      # ep1 gameplay
+        _row(3, state="GAME_OVER", levels_completed=1),   # ep1 ends here
+        _row(3, state="GAME_OVER", levels_completed=0),   # noise (THE DROP)
+        _row(3, state="GAME_OVER", levels_completed=0),   # more noise
+        _row(0, state="NOT_FINISHED", levels_completed=1),  # ep2 RESET
+        _row(1, state="NOT_FINISHED", levels_completed=1),  # ep2 gameplay
+        _row(2, state="WIN", levels_completed=2),           # ep2 ends here
+    ]
+    p = _write_jsonl(tmp_path / "post_terminal_noise.jsonl", rows)
+    stats: dict = {}
+    eps = list(load_replay_file(p, stats=stats))
+    assert len(eps) == 2
+    ep1, ep2 = eps
+    # ep1: 3 rows (RESET, gameplay, GAME_OVER). Noise rows NOT included.
+    assert len(ep1) == 3
+    assert bool(ep1[-1]["is_terminal"]) is True
+    assert bool(ep1[-1]["is_last"]) is True
+    # No mid-episode terminals in ep1.
+    assert not any(bool(s["is_terminal"]) for s in ep1[:-1])
+    # ep2: 3 rows (RESET, gameplay, WIN).
+    assert len(ep2) == 3
+    assert bool(ep2[0]["is_first"]) is True
+    assert bool(ep2[-1]["is_terminal"]) is True
+    # Stats counter: 2 noise rows discarded.
+    assert stats["noise_rows_discarded"] == 2
+
+
+def test_post_terminal_noise_after_win_is_discarded(tmp_path):
+    """Same pattern, with WIN as the terminal state."""
+    rows = [
+        _row(0, levels_completed=0),
+        _row(3, levels_completed=1),
+        _row(2, state="WIN", levels_completed=1),
+        _row(1, state="WIN", levels_completed=0),  # noise post-WIN
+        _row(0, state="NOT_FINISHED", levels_completed=1),
+        _row(2, state="WIN", levels_completed=2),
+    ]
+    p = _write_jsonl(tmp_path / "post_win_noise.jsonl", rows)
+    stats: dict = {}
+    eps = list(load_replay_file(p, stats=stats))
+    assert len(eps) == 2
+    assert bool(eps[0][-1]["is_terminal"]) is True
+    assert stats["noise_rows_discarded"] == 1
+
+
+def test_levels_drop_with_not_finished_state_raises(tmp_path):
+    """Tripwire #1: levels drops while pending's last row is NOT_FINISHED.
+    Surface as ReplayParseError — drops should only appear post-terminal,
+    so this is unverified schema drift."""
+    rows = [
+        _row(0, levels_completed=0),
+        _row(3, levels_completed=2),
+        _row(3, levels_completed=0),  # drop while NOT_FINISHED — illegal
+    ]
+    p = _write_jsonl(tmp_path / "drop_not_finished.jsonl", rows)
+    with pytest.raises(ReplayParseError) as exc:
+        list(load_replay_file(p))
+    msg = str(exc.value)
+    assert "drop_not_finished.jsonl" in msg
+    assert "line 3" in msg or "line=3" in msg
+    assert "NOT_FINISHED" in msg
+
+
+def test_not_finished_after_terminal_without_reset_raises(tmp_path):
+    """Tripwire #2 (symmetric): NOT_FINISHED row follows a terminal block
+    with no intervening RESET. The 39-file scan saw zero such transitions
+    — every terminal block exits via explicit RESET — so this would be
+    real engine-behaviour news worth surfacing for review."""
+    rows = [
+        _row(0, levels_completed=0),
+        _row(3, levels_completed=1),
+        _row(3, state="GAME_OVER", levels_completed=1),
+        # No RESET row here — straight back to gameplay.
+        _row(2, state="NOT_FINISHED", levels_completed=1),
+    ]
+    p = _write_jsonl(tmp_path / "no_reset_after_term.jsonl", rows)
+    with pytest.raises(ReplayParseError) as exc:
+        list(load_replay_file(p))
+    msg = str(exc.value)
+    assert "no_reset_after_term.jsonl" in msg
+    assert "line 4" in msg or "line=4" in msg
+    assert "no intervening RESET" in msg
+
+
+def test_explicit_reset_immediately_after_game_over_yields_one_boundary(tmp_path):
+    """Composition: GAME_OVER row → explicit RESET row, no noise in between.
+    Single boundary, no phantom episode."""
+    rows = [
+        _row(0, levels_completed=0),
+        _row(3, levels_completed=1),
+        _row(3, state="GAME_OVER", levels_completed=1),
+        _row(0, levels_completed=0),  # explicit RESET right after terminal
+        _row(2, levels_completed=0),
+        _row(2, state="WIN", levels_completed=1),
+    ]
+    p = _write_jsonl(tmp_path / "go_then_reset.jsonl", rows)
+    stats: dict = {}
+    eps = list(load_replay_file(p, stats=stats))
+    assert len(eps) == 2
+    assert all(len(ep) >= 1 for ep in eps)
+    assert bool(eps[0][-1]["is_terminal"]) is True
+    assert bool(eps[1][0]["is_first"]) is True
+    assert bool(eps[1][-1]["is_terminal"]) is True
+    # No noise between terminal and RESET → counter stays 0.
+    assert stats.get("noise_rows_discarded", 0) == 0
+
+
+def test_real_cn04_files_split_at_explicit_reset_after_terminal_block(
+    real_replay_files,
+):
+    """Empirical contract: every terminal→non-terminal transition in the
+    staged 39 goes through an explicit RESET. cn04 has post-terminal
+    noise rows between death and RESET; those get discarded. The 3 cn04
+    files with drops should each yield ≥2 episodes, every closing
+    non-final row terminal."""
+    cn04 = [p for p in real_replay_files if p.parent.name == "cn04"]
+    if not cn04:
+        pytest.skip("no cn04 replays staged")
+    stats: dict = {}
+    found_multi_episode = 0
+    for p in cn04:
+        eps = list(load_replay_file(p, stats=stats))
+        if len(eps) >= 2:
+            found_multi_episode += 1
+        # No mid-episode terminals in any episode (the load-bearing
+        # invariant; post-terminal noise discard guarantees this).
+        # Non-final episodes can be truncated (player hit RESET without
+        # dying first) — that's fine, just not terminal.
+        for ep in eps:
+            assert not any(bool(s["is_terminal"]) for s in ep[:-1]), (
+                f"{p.name}: mid-episode is_terminal=True"
+            )
+    assert found_multi_episode >= 3, (
+        f"expected ≥3 cn04 files to split (post-terminal RESET or "
+        f"mid-session RESET); got {found_multi_episode}"
+    )
+    # Observability: cn04 noise rows should be > 0 across the 3 files
+    # with the survey-confirmed drop pattern.
+    assert stats.get("noise_rows_discarded", 0) >= 3, (
+        f"expected ≥3 post-terminal noise rows discarded across cn04 "
+        f"(survey saw 1 per file × 3 files); got "
+        f"{stats.get('noise_rows_discarded', 0)}"
+    )
 
 
 # ---------------------------------------------------------------------------
