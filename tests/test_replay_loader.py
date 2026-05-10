@@ -111,13 +111,9 @@ def _write_jsonl(path: Path, rows: list) -> Path:
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-REAL_REPLAYS_ROOT = (
-    REPO_ROOT
-    / "data"
-    / "replays"
-    / "ARC-AGI-3 Human Baseline [Public]"
-    / "arc_agi_3_public_demo_human_testing"
-)
+# After dedup (2026-05-09), all replays live directly under data/replays/<game_id>/
+# rather than the original Drive-extracted nested path.
+REAL_REPLAYS_ROOT = REPO_ROOT / "data" / "replays"
 
 
 @pytest.fixture(scope="module")
@@ -154,7 +150,12 @@ def _read_win_levels(path: Path) -> int:
 
 
 def test_parse_all_staged_jsonls(real_replay_files):
-    """All 39 staged JSONLs parse without raising; each yields ≥1 episode."""
+    """All staged JSONLs parse without raising; each yields ≥1 episode.
+
+    Originally 39 (Phase-0 partial download); now 340 (full set landed
+    2026-05-09 after OAuth gdown). Spec says 342 — accept ≥340 to
+    tolerate small drift if a future re-download lands the missing 2.
+    """
     n_files = 0
     n_episodes = 0
     for p in real_replay_files:
@@ -162,9 +163,9 @@ def test_parse_all_staged_jsonls(real_replay_files):
         n_files += 1
         n_episodes += len(eps)
         assert eps, f"{p.name}: zero episodes from non-trivial JSONL"
-    assert n_files == 39, (
-        f"expected 39 staged replays (Phase-0 download status); got {n_files}. "
-        f"If 342 land, update this assertion."
+    assert n_files >= 340, (
+        f"expected ≥340 staged replays (full set landed 2026-05-09); "
+        f"got {n_files}. If files were intentionally removed, update."
     )
     assert n_episodes >= n_files  # at minimum one ep per file
 
