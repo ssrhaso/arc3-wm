@@ -297,9 +297,17 @@ def test_loss_emits_no_actor_or_critic_keys():
     The override returns ``(loss_value, (carry, entries, outs, metrics))``
     where ``outs['losses']`` is the per-term dict. We construct a minimal
     batch and call ``loss`` directly — no JIT, no optimizer step, just
-    the loss surface."""
+    the loss surface.
+
+    NB: inputs are ``np`` arrays, not ``jnp`` — embodied.jax.Agent is
+    constructed with strict host-to-device transfer guards (the outer
+    wrapper sets sharding at __init__), so ``jnp.zeros(..., dtype=...)``
+    called from Python eagerly trips
+    ``Disallowed host-to-device transfer``. Real training inputs flow
+    in as ``np`` arrays (the buffer's ``replay.sample`` returns numpy)
+    and JAX handles the transfer through the JIT boundary — mirror that.
+    """
     _require_jax_dv3()
-    import jax.numpy as jnp
     import numpy as np
     from arc3_wm.action_space import N_ACTIONS
     from arc3_wm.embodied_env import OBS_HW
@@ -309,14 +317,20 @@ def test_loss_emits_no_actor_or_critic_keys():
 
     # Tiny synthetic batch — B=2, T=4 to keep dyn happy without burning time.
     B, T = 2, 4
+    is_first = np.zeros((B, T), dtype=bool)
+    is_first[:, 0] = True
+    is_last = np.zeros((B, T), dtype=bool)
+    is_last[:, -1] = True
+    is_terminal = np.zeros((B, T), dtype=bool)
+    is_terminal[:, -1] = True
     obs = {
-        "image": jnp.zeros((B, T, OBS_HW, OBS_HW, 3), dtype=jnp.uint8),
-        "reward": jnp.zeros((B, T), dtype=jnp.float32),
-        "is_first": jnp.zeros((B, T), dtype=bool).at[:, 0].set(True),
-        "is_last": jnp.zeros((B, T), dtype=bool).at[:, -1].set(True),
-        "is_terminal": jnp.zeros((B, T), dtype=bool).at[:, -1].set(True),
+        "image": np.zeros((B, T, OBS_HW, OBS_HW, 3), dtype=np.uint8),
+        "reward": np.zeros((B, T), dtype=np.float32),
+        "is_first": is_first,
+        "is_last": is_last,
+        "is_terminal": is_terminal,
     }
-    prevact = {"action": jnp.zeros((B, T), dtype=jnp.int32)}
+    prevact = {"action": np.zeros((B, T), dtype=np.int32)}
     carry = model.init_train(B)
 
     _loss_value, (_carry, _entries, outs, _metrics) = model.loss(
