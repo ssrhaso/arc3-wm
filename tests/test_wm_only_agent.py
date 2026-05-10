@@ -299,15 +299,18 @@ def test_loss_emits_no_actor_or_critic_keys():
     batch and call ``loss`` directly — no JIT, no optimizer step, just
     the loss surface.
 
-    NB: inputs are ``np`` arrays, not ``jnp`` — embodied.jax.Agent is
-    constructed with strict host-to-device transfer guards (the outer
-    wrapper sets sharding at __init__), so ``jnp.zeros(..., dtype=...)``
-    called from Python eagerly trips
-    ``Disallowed host-to-device transfer``. Real training inputs flow
-    in as ``np`` arrays (the buffer's ``replay.sample`` returns numpy)
-    and JAX handles the transfer through the JIT boundary — mirror that.
+    NB: this test bypasses the JIT pipeline by calling ``model.init_train``
+    + ``model.loss`` eagerly. embodied.jax.Agent's outer wrapper installs
+    a strict GSPMD sharding setup at __init__ that requires every
+    ``jnp.zeros`` (e.g. inside upstream rssm.initial) to flow through
+    explicit ``jax.device_put`` with the right sharding — which the JIT
+    pipeline does for us, but eager Python calls don't. Wrapping the
+    direct calls in ``jax.transfer_guard("allow")`` relaxes the guard
+    for the duration of this contract check; production training is
+    unaffected.
     """
     _require_jax_dv3()
+    import jax
     import numpy as np
     from arc3_wm.action_space import N_ACTIONS
     from arc3_wm.embodied_env import OBS_HW
@@ -331,10 +334,11 @@ def test_loss_emits_no_actor_or_critic_keys():
         "is_terminal": is_terminal,
     }
     prevact = {"action": np.zeros((B, T), dtype=np.int32)}
-    carry = model.init_train(B)
 
-    _loss_value, (_carry, _entries, outs, _metrics) = model.loss(
-        carry, obs, prevact, training=False)
+    with jax.transfer_guard("allow"):
+        carry = model.init_train(B)
+        _loss_value, (_carry, _entries, outs, _metrics) = model.loss(
+            carry, obs, prevact, training=False)
 
     losses = outs.get("losses", {})
     forbidden = {
