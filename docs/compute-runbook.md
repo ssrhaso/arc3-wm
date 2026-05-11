@@ -146,13 +146,22 @@ bucket; substitute the bucket name end-to-end.
 
 #### Two artifacts to stage today
 
-| Artifact                         | Source on laptop                          | Target path in bucket                  | Consumed by              |
-|----------------------------------|-------------------------------------------|----------------------------------------|--------------------------|
-| `replays.tar.gz`                 | `data/replays/` (342 JSONLs, Phase 3 prereq) | `arc3-wm-data/replays.tar.gz`          | Phase 3 WM pretrain      |
-| `environment_files.tar.gz`       | `environment_files/` (cached game source) | `arc3-wm-data/environment_files.tar.gz`| All phases — OFFLINE mode |
+| Artifact                                | Source on laptop                          | Target path in bucket                                         | Consumed by              |
+|-----------------------------------------|-------------------------------------------|---------------------------------------------------------------|--------------------------|
+| `replays-340.tar.gz`                    | `data/replays/` (340 JSONLs, Phase 3 prereq) | `arc-agi-3-replays-hasaan/replays-340.tar.gz`                | Phase 3 WM pretrain      |
+| `environment_files-pilot.tar.gz`        | `environment_files/` (3 pilot games, ~20 KB) | `arc-agi-3-replays-hasaan/env-files/v1/environment_files-pilot.tar.gz` | Phase 4 per-game runs — OFFLINE mode |
+| `pretrained-wm/v1/latest.pkl`           | `checkpoints/pretrained-wm/v1/latest.pkl` (Phase-3 v1 ckpt, 118.8 MB) | `arc-agi-3-replays-hasaan/pretrained-wm/v1/latest.pkl`        | Phase 4 `--init-from-ckpt` |
 
-A third artifact (`pretrained_wm.tar.gz`) will join the table when Phase
-3 produces its first checkpoint.
+> **Bucket name:** the live bucket is `arc-agi-3-replays-hasaan`
+> (provisioned in Phase 0; same one Phase 3 used). Earlier drafts of
+> this runbook referenced `arc3-wm-data` as a placeholder — wherever
+> that string appears below, treat it as the live name.
+
+> **Pilot-3 vs full-25:** the `v1` env-files bundle covers
+> `vc33`/`tu93`/`cd82` only — sufficient for Phase 4 tonight's smoke
+> and the 3-game pilot. The full-25-game bundle bumps to `v2` and is a
+> prereq for the Phase 5 sweep (see Phase 0 follow-up: rerun
+> `scripts/cache_env_files.py` for all 25 games before tarballing).
 
 #### Laptop → bucket (one-time per artifact)
 
@@ -166,16 +175,24 @@ find data/replays -name '*.jsonl' | wc -l     # must equal 342 before tarball.
 tar czf replays.tar.gz data/replays
 b2 file upload arc3-wm-data replays.tar.gz replays.tar.gz
 
-# Environment files (run AFTER scripts/cache_env_files.py is rerun for all 25 games;
-# Phase-0 cache only covered vc33/tu93/cd82).
-tar czf environment_files.tar.gz environment_files
-b2 file upload arc3-wm-data environment_files.tar.gz environment_files.tar.gz
+# Environment files — pilot-3 (vc33, tu93, cd82). Wrapped in
+# scripts/stage_env_files.sh; see that script for the canonical pattern.
+./scripts/stage_env_files.sh bundle               # writes environment_files-pilot.tar.gz
+./scripts/stage_env_files.sh upload v1            # uploads to env-files/v1/...
+# (Full-25-game bundle: rerun scripts/cache_env_files.py first, then
+#  upload as v2 with a renamed tarball.)
 
-# Capture the public download URLs once and persist them in your password
-# manager. Each URL is stable as long as the bucket stays public-read.
-b2 file url arc3-wm-data/replays.tar.gz             # → REPLAY_TAR_URL
-b2 file url arc3-wm-data/environment_files.tar.gz   # → ENV_FILES_TAR_URL
+# Capture the public download URLs once and persist them. Each URL is
+# stable as long as the bucket stays public-read.
+b2 file url arc-agi-3-replays-hasaan/replays-340.tar.gz                          # → REPLAY_TAR_URL
+b2 file url arc-agi-3-replays-hasaan/env-files/v1/environment_files-pilot.tar.gz  # → ENV_FILES_TAR_URL
 ```
+
+Direct URLs (Phase-4-tonight values, hardcoded):
+
+- `REPLAY_TAR_URL=https://f003.backblazeb2.com/file/arc-agi-3-replays-hasaan/replays-340.tar.gz`
+- `ENV_FILES_TAR_URL=https://f003.backblazeb2.com/file/arc-agi-3-replays-hasaan/env-files/v1/environment_files-pilot.tar.gz`
+- `PRETRAINED_WM_URL=https://f003.backblazeb2.com/file/arc-agi-3-replays-hasaan/pretrained-wm/v1/latest.pkl`
 
 #### Instance: pull-and-extract
 

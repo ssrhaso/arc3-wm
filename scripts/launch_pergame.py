@@ -31,9 +31,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 # Make ``import embodied`` / ``import dreamerv3`` resolve our pinned source.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,20 @@ if _DV3.is_dir() and str(_DV3) not in sys.path:
 
 ARC3_CONFIG_PATH = _REPO_ROOT / "configs" / "arc3.yaml"
 DREAMERV3_CONFIG_PATH = _DV3 / "dreamerv3" / "configs.yaml"
+
+# --- Phase-4 warm-start constants (see docs/phase4-warmstart-notes.md) ----
+
+WM_REGEX = r'^(?:dyn|enc|dec|rew|con)/'
+"""Anchored prefix-match for the 5 World-Model modules. Loaded keys
+filtered to these prefixes; opt/state/... and any future pol/val keys
+are excluded. Validated against Phase-3 v1 ckpt key layout."""
+
+WM_KEY_COUNT = 68
+"""Number of param keys (not elements) the Phase-3 v1 ckpt has under
+the WM prefixes. Used as a fail-loud invariant in seed_wm_from_ckpt."""
+
+WM_PARAM_COUNT = 9_898_179
+"""Sum of param elements across the 68 WM keys. Same fail-loud purpose."""
 
 
 # ----------------------------------------------------------------------
@@ -78,6 +93,18 @@ def build_argparser() -> argparse.ArgumentParser:
         default="train",
         choices=["train", "train_eval", "eval_only"],
         help="Which embodied.run script to call (default: train).",
+    )
+    p.add_argument(
+        "--init-from-ckpt",
+        default="",
+        dest="init_from_ckpt",
+        help=(
+            "Optional Phase-3 WM checkpoint to seed the Phase-4 agent. "
+            "Accepts a local path, b2://bucket/key URL, or https:// URL. "
+            "Module params under (dyn|enc|dec|rew|con) are loaded; "
+            "optimizer state and counters are reset. See "
+            "docs/phase4-warmstart-notes.md."
+        ),
     )
     return p
 
@@ -159,6 +186,147 @@ def build_config(args: argparse.Namespace, leftover: Sequence[str]):
     if "{timestamp}" in config.logdir:
         config = config.update(logdir=config.logdir.format(timestamp=elements.timestamp()))
     return config
+
+
+# ----------------------------------------------------------------------
+# Warm-start helpers (Phase-4 --init-from-ckpt path)
+# ----------------------------------------------------------------------
+
+
+def _is_remote_url(path: str) -> bool:
+    """True iff ``path`` looks like a remote URL we know how to fetch."""
+    return path.startswith("b2://") or path.startswith("https://") or path.startswith("http://")
+
+
+def _download_to_cache(url: str, cache_dir: Path) -> Path:
+    """Fetch ``url`` to ``cache_dir`` and return the local file path.
+
+    Shells out to ``b2 file download`` for b2:// URLs (auth via the
+    ``b2`` CLI's configured account) and ``curl`` for http(s)://. The
+    target filename is the URL's basename; existing files are reused
+    (idempotent — re-running the launcher doesn't re-download).
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    name = url.rsplit("/", 1)[-1] or "ckpt.pkl"
+    target = cache_dir / name
+    if target.exists():
+        return target
+
+    if url.startswith("b2://"):
+        # b2://bucket/key... → b2 file download b2://bucket/key... <target>
+        cmd = ["b2", "file", "download", url, str(target)]
+    else:
+        cmd = ["curl", "-fSL", url, "-o", str(target)]
+    subprocess.run(cmd, check=True)
+    return target
+
+
+def _resolve_init_ckpt_path(path: str, cache_dir: Optional[Path] = None) -> Path:
+    """Resolve ``path`` (local path or remote URL) to a local file path.
+
+    For remote URLs the file is downloaded into ``cache_dir``; the
+    default cache dir is ``<repo>/checkpoints/_init_cache/``.
+    """
+    if not path:
+        raise ValueError("init-from-ckpt path must be non-empty")
+    if _is_remote_url(path):
+        cache_dir = cache_dir if cache_dir is not None else _REPO_ROOT / "checkpoints" / "_init_cache"
+        return _download_to_cache(path, cache_dir)
+    p = Path(path).expanduser()
+    if not p.is_file():
+        raise FileNotFoundError(
+            f"--init-from-ckpt local path does not exist or is not a file: {p}"
+        )
+    return p
+
+
+def _check_no_double_load(init_from_ckpt: str, from_checkpoint: str) -> None:
+    """Reject the combination of --init-from-ckpt and --run.from_checkpoint.
+
+    These are two warm-start mechanisms with different semantics
+    (regex-filtered WM-only vs full agent-state resume). Setting both
+    is almost always a bug.
+    """
+    if init_from_ckpt and from_checkpoint:
+        raise ValueError(
+            "--init-from-ckpt is incompatible with --run.from_checkpoint; "
+            "set only one. See docs/phase4-warmstart-notes.md."
+        )
+
+
+def seed_wm_from_ckpt(agent: Any, ckpt_path: Path) -> dict[str, Any]:
+    """Restore Phase-3 WM module weights into ``agent``, reset counters.
+
+    Steps:
+
+    1. ``pickle.load(open(ckpt_path, 'rb'))`` — yields ``{'params': ..., 'counters': ...}``.
+    2. Validate top-level shape (raises if either key missing).
+    3. Mutate ``state['counters']`` to all-zero (Phase-4 starts fresh).
+    4. Validate the WM regex matches exactly ``WM_KEY_COUNT`` keys and
+       ``WM_PARAM_COUNT`` param elements (fail-loud on regex drift /
+       checkpoint format change).
+    5. Call ``agent.load(state, regex=WM_REGEX)``.
+
+    Returns a diagnostics dict (matched_keys, matched_params,
+    counter_values_before_reset) for caller-side logging.
+    """
+    import pickle
+    import re
+
+    import numpy as np
+
+    state = pickle.load(open(ckpt_path, "rb"))
+
+    if "params" not in state or "counters" not in state:
+        raise ValueError(
+            f"unexpected checkpoint shape at {ckpt_path}: "
+            f"keys={sorted(state) if isinstance(state, dict) else type(state).__name__}; "
+            f"expected top-level dict with 'params' and 'counters'."
+        )
+    for ckey in ("updates", "batches", "actions"):
+        if ckey not in state["counters"]:
+            raise ValueError(
+                f"missing counter {ckey!r} in checkpoint at {ckpt_path}: "
+                f"counters={state['counters']}"
+            )
+
+    original_counters = dict(state["counters"])
+    state["counters"] = {"updates": 0, "batches": 0, "actions": 0}
+
+    params = state["params"]
+    matched = {k: v for k, v in params.items() if re.match(WM_REGEX, k)}
+    matched_keys = len(matched)
+    matched_params = sum(
+        int(np.prod(getattr(v, "shape", (1,)))) if hasattr(v, "shape") else 1
+        for v in matched.values()
+    )
+
+    if matched_keys == 0:
+        raise ValueError(
+            f"WM regex {WM_REGEX!r} matched zero keys in checkpoint at {ckpt_path}; "
+            f"ckpt top-level prefixes: {sorted({k.split('/')[0] for k in params})}. "
+            f"Probable cause: checkpoint key schema changed; update WM_REGEX or "
+            f"investigate the save path."
+        )
+    if matched_keys != WM_KEY_COUNT:
+        raise ValueError(
+            f"WM regex matched {matched_keys} keys; expected exactly {WM_KEY_COUNT}. "
+            f"Indicates silent partial load or schema drift. "
+            f"See docs/phase4-warmstart-notes.md for the expected layout."
+        )
+    if matched_params != WM_PARAM_COUNT:
+        raise ValueError(
+            f"WM matched-key params sum to {matched_params:,}; expected exactly "
+            f"{WM_PARAM_COUNT:,}. Shape mismatch in ckpt or stale constants."
+        )
+
+    agent.load(state, regex=WM_REGEX)
+    return {
+        "matched_keys": matched_keys,
+        "matched_params": matched_params,
+        "counter_values_before_reset": original_counters,
+        "ckpt_path": str(ckpt_path),
+    }
 
 
 # ----------------------------------------------------------------------
@@ -288,6 +456,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     args, leftover = parse_args(argv)
     config = build_config(args, leftover)
 
+    # Reject the dual-warm-start footgun before any heavy construction.
+    _check_no_double_load(args.init_from_ckpt, str(config.run.from_checkpoint))
+
     logdir = Path(config.logdir)
     logdir.mkdir(parents=True, exist_ok=True)
     config.save(str(logdir / "config.yaml"))
@@ -296,6 +467,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     print(f"Logdir:  {logdir}")
     print(f"Task:    {config.task}")
     print(f"Script:  {config.script}")
+    if args.init_from_ckpt:
+        print(f"Init-from-ckpt: {args.init_from_ckpt}")
 
     # Structural check on the env we'll be training in.
     sample_env = make_env(config, 0)
@@ -303,6 +476,25 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         vast_only_isinstance_check(sample_env)
     finally:
         sample_env.close()
+
+    # Resolve the init-ckpt path up-front so download failures surface
+    # before we boot JAX. Then wrap make_agent so the closure handed to
+    # embodied.run.train applies the warm-start post-construction.
+    init_ckpt_path: Optional[Path] = None
+    if args.init_from_ckpt:
+        init_ckpt_path = _resolve_init_ckpt_path(args.init_from_ckpt)
+        print(f"Init-ckpt resolved to: {init_ckpt_path}")
+
+    def make_agent_with_seed():
+        agent = make_agent(config)
+        if init_ckpt_path is not None:
+            diag = seed_wm_from_ckpt(agent, init_ckpt_path)
+            print(
+                f"WM seeded: matched_keys={diag['matched_keys']} "
+                f"matched_params={diag['matched_params']:,} "
+                f"counters_before_reset={diag['counter_values_before_reset']}"
+            )
+        return agent
 
     run_args = elements.Config(
         **config.run,
@@ -319,7 +511,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     if config.script == "train":
         embodied.run.train(
-            bind(make_agent, config),
+            make_agent_with_seed,
             bind(make_replay, config, "replay"),
             bind(make_env, config),
             bind(make_stream, config),
@@ -328,7 +520,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         )
     elif config.script == "train_eval":
         embodied.run.train_eval(
-            bind(make_agent, config),
+            make_agent_with_seed,
             bind(make_replay, config, "replay"),
             bind(make_replay, config, "eval_replay", "eval"),
             bind(make_env, config),
@@ -339,7 +531,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         )
     elif config.script == "eval_only":
         embodied.run.eval_only(
-            bind(make_agent, config),
+            make_agent_with_seed,
             bind(make_env, config),
             bind(make_logger, config),
             run_args,
