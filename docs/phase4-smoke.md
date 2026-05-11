@@ -148,16 +148,34 @@ python scripts/launch_pergame.py \
   --task arc3_vc33 \
   --seed 0 \
   --init-from-ckpt checkpoints/pretrained-wm/v1/latest.pkl \
-  --run.steps 10000 \
-  --run.log_every 100 \
-  --run.save_every 600 \
+  --run.steps 20000 \
+  --run.log_every 5 \
+  --run.save_every 30 \
   2>&1 | tee "$LOGDIR.log"
 ```
 
-Expected wall-clock on A100: ~30–40 min (JAX compile dominates the
-first ~60 s; thereafter ~12k FPS for size12m on size12m, but vc33's
-env-step latency dominates over policy inference, so actual train FPS
-is meaningfully lower than pretrain-pure throughput).
+> **`log_every` and `save_every` are wall-clock seconds, not env steps.**
+> Both are `embodied.LocalClock` instances (see
+> [`embodied/core/clock.py:97-118`](../third_party/dreamerv3/embodied/core/clock.py#L97-L118)).
+> With `first=False` (the default) the very first call always returns
+> False, then they fire whenever `time.time() >= prev + every`. The
+> block at
+> [`embodied/run/train.py:106-114`](../third_party/dreamerv3/embodied/run/train.py#L106-L114)
+> that flushes `train/loss/*`, `replay/*`, `fps/*` is gated by
+> `should_log`; if the smoke's training-loop wall-clock is under
+> `log_every`, **nothing from that block reaches JSONL** even when
+> training is firing correctly. Per-episode `episode/score` and
+> `episode/length` still flush because they're written from `logfn`
+> outside the gate. Earlier defaults of `log_every=100, save_every=600`
+> were 30–60× too coarse for this smoke and gave a misleading
+> "training never fired" signal (see
+> [docs/phase4-smoke-evidence.md](phase4-smoke-evidence.md) verdict-1).
+> 5 s / 30 s with 20,000 env steps gives ~10 logged windows on A100 —
+> enough for `check_smoke_green.py`'s std-based criterion to discriminate.
+
+Expected wall-clock on A100: ~2 min total (~30–60 s JAX compile +
+ARC scorecard init, then ~50 s of training-loop wall-clock at
+~370–450 env-steps/sec and `fps_train ≈ 1.2e4`).
 
 Expected stdout signals (first ~2 min, watch live):
 
@@ -165,7 +183,12 @@ Expected stdout signals (first ~2 min, watch live):
 2. `JAX compile output` — long pause normal, ~30-60 s
 3. **`WM seeded: matched_keys=68 matched_params=9,898,179 counters_before_reset={'updates': 192000, 'batches': 192001, 'actions': 0} live_counters_after_load={'updates': 0, 'batches': 0, 'actions': 0}`** — the critical line; if it doesn't print or has wrong values, kill the run immediately and check (a)/(b) below.
 4. `Start training loop`
-5. First batch of `train/loss/...` entries in stdout + JSONL within ~30 s.
+5. First `Agent Step N` block in stdout with `train/loss/image`,
+   `train/loss/dyn`, `train/loss/rep`, `train/loss/rew`,
+   `train/loss/con` populated, within ~10 s of "Start training loop".
+   A second block at ~5 s later, and so on every ~5 s. Image loss
+   should be visibly descending across blocks (147 → ~3 is what
+   verdict-4 saw at 20k steps).
 
 If `WM seeded` line doesn't appear within 90 s after `Init-ckpt resolved`,
 the warm-start failed (likely JAX shape mismatch on agent.load). Kill,
