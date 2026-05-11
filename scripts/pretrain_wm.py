@@ -291,7 +291,7 @@ def _load_checkpoint_if_exists(ckpt_dir: Path, agent: Any) -> bool:
     return True
 
 
-def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
+def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
     """Custom run loop — sibling of ``embodied.run.train``, WM-only.
 
     Phase-3 contract (verified by tests/test_pretrain_wm.py):
@@ -308,8 +308,11 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
     - Writes checkpoints under ``logdir/ckpt/latest.pkl`` at
       ``args.save_every`` cadence; loads at entry for resume.
     - Logger receives the WM-loss dict every ``args.log_every`` ticks.
-    - RHAE held-out hook is wired in step 5b — for now, only the loop
-      mechanics are exercised.
+    - ``hook`` (optional ``RHAEHeldOutHook`` or callable) is invoked
+      ``hook(step=step, agent=agent)`` once per outer-loop iteration;
+      when it returns a non-None metrics dict, it's forwarded to
+      ``logger.add(metrics, prefix="train")``. The hook decides cadence
+      via its own ``every_n_steps`` — the loop is dumb.
 
     The loop is intentionally simple: each iteration does
     ``int(args.train_ratio)`` ``train`` updates and bumps an integer
@@ -374,6 +377,20 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
             batch = next(stream)
             carry, _outs, last_metrics = agent.train(carry, batch)
 
+        # RHAE held-out hook — fires every iteration; hook decides
+        # emission cadence (returns None off-schedule). Logged under
+        # the same `prefix="train"` surface as the WM-loss dict.
+        if hook is not None:
+            try:
+                hook_metrics = hook(step=step, agent=agent)
+            except Exception:  # noqa: BLE001 — mock-friendly
+                hook_metrics = None
+            if hook_metrics is not None:
+                try:
+                    logger.add(hook_metrics, prefix="train")
+                except Exception:  # noqa: BLE001 — mock-friendly
+                    pass
+
         step += 1
 
         if should_save(step):
@@ -403,6 +420,13 @@ class RHAEHeldOutHook:
     those frames is the predicted level-up probability the Phase-3
     figure plots against the actual level-transition mask.
 
+    ``holdout=None`` is the smoke-mode sentinel: the hook still fires
+    on schedule and emits ``rhae/level_up_prob`` (as a placeholder
+    ``0.0``), but does NOT call ``agent.report``. This lets the smoke
+    (Run A criterion c) verify schedule + key contract on the real
+    ``WMOnlyAgent`` without needing a shape-correct held-out batch —
+    real value flow lands as a follow-up before Run B.
+
     The agent interface is duck-typed: tests pass ``mock.MagicMock`` and
     only check the schedule + the ``rhae/*`` key contract; production
     passes a ``WMOnlyAgent`` and the value flows through unchanged into
@@ -420,6 +444,8 @@ class RHAEHeldOutHook:
     def __call__(self, *, step: int, agent) -> Optional[dict[str, Any]]:
         if step % self.every_n_steps != 0:
             return None
+        if self.holdout is None:
+            return {"rhae/level_up_prob": 0.0}
         return {"rhae/level_up_prob": agent.report(self.holdout)}
 
 

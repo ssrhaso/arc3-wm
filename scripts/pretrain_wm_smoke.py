@@ -175,7 +175,19 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         replay_context=config.replay_context,
     )
 
-    P.pretrain_wm_loop(agent=agent, replay=replay, logger=logger, args=run_args)
+    # RHAE held-out hook (G2) — smoke uses the holdout=None sentinel so
+    # we verify schedule + rhae/level_up_prob key on the real WMOnlyAgent
+    # without needing a shape-correct held-out batch. Real value flow
+    # lands before Run B. Cadence picked so 1500 outer-loop steps emit
+    # 15 entries (steps 0, 100, ..., 1400) — matches Run A criterion (c).
+    hook = P.RHAEHeldOutHook(holdout=None, every_n_steps=100)
+    print(f"RHAE hook: holdout=None sentinel, every_n_steps=100 "
+          f"(expected emissions in {args.steps} steps: "
+          f"{1 + (args.steps - 1) // 100})")
+
+    P.pretrain_wm_loop(
+        agent=agent, replay=replay, logger=logger, args=run_args, hook=hook,
+    )
     logger.close()
     print(f"Smoke complete. Loss JSONL under: {logdir}/scope/")
 

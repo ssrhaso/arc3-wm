@@ -685,6 +685,119 @@ def test_rhae_hook_does_not_fire_off_schedule():
     assert hook(step=9, agent=mock.MagicMock()) is None
 
 
+def test_rhae_hook_short_circuits_on_none_holdout():
+    """``holdout=None`` is the smoke-mode sentinel — hook fires on
+    schedule but returns a placeholder metric without invoking
+    ``agent.report``. The real ``WMOnlyAgent.report`` signature is
+    (carry, batch); passing ``None`` would error. The smoke (step 5b →
+    Phase-3 Run A criterion c) only needs the schedule + key contract,
+    not the actual value flow."""
+    hook = P.RHAEHeldOutHook(holdout=None, every_n_steps=1)
+    agent_mock = mock.MagicMock()
+    metrics = hook(step=0, agent=agent_mock)
+    assert metrics is not None
+    assert "rhae/level_up_prob" in metrics, (
+        f"holdout=None hook must still emit rhae/level_up_prob; got {set(metrics)}"
+    )
+    # Critical: skipping agent.report is what makes the smoke survive on
+    # the real WMOnlyAgent.
+    agent_mock.report.assert_not_called()
+
+
+def test_rhae_hook_none_holdout_respects_schedule():
+    """Even with the short-circuit, the schedule remains authoritative —
+    off-schedule calls still return ``None``."""
+    hook = P.RHAEHeldOutHook(holdout=None, every_n_steps=5)
+    assert hook(step=1, agent=mock.MagicMock()) is None
+    assert hook(step=4, agent=mock.MagicMock()) is None
+    assert hook(step=5, agent=mock.MagicMock()) is not None
+
+
+# ---------------------------------------------------------------------------
+# (6b) Hook wired into pretrain_wm_loop
+# ---------------------------------------------------------------------------
+
+
+def test_pretrain_loop_invokes_hook_on_every_iteration(tmp_path):
+    """Loop calls ``hook(step=step, agent=agent)`` once per outer-loop
+    iteration when provided. Schedule + return-value gating are the
+    hook's responsibility — the loop is dumb."""
+    agent = RecordingAgent()
+    replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=3)
+    hook = mock.MagicMock(return_value=None)
+
+    P.pretrain_wm_loop(
+        agent=agent, replay=replay, logger=mock.MagicMock(), args=args, hook=hook,
+    )
+    assert hook.call_count == 3, (
+        f"hook called {hook.call_count}× across 3 outer-loop iterations; "
+        "expected 1 call per iteration"
+    )
+    # Step values seen by the hook are 0..steps-1 — the runbook's
+    # "15 emissions at every_n_steps=100 over 1500 outer-loop iters"
+    # calculation hinges on this ordering.
+    seen_steps = [c.kwargs.get("step") for c in hook.call_args_list]
+    assert seen_steps == [0, 1, 2], f"hook saw step values {seen_steps}; expected [0, 1, 2]"
+
+
+def test_pretrain_loop_logs_hook_metrics_with_train_prefix(tmp_path):
+    """When the hook returns a metrics dict, the loop forwards it to
+    ``logger.add(metrics, prefix='train')`` — same surface as the
+    per-iteration WM-loss log."""
+    agent = RecordingAgent()
+    replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
+    hook = mock.MagicMock(return_value={"rhae/level_up_prob": 0.42})
+    logger = mock.MagicMock()
+
+    P.pretrain_wm_loop(agent=agent, replay=replay, logger=logger, args=args, hook=hook)
+    hook_calls = [
+        c for c in logger.add.call_args_list
+        if c.args
+        and isinstance(c.args[0], dict)
+        and "rhae/level_up_prob" in c.args[0]
+    ]
+    assert hook_calls, (
+        f"hook metrics never reached logger.add; calls were: {logger.add.call_args_list}"
+    )
+    for c in hook_calls:
+        assert c.kwargs.get("prefix") == "train", (
+            f"hook metrics must log with prefix='train'; got kwargs={c.kwargs!r}"
+        )
+
+
+def test_pretrain_loop_skips_logger_when_hook_returns_none(tmp_path):
+    """When the hook returns None (off-schedule), the loop must NOT call
+    ``logger.add`` for hook metrics on that iteration. The
+    ``if metrics is not None`` guard is the contract — off-schedule must
+    be a true no-op, not an empty-dict log."""
+    agent = RecordingAgent()
+    replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
+    hook = mock.MagicMock(return_value=None)
+    logger = mock.MagicMock()
+
+    P.pretrain_wm_loop(agent=agent, replay=replay, logger=logger, args=args, hook=hook)
+    rhae_calls = [
+        c for c in logger.add.call_args_list
+        if c.args
+        and isinstance(c.args[0], dict)
+        and any(k.startswith("rhae/") for k in c.args[0])
+    ]
+    assert not rhae_calls, (
+        f"loop logged hook metrics despite hook returning None: {rhae_calls}"
+    )
+
+
+def test_pretrain_loop_without_hook_still_runs(tmp_path):
+    """``hook`` is optional — existing callers (smoke before G2 wiring,
+    laptop tests that pre-date this) keep working when no hook kwarg is
+    passed. Default must be ``None``."""
+    agent = RecordingAgent()
+    replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
+
+    P.pretrain_wm_loop(agent=agent, replay=replay, logger=mock.MagicMock(), args=args)
+    assert agent.train_calls > 0, "loop did not train when hook kwarg was omitted"
+
+
 # ---------------------------------------------------------------------------
 # (7) Config — pretrain block layered cleanly on top of size12m + arc3
 # ---------------------------------------------------------------------------
