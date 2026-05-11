@@ -396,10 +396,27 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
         if should_save(step):
             _save_checkpoint(ckpt_dir, agent)
         if should_log(step):
+            # Stream a flat scalars snapshot to stdout so SSH / tmux watchers
+            # see live training without round-tripping through wandb. Useful
+            # when the only window is a remote shell.
+            scalars = {}
+            for k, v in last_metrics.items():
+                try:
+                    scalars[k] = float(v)
+                except Exception:  # noqa: BLE001 — non-scalar values are skipped
+                    pass
+            print(f"[step {step}] n={len(last_metrics)} scalars={scalars}", flush=True)
             try:
                 logger.add(last_metrics, prefix="train")
-            except Exception:  # noqa: BLE001 — mock-friendly: laptop tests pass MagicMock
-                pass
+            except Exception as e:  # noqa: BLE001 — surface, don't silently swallow
+                # Tests still pass because RecordingAgent.last_metrics is a real
+                # dict of floats and the MagicMock logger.add never raises;
+                # production sees the error printed clearly if it ever does.
+                print(
+                    f"[step {step}] logger.add FAILED: "
+                    f"{type(e).__name__}: {e}",
+                    flush=True,
+                )
 
     # Final checkpoint — guarantees a usable artifact even if save_every
     # never fired during a short run.
@@ -472,6 +489,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     args, leftover = parse_args(argv)
     config = build_config(args, leftover)
+
+    # Ensure JSONL output is on (runbook §B.4 greps assume metrics.jsonl).
+    # Wandb auto-add when WANDB_PROJECT is set — mirrors launch_pergame.py.
+    import os as _os
+    wanted = list(config.logger.outputs)
+    if "jsonl" not in wanted:
+        wanted.append("jsonl")
+    if _os.environ.get("WANDB_PROJECT") and "wandb" not in wanted:
+        wanted.append("wandb")
+    config = config.update(logger={"outputs": wanted})
+    print(f"Logger outputs: {wanted}")
 
     logdir = Path(config.logdir)
     logdir.mkdir(parents=True, exist_ok=True)
