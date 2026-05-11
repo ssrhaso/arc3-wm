@@ -45,6 +45,28 @@ def _state_with_matched(keys_and_shapes: dict[str, tuple[int, ...]]) -> dict:
     }
 
 
+def _agent_with_realistic_load() -> mock.MagicMock:
+    """Mock agent whose ``load(state, regex=...)`` mirrors real semantics:
+    write ``state['counters']['updates']`` into ``agent.n_updates.value``,
+    same for batches and actions.
+
+    Lets the seed_wm_from_ckpt live-counter assertion exercise the real
+    pathway (read agent.n_*.value, verify zero) on a mock target.
+    """
+    agent = mock.MagicMock()
+    agent.n_updates.value = -1  # sentinel: pre-load state
+    agent.n_batches.value = -1
+    agent.n_actions.value = -1
+
+    def fake_load(state, regex=None):
+        agent.n_updates.value = int(state["counters"]["updates"])
+        agent.n_batches.value = int(state["counters"]["updates"])  # matches agent.py:368
+        agent.n_actions.value = int(state["counters"]["actions"])
+
+    agent.load.side_effect = fake_load
+    return agent
+
+
 # ----------------------------------------------------------------------
 # argparse layer
 # ----------------------------------------------------------------------
@@ -299,11 +321,14 @@ def test_seed_wm_from_ckpt_resets_counters_before_load(tmp_path, monkeypatch):
     pickle.dump(state, open(f, "wb"))
 
     captured_counters: dict = {}
+    agent = _agent_with_realistic_load()
+
+    real_side_effect = agent.load.side_effect
 
     def fake_load(state_arg, regex=None):
         captured_counters.update(state_arg["counters"])
+        real_side_effect(state_arg, regex=regex)  # mutate counters live
 
-    agent = mock.MagicMock()
     agent.load.side_effect = fake_load
 
     diag = L.seed_wm_from_ckpt(agent, f)
@@ -322,12 +347,52 @@ def test_seed_wm_from_ckpt_passes_wm_regex_to_agent_load(tmp_path, monkeypatch):
     f = tmp_path / "good.pkl"
     pickle.dump(_state_with_matched({"dyn/a": (2, 2)}), open(f, "wb"))
 
-    agent = mock.MagicMock()
+    agent = _agent_with_realistic_load()
     L.seed_wm_from_ckpt(agent, f)
 
     agent.load.assert_called_once()
     _, kwargs = agent.load.call_args
     assert kwargs.get("regex") == L.WM_REGEX
+
+
+def test_seed_wm_from_ckpt_raises_when_live_counters_nonzero(tmp_path, monkeypatch):
+    """Post-load live-counter assertion fires when agent.load didn't reset.
+
+    Defends against a future agent.load() refactor that silently re-derives
+    counters from elsewhere (cached state, env, etc.). Synthetic mock
+    simulates a broken load that leaves counters at their pre-reset values."""
+    monkeypatch.setattr(L, "WM_KEY_COUNT", 1)
+    monkeypatch.setattr(L, "WM_PARAM_COUNT", 4)
+    f = tmp_path / "good.pkl"
+    pickle.dump(_state_with_matched({"dyn/a": (2, 2)}), open(f, "wb"))
+
+    agent = mock.MagicMock()
+    # Pretend agent.load IGNORED the zeroed counters and kept the
+    # original Phase-3 values (n_updates=192000 etc.).
+    def broken_load(state, regex=None):
+        agent.n_updates.value = 192_000
+        agent.n_batches.value = 192_001
+        agent.n_actions.value = 0
+    agent.load.side_effect = broken_load
+
+    with pytest.raises(RuntimeError, match="post-load counter reset failed"):
+        L.seed_wm_from_ckpt(agent, f)
+
+
+def test_seed_wm_from_ckpt_diagnostics_includes_live_counters(tmp_path, monkeypatch):
+    """Diagnostic dict must surface the live-agent counter values for
+    the launcher's stdout log line and the smoke-green analyzer."""
+    monkeypatch.setattr(L, "WM_KEY_COUNT", 1)
+    monkeypatch.setattr(L, "WM_PARAM_COUNT", 4)
+    f = tmp_path / "good.pkl"
+    pickle.dump(_state_with_matched({"dyn/a": (2, 2)}), open(f, "wb"))
+
+    agent = _agent_with_realistic_load()
+    diag = L.seed_wm_from_ckpt(agent, f)
+
+    assert diag["live_counters_after_load"] == {
+        "updates": 0, "batches": 0, "actions": 0,
+    }
 
 
 def test_wm_regex_matches_only_wm_prefixes():
@@ -364,7 +429,7 @@ def test_seed_wm_from_ckpt_against_real_v1_pkl():
     runs against the actual file, exercising every assertion path
     with the real production-shape state dict.
     """
-    agent = mock.MagicMock()
+    agent = _agent_with_realistic_load()
     diag = L.seed_wm_from_ckpt(agent, _REAL_CKPT)
 
     assert diag["matched_keys"] == L.WM_KEY_COUNT == 68
@@ -373,6 +438,7 @@ def test_seed_wm_from_ckpt_against_real_v1_pkl():
     assert diag["counter_values_before_reset"] == {
         "updates": 192_000, "batches": 192_001, "actions": 0,
     }
+    assert diag["live_counters_after_load"] == {"updates": 0, "batches": 0, "actions": 0}
     # agent.load was called exactly once, with the real regex.
     agent.load.assert_called_once()
     _, kwargs = agent.load.call_args

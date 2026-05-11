@@ -321,10 +321,29 @@ def seed_wm_from_ckpt(agent: Any, ckpt_path: Path) -> dict[str, Any]:
         )
 
     agent.load(state, regex=WM_REGEX)
+
+    # Live-agent counter assertion — verifies agent.load() actually
+    # applied the reset (defends against an agent.load() refactor that
+    # silently re-derives counters from elsewhere). Reads through the
+    # real Counter objects' .value attribute; tests must set these to
+    # mirror real agent.load semantics on the mock.
+    live_counters = {
+        "updates": int(agent.n_updates.value),
+        "batches": int(agent.n_batches.value),
+        "actions": int(agent.n_actions.value),
+    }
+    if any(v != 0 for v in live_counters.values()):
+        raise RuntimeError(
+            f"post-load counter reset failed: live counters = {live_counters}; "
+            f"expected all zero. agent.load() did not honour the reset state "
+            f"OR the Counter API changed."
+        )
+
     return {
         "matched_keys": matched_keys,
         "matched_params": matched_params,
         "counter_values_before_reset": original_counters,
+        "live_counters_after_load": live_counters,
         "ckpt_path": str(ckpt_path),
     }
 
@@ -492,7 +511,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             print(
                 f"WM seeded: matched_keys={diag['matched_keys']} "
                 f"matched_params={diag['matched_params']:,} "
-                f"counters_before_reset={diag['counter_values_before_reset']}"
+                f"counters_before_reset={diag['counter_values_before_reset']} "
+                f"live_counters_after_load={diag['live_counters_after_load']}"
             )
         return agent
 
