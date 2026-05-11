@@ -148,9 +148,9 @@ def test_criterion_c_flatlined_loss_fails():
         r["loss/dyn"] = 1.0  # flatline
     all_ok, per = G.criterion_c(records)
     assert all_ok is False
-    assert per["loss/dyn"][0] is False
+    assert per["train/loss/dyn"][0] is False
     # Other losses still moving.
-    assert per["loss/image"][0] is True
+    assert per["train/loss/image"][0] is True
 
 
 def test_criterion_c_missing_key_fails():
@@ -160,8 +160,8 @@ def test_criterion_c_missing_key_fails():
         r.pop("loss/rep", None)
     all_ok, per = G.criterion_c(records)
     assert all_ok is False
-    assert per["loss/rep"][0] is False
-    assert "ABSENT" in per["loss/rep"][1]
+    assert per["train/loss/rep"][0] is False
+    assert "ABSENT" in per["train/loss/rep"][1]
 
 
 def test_criterion_c_alias_resolution():
@@ -173,8 +173,42 @@ def test_criterion_c_alias_resolution():
     all_ok, per = G.criterion_c(records)
     assert all_ok is True
     # Reported under the alias actually present:
-    assert "loss/reward" in per["loss/rew"][1]
-    assert "loss/cont" in per["loss/con"][1]
+    assert "loss/reward" in per["train/loss/rew"][1]
+    assert "loss/cont" in per["train/loss/con"][1]
+
+
+def test_criterion_c_train_prefix_records():
+    """The Phase-4 path: embodied.run.train wraps metrics with prefix='train',
+    so the JSONL keys come out as ``train/loss/<head>``. The analyzer must
+    pick those up via the alias table without any extra config."""
+    records = []
+    for i in range(60):
+        records.append({
+            "step": i + 1,
+            "train/loss/image": 178.0 - i * 0.3,
+            "train/loss/dyn":   4.4 + 0.01 * i,
+            "train/loss/rep":   2.0 - 0.005 * i,
+            "train/loss/rew":   0.5 + 0.001 * (i % 5),
+            "train/loss/con":   0.02 + 0.0001 * i,
+        })
+    all_ok, per = G.criterion_c(records)
+    assert all_ok is True, per
+    for k in G.WM_LOSS_KEYS:
+        ok, msg = per[k]
+        assert ok is True, f"{k}: {msg}"
+        # Reported message names the train/-prefixed key.
+        assert msg.startswith("train/loss/"), f"{k}: unexpected msg {msg!r}"
+
+
+def test_criterion_d_catches_nan_under_train_prefix():
+    """NaN scan must walk both unprefixed and embodied-wrapped loss keys."""
+    records = [
+        {"step": 1, "train/loss/image": 100.0, "train/loss/dyn": 5.0},
+        {"step": 2, "train/loss/image": float("nan"), "train/loss/dyn": 4.9},
+    ]
+    ok, msg = G.criterion_d(records)
+    assert ok is False
+    assert "train/loss/image" in msg
 
 
 # ----------------------------------------------------------------------

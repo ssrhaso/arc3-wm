@@ -41,10 +41,22 @@ from typing import Any, Iterable
 # import (the launcher module touches argparse + sys.path at import).
 EXPECTED_KEYS = 68
 EXPECTED_PARAMS = 9_898_179
-WM_LOSS_KEYS = ("loss/image", "loss/dyn", "loss/rep", "loss/rew", "loss/con")
+WM_LOSS_KEYS = (
+    "train/loss/image", "train/loss/dyn", "train/loss/rep",
+    "train/loss/rew",   "train/loss/con",
+)
+"""Canonical Phase-4 metric names: dreamerv3's ``embodied.run.train``
+wraps WM-only metrics with prefix='train' (train.py:80), so the keys in
+metrics.jsonl come out as ``train/loss/<head>``. Aliases below also
+accept the unprefixed form (Phase-3 pretrain_wm logs and the synthetic
+test fixtures use that) plus the long-form ``reward``/``cont`` spellings."""
+
 LOSS_KEY_ALIASES = {
-    "loss/rew": ("loss/rew", "loss/reward"),
-    "loss/con": ("loss/con", "loss/cont"),
+    "train/loss/image": ("train/loss/image", "loss/image"),
+    "train/loss/dyn":   ("train/loss/dyn",   "loss/dyn"),
+    "train/loss/rep":   ("train/loss/rep",   "loss/rep"),
+    "train/loss/rew":   ("train/loss/rew",   "train/loss/reward", "loss/rew", "loss/reward"),
+    "train/loss/con":   ("train/loss/con",   "train/loss/cont",   "loss/con", "loss/cont"),
 }
 
 CRASH_PATTERNS = [
@@ -207,7 +219,9 @@ def criterion_d(records: list[dict]) -> tuple[bool, str]:
                 nan_hits.append(f"raw line contains NaN/Infinity: {raw!r}")
             continue
         for k, v in r.items():
-            if not k.startswith("loss/"):
+            # Match both bare "loss/..." (Phase-3 pretrain stdout taps) and
+            # the embodied-wrapped "train/loss/..." (Phase-4 train.py).
+            if "loss/" not in k:
                 continue
             try:
                 fv = float(v)
