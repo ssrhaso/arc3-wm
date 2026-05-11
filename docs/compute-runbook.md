@@ -215,6 +215,18 @@ lives in `arc3_wm/wm_only_agent.py::WMOnlyAgent` (subclass of
 `dreamerv3.agent.Agent` per D12; the override branches before
 `self.imagine(...)` so the actor/critic optimizer never fires).
 
+#### Phase-3-only extra prereq: TensorFlow for jax.profiler
+
+Phase 3 enables `jax.profiler.start_trace`, which lazily imports
+TensorFlow on first use. Crafter (Phase 2) doesn't trip this path,
+so a fresh image works there without TF — but the Phase-3 smoke and
+full pretrain will crash on the first profile event without it.
+Install before launching either:
+
+```bash
+pip install tensorflow
+```
+
 #### Phase-3 smoke (must pass before the full pretrain)
 
 The smoke runs a real `WMOnlyAgent` against a tiny ~50-transition
