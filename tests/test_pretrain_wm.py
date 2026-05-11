@@ -832,3 +832,154 @@ def test_pretrain_config_disables_imagination_loss():
     assert getattr(config, "script", None) == "pretrain_wm", (
         f"pretrain config must set script=pretrain_wm; got {getattr(config, 'script', None)!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# (8) main() — end-to-end argparse + orchestration smoke
+# ---------------------------------------------------------------------------
+
+
+def test_main_orchestrates_buffer_agent_logger_loop(tmp_path, monkeypatch):
+    """``main()`` is the Run-B entry point. It must wire:
+      build_config → make_replay → populate_buffer_from_replays →
+      make_wm_only_agent → make_logger → pretrain_wm_loop (with an
+      RHAE hook constructed for free).
+
+    Heavy DV3 / JAX bits are monkeypatched out so this stays a laptop
+    test — mirrors the discipline of the launcher smoke. The order
+    check is the load-bearing assertion: a misordered orchestration
+    (e.g. build agent before buffer) silently breaks the Phase-3
+    pre-populate contract."""
+    replays_root = tmp_path / "replays"
+    _make_synthetic_replay_tree(replays_root)
+    logdir = tmp_path / "run"
+
+    calls: list[str] = []
+    fake_replay = FakeReplay()
+    fake_agent = RecordingAgent()
+    fake_logger = mock.MagicMock()
+    captured: dict = {}
+
+    def fake_populate(replay, root, *, stats=None):
+        calls.append("populate_buffer_from_replays")
+        captured["replays_root"] = Path(root)
+        # Seed the replay so the loop's len-check passes if it ever
+        # runs (it shouldn't — loop itself is patched).
+        for _ in range(4):
+            replay.add({"image": np.zeros((1,), np.uint8)})
+        return 16
+
+    def fake_make_agent(config):
+        calls.append("make_wm_only_agent")
+        return fake_agent
+
+    def fake_loop(*, agent, replay, logger, args, hook=None):
+        calls.append("pretrain_wm_loop")
+        assert hook is not None, (
+            "main() must construct an RHAE hook so Run B emits "
+            "rhae/level_up_prob from step 0 onward"
+        )
+        captured["hook_holdout"] = hook.holdout
+
+    monkeypatch.setattr(P, "populate_buffer_from_replays", fake_populate)
+    monkeypatch.setattr(P, "make_wm_only_agent", fake_make_agent)
+    monkeypatch.setattr(P, "pretrain_wm_loop", fake_loop)
+
+    # Lazy dreamerv3.main imports — stub here, not in the autouse
+    # fixture, so other tests don't accidentally pick up these doubles.
+    fake_dreamerv3 = types.ModuleType("dreamerv3")
+    fake_dreamerv3_main = types.ModuleType("dreamerv3.main")
+    fake_dreamerv3_main.make_replay = lambda config, folder: (
+        calls.append("make_replay") or fake_replay
+    )
+    fake_dreamerv3_main.make_logger = lambda config: (
+        calls.append("make_logger") or fake_logger
+    )
+    monkeypatch.setitem(sys.modules, "dreamerv3", fake_dreamerv3)
+    monkeypatch.setitem(sys.modules, "dreamerv3.main", fake_dreamerv3_main)
+
+    P.main([
+        "--logdir", str(logdir),
+        "--replays-root", str(replays_root),
+        "--run.steps", "1",
+    ])
+
+    expected = [
+        "make_replay",
+        "populate_buffer_from_replays",
+        "make_wm_only_agent",
+        "make_logger",
+        "pretrain_wm_loop",
+    ]
+    assert calls == expected, (
+        f"main() orchestration order {calls!r} != expected {expected!r}"
+    )
+    assert captured["replays_root"] == replays_root, (
+        f"replays_root mis-threaded: {captured['replays_root']} != {replays_root}"
+    )
+    # logger.close() must run so the Vast JSONL trail is flushed.
+    fake_logger.close.assert_called_once()
+
+
+def test_main_writes_config_yaml_into_logdir(tmp_path, monkeypatch):
+    """``main()`` saves the resolved config under ``$LOGDIR/config.yaml``
+    so the run is reproducible — same convention as launch_pergame and
+    pretrain_wm_smoke. Vast preemption recovery + paper-time
+    reproducibility both depend on this artifact."""
+    replays_root = tmp_path / "replays"
+    _make_synthetic_replay_tree(replays_root)
+    logdir = tmp_path / "run"
+
+    monkeypatch.setattr(P, "populate_buffer_from_replays", lambda *a, **k: 16)
+    monkeypatch.setattr(P, "make_wm_only_agent", lambda config: RecordingAgent())
+    monkeypatch.setattr(P, "pretrain_wm_loop", lambda **kw: None)
+
+    fake_dv3_main = types.ModuleType("dreamerv3.main")
+    fake_dv3_main.make_replay = lambda config, folder: FakeReplay()
+    fake_dv3_main.make_logger = lambda config: mock.MagicMock()
+    monkeypatch.setitem(sys.modules, "dreamerv3", types.ModuleType("dreamerv3"))
+    monkeypatch.setitem(sys.modules, "dreamerv3.main", fake_dv3_main)
+
+    P.main([
+        "--logdir", str(logdir),
+        "--replays-root", str(replays_root),
+    ])
+    assert (logdir / "config.yaml").exists(), (
+        f"main() did not write {logdir}/config.yaml — Vast resume + paper "
+        "reproducibility both rely on this artifact"
+    )
+
+
+def test_main_does_not_override_run_steps(tmp_path, monkeypatch):
+    """G1 invariant: ``main()`` lets the ``pretrain`` block's
+    ``run.steps: 2.2e8`` win. The smoke (pretrain_wm_smoke.py) overrides
+    to 1500 for short wall-clock; the production entry point must NOT —
+    otherwise a stray Run B finishes in seconds rather than 6h."""
+    replays_root = tmp_path / "replays"
+    _make_synthetic_replay_tree(replays_root)
+    logdir = tmp_path / "run"
+
+    captured: dict = {}
+
+    def fake_loop(*, agent, replay, logger, args, hook=None):
+        captured["steps"] = int(args.steps)
+
+    monkeypatch.setattr(P, "populate_buffer_from_replays", lambda *a, **k: 16)
+    monkeypatch.setattr(P, "make_wm_only_agent", lambda config: RecordingAgent())
+    monkeypatch.setattr(P, "pretrain_wm_loop", fake_loop)
+
+    fake_dv3_main = types.ModuleType("dreamerv3.main")
+    fake_dv3_main.make_replay = lambda config, folder: FakeReplay()
+    fake_dv3_main.make_logger = lambda config: mock.MagicMock()
+    monkeypatch.setitem(sys.modules, "dreamerv3", types.ModuleType("dreamerv3"))
+    monkeypatch.setitem(sys.modules, "dreamerv3.main", fake_dv3_main)
+
+    P.main([
+        "--logdir", str(logdir),
+        "--replays-root", str(replays_root),
+    ])
+    # The YAML pretrain block sets 2.2e8 — main() must not silently shrink.
+    assert captured["steps"] >= 100_000_000, (
+        f"main() resolved run.steps to {captured['steps']}; expected ≥1e8 "
+        "(pretrain YAML default is 2.2e8). G1 contract violated."
+    )

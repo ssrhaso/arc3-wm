@@ -450,4 +450,81 @@ class RHAEHeldOutHook:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    raise NotImplementedError(_STUB_MSG)
+    """Phase-3 entry point — full cross-game WM pretrain on all 340 replays.
+
+    Mirrors ``scripts/pretrain_wm_smoke.py::main()`` but with two
+    deliberate differences:
+
+    - Pre-populates from the real replay tree under ``--replays-root``
+      via ``populate_buffer_from_replays`` (not the synthetic fabricator).
+    - Does NOT override ``--run.steps`` / ``--run.save_every`` /
+      ``--run.log_every``: the ``pretrain`` block in ``configs/arc3.yaml``
+      already sets these to production values (2.2e8 / 1800s / 120s).
+
+    Resume from preemption is the standard re-run-with-same-logdir
+    pattern: ``pretrain_wm_loop`` calls ``_load_checkpoint_if_exists``
+    on entry.
+    """
+    import elements
+
+    # Lazy heavy imports — laptop-importable for argparse / orchestration tests.
+    from dreamerv3.main import make_logger, make_replay
+
+    args, leftover = parse_args(argv)
+    config = build_config(args, leftover)
+
+    logdir = Path(config.logdir)
+    logdir.mkdir(parents=True, exist_ok=True)
+    config.save(str(logdir / "config.yaml"))
+
+    print(f"Replica:      {config.replica} / {config.replicas}")
+    print(f"Logdir:       {logdir}")
+    print(f"Task:         {config.task}")
+    print(f"Script:       {config.script}")
+    print(f"Replays root: {args.replays_root}")
+
+    replay = make_replay(config, "replay")
+    stats: dict[str, Any] = {}
+    n = populate_buffer_from_replays(replay, Path(args.replays_root), stats=stats)
+    print(f"Pre-populated buffer: {n} transitions, len(replay)={len(replay)}")
+    per_game = stats.get("per_game_counts", {})
+    if per_game:
+        # Phase-3 gate row 1: per-game distribution should be roughly even.
+        # Print sorted so the run log captures the distribution for the paper.
+        for game_id in sorted(per_game):
+            print(f"  {game_id}: {per_game[game_id]}")
+    noise = stats.get("noise_rows_discarded", 0)
+    if noise:
+        print(f"Post-terminal noise rows discarded: {noise}")
+
+    agent = make_wm_only_agent(config)
+    print("WMOnlyAgent constructed; entering pretrain_wm_loop.")
+
+    logger = make_logger(config)
+    run_args = elements.Config(
+        **config.run,
+        replica=config.replica,
+        replicas=config.replicas,
+        logdir=config.logdir,
+        batch_size=config.batch_size,
+        batch_length=config.batch_length,
+        report_length=config.report_length,
+        consec_train=config.consec_train,
+        consec_report=config.consec_report,
+        replay_context=config.replay_context,
+    )
+
+    # RHAE held-out hook (G2). holdout=None placeholder until shape-correct
+    # held-out scoring lands; cadence aligned to the report_every clock
+    # (300 in the pretrain YAML → ~every 5 min of training).
+    hook = RHAEHeldOutHook(holdout=None, every_n_steps=int(config.run.report_every))
+
+    pretrain_wm_loop(
+        agent=agent, replay=replay, logger=logger, args=run_args, hook=hook,
+    )
+    logger.close()
+    print(f"Pretrain complete. Checkpoint: {logdir}/ckpt/latest.pkl")
+
+
+if __name__ == "__main__":
+    main()
