@@ -117,8 +117,8 @@ chmod 600 .env
 # 8. Stage replays from object storage (NEVER re-gdown from Drive on a remote).
 mkdir -p data
 [ -d data/replays ] || curl -L --fail "$REPLAY_TAR_URL" | tar xz -C data/
-[ "$(find data/replays -name '*.jsonl' | wc -l)" = "342" ] || \
-  echo "WARNING: replay count != 342" >&2
+N_REPLAYS=$(find data/replays -name '*.jsonl' | wc -l)
+[ "$N_REPLAYS" -ge 340 ] || { echo "ERROR: replay count $N_REPLAYS < 340" >&2; exit 1; }
 
 # 9. Stage environment_files (the cached arc_agi game source) so OFFLINE
 #    mode finds metadata.json without an API call.
