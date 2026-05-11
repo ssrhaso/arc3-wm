@@ -390,13 +390,37 @@ def pretrain_wm_loop(*, agent, replay, logger, args) -> None:
 
 
 class RHAEHeldOutHook:
-    """Periodic held-out-replay hook. See module docstring."""
+    """Periodic held-out-replay hook — Phase-3 gate row 7.
+
+    Fires on step 0 and every ``every_n_steps`` thereafter; returns a
+    metrics dict keyed under ``rhae/*`` for the pretrain logger. On
+    off-schedule calls returns ``None`` so the loop's
+    ``if metrics is not None`` check skips the log call.
+
+    The metric of interest is per-step P(level-up), read from the
+    agent's continue head on a held-out replay: continue=False fires on
+    level-transition frames in our replay schema, so 1 - P(continue) on
+    those frames is the predicted level-up probability the Phase-3
+    figure plots against the actual level-transition mask.
+
+    The agent interface is duck-typed: tests pass ``mock.MagicMock`` and
+    only check the schedule + the ``rhae/*`` key contract; production
+    passes a ``WMOnlyAgent`` and the value flows through unchanged into
+    the JSONL logger.
+    """
 
     def __init__(self, *, holdout, every_n_steps: int) -> None:
-        raise NotImplementedError(_STUB_MSG)
+        if every_n_steps <= 0:
+            raise ValueError(
+                f"every_n_steps must be > 0; got {every_n_steps!r}"
+            )
+        self.holdout = holdout
+        self.every_n_steps = int(every_n_steps)
 
     def __call__(self, *, step: int, agent) -> Optional[dict[str, Any]]:
-        raise NotImplementedError(_STUB_MSG)
+        if step % self.every_n_steps != 0:
+            return None
+        return {"rhae/level_up_prob": agent.report(self.holdout)}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
