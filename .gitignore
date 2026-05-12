@@ -1,5 +1,6 @@
 # --- Project artifacts (sacred but not committed) ---
-data/
+data/*
+!data/human_baselines.json
 checkpoints/
 results/
 ~/logdir/
