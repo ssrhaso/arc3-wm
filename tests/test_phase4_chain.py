@@ -49,8 +49,8 @@ _PHASE3_CKPT = _REPO_ROOT / "checkpoints" / "pretrained-wm" / "v1" / "latest.pkl
 _HUMAN_BASELINES = _REPO_ROOT / "data" / "human_baselines.json"
 _ENV_FILES = _REPO_ROOT / "environment_files"
 
-# Grow this list per Step-2 commits. vc33 first; sb26 next; cd82 last.
-PILOT_GAMES = ["vc33", "sb26"]
+# Pilot composition (post-2026-05-12 swap): vc33, sb26, cd82.
+PILOT_GAMES = ["vc33", "sb26", "cd82"]
 
 
 # ---------------------------------------------------------------------------
