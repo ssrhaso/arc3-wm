@@ -539,12 +539,27 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             run_args,
         )
     elif config.script == "train_eval":
+        # Wrap the eval env factory with EvalRewardSink so each eval
+        # episode's reward stream lands in {logdir}/eval_episodes.jsonl
+        # for scripts/compute_rhae.py to consume post-hoc. Training
+        # rollouts use the unwrapped factory — wrapping them would
+        # record policy-noise rewards (no RHAE signal) and balloon the
+        # file. Append mode survives preemption-resume; compute_rhae's
+        # MIN-across-episodes aggregation tolerates duplicated entries.
+        eval_sink_path = Path(config.logdir) / "eval_episodes.jsonl"
+
+        def make_env_eval_with_sink(cfg, index, **overrides):
+            from arc3_wm.eval_reward_sink import EvalRewardSink
+
+            env = make_env(cfg, index, **overrides)
+            return EvalRewardSink(env, sink_path=eval_sink_path)
+
         embodied.run.train_eval(
             make_agent_with_seed,
             bind(make_replay, config, "replay"),
             bind(make_replay, config, "eval_replay", "eval"),
             bind(make_env, config),
-            bind(make_env, config),
+            bind(make_env_eval_with_sink, config),
             bind(make_stream, config),
             bind(make_logger, config),
             run_args,
