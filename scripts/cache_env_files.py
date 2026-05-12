@@ -19,7 +19,7 @@ os.environ["OPERATION_MODE"] = "normal"
 # but with override=False, so our os.environ takes precedence over .env.
 import arc_agi  # noqa: E402
 
-GAMES = ["vc33", "tu93", "cd82"]
+GAMES = ["vc33", "tu93", "cd82", "sb26"]
 
 
 def main() -> int:
