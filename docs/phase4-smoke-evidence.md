@@ -142,13 +142,15 @@ plus an explicit note that these are seconds-not-steps.
 ## What this run does NOT prove
 
 - vc33 `RHAE > 0` — that's the Phase-4-proper gate, not a 20k-step
-  smoke. Per CLAUDE.md the bar is "≥ 2 of {vc33, tu93, cd82} within
-  500k env steps".
+  smoke. Per CLAUDE.md the bar is "≥ 2 of {vc33, sb26, cd82} within
+  500k env steps" (pilot composition revised 2026-05-12: tu93 → sb26
+  after D-B made tu93's 9-level coverage 3/9; see
+  [phase-checklists.md §Phase 4](phase-checklists.md)).
 - Pre-populated replay buffer behaviour — this smoke trains entirely
   on online experience. The CLAUDE.md Phase-4 design calls for
   pre-populating the per-game buffer with ~10–15 human replays;
   `arc3_wm/replay_loader.py` is still an open Phase-1 follow-up.
-- Multi-game (tu93, cd82) — single-game smoke only. Wrapper has been
+- Multi-game (sb26, cd82) — single-game smoke only. Wrapper has been
   exercised on vc33 only on this instance.
 - WM forgetting under per-game fine-tune — too short a budget to
   surface. Watch at Phase-4-proper budgets.

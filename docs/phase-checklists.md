@@ -115,7 +115,13 @@ Table 4 / Fig 4 before claiming pass.
 
 ---
 
-## Phase 4 — 3-game pilot (vc33, tu93, cd82)
+## Phase 4 — 3-game pilot (vc33, sb26, cd82)
+
+> Pilot was originally `(vc33, tu93, cd82)`. tu93 swapped out 2026-05-12:
+> under the n≥2 coverage threshold the human-baseline fixture only covers
+> 3/9 tu93 levels, invalidating tu93's "9 levels = highest RHAE granularity"
+> selection rationale. sb26 chosen for 8/8 coverage and a distinct
+> mid-difficulty action-count range vs vc33/cd82.
 
 **Where:** local 5070 cluster. **~5 h wall-clock.** **Load-bearing gate.**
 
@@ -125,7 +131,7 @@ Table 4 / Fig 4 before claiming pass.
 | Fresh actor/critic | Actor + critic are NOT loaded from any prior run; verified by checkpoint-key inspection |
 | Per-game replay pre-population | Each game's ~10–15 human replays land in the buffer before any online step |
 | Three games × two seeds | All 6 runs launch and reach 500k env steps without crashes |
-| `RHAE > 0` on ≥ 2 of 3 games | Toolkit `get_scorecard().score > 0` for at least one seed of at least 2 of {vc33, tu93, cd82} within 500k env steps |
+| `RHAE > 0` on ≥ 2 of 3 games | Toolkit `get_scorecard().score > 0` for at least one seed of at least 2 of {vc33, sb26, cd82} within 500k env steps |
 | Reasonable FPS | Each run sustains ≥ 200 FPS env-step (single 5070 + size12m WM is the budget) |
 | No silent fallbacks | If a run reaches the 500k step budget with `RHAE = 0`, flag and stop the sweep — do NOT silently scale to 1M and hope |
 

@@ -154,7 +154,7 @@ fires on level-up).
 |---|---|
 | Training crashes / NaN / OOM in first 50k steps | Stop. Attach full log + last wandb step. Surface. |
 | `loss/image` regresses past Phase-3 baseline (53.66) in first 20k steps | Stop. Warm-start may not be seeding correctly. Check `WM seeded:` line in stdout per [phase4-smoke.md §A.3](phase4-smoke.md) signal-3. |
-| `episode/score` stuck at 0 through 500k steps | Note, don't stop — this is one of the things the dry-run is testing. Phase 4 proper's gate is "RHAE > 0 on ≥ 2/3 of {vc33,tu93,cd82}"; a vc33 zero here means the warm-start isn't enough to clear level 1 on vc33 alone and the Phase-4 gate is in danger. |
+| `episode/score` stuck at 0 through 500k steps | Note, don't stop — this is one of the things the dry-run is testing. Phase 4 proper's gate is "RHAE > 0 on ≥ 2/3 of {vc33,sb26,cd82}"; a vc33 zero here means the warm-start isn't enough to clear level 1 on vc33 alone and the Phase-4 gate is in danger. |
 | Cost trending past $6 | Stop. Vast instance teardown takes priority over completion. The $6 ceiling already absorbs the ~48% eval overhead from `--script train_eval`; breaching it means something else is wrong. |
 
 ## Teardown
@@ -216,11 +216,12 @@ out of scope for this dry-run; the dry-run's load-bearing gate
 When the dry-run completes, the recommendation for the next session
 is one of:
 
-- **Success path** (level 1 cleared, losses descend cleanly): commit
-  `data/human_baselines.json` (pending Step-3 sign-off), add a
+- **Success path** (level 1 cleared, losses descend cleanly): add a
   per-eval-episode rewards sink in `scripts/launch_pergame.py` so
-  `compute_rhae.py` has a real input, then pre-stage tu93/cd82 launch
+  `compute_rhae.py` has a real input, then pre-stage sb26/cd82 launch
   scripts in parallel with the 5070 cluster coming online.
+  (`data/human_baselines.json` was committed 2026-05-12 after the n≥2
+  table sign-off — that's no longer a follow-up.)
 - **Failure path** (no level 1 by 500k, or losses don't descend): debug
   order per `CLAUDE.md` §Risks-4: action mapping → reward signal
   correctness → exploration. Do not silently scale to longer training.
