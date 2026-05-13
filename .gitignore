@@ -40,3 +40,4 @@ third_party/
 
 # --- Spec doc (kept out of git per pre-existing .GITIGNORE; flagged for review) ---
 CLAUDE.md
+scratch/
