@@ -1,4 +1,4 @@
-# Phase 4 dry-run on Vast — vc33 / 500k / seed 0
+# Phase 4 dry-run on Vast — sb26 / 500k / seed 0
 
 Single-game single-seed dry-run on Vast A100. Derisks the warm-start +
 RHAE-logging pipeline at full Phase-4 scale before the local 5070 cluster
@@ -54,9 +54,9 @@ Add **two extra env exports** before the install block:
 ```bash
 export WANDB_PROJECT=arc3-wm-sprint
 export WANDB_API_KEY=<from wandb.ai/settings>
-export WANDB_TAGS=phase-4-dryrun,arm:warm,game:vc33
-export WANDB_RUN_GROUP=dryrun-vc33-warm
-export WANDB_NAME=p4-dryrun-vc33-s0-warm-1f6a2d0
+export WANDB_TAGS=phase-4-dryrun,arm:warm,game:sb26
+export WANDB_RUN_GROUP=dryrun-sb26-warm
+export WANDB_NAME=p4-dryrun-sb26-s0-warm-1b381ae
 ```
 
 `launch_pergame.py:auto_add_wandb_output` (line 436) flips wandb on
@@ -73,13 +73,13 @@ analysis" below.)
 
 ```bash
 TS=$(date -u +%Y%m%dT%H%M%S)
-RUN=p4-dryrun-vc33-s0-warm-1f6a2d0
+RUN=p4-dryrun-sb26-s0-warm-1b381ae
 LOGDIR=/workspace/logdir/$RUN
 
 nohup python scripts/launch_pergame.py \
   --logdir "$LOGDIR" \
   --configs size12m arc3 \
-  --task arc3_vc33 \
+  --task arc3_sb26 \
   --seed 0 \
   --script train_eval \
   --init-from-ckpt checkpoints/pretrained-wm/v1/latest.pkl \
@@ -126,8 +126,8 @@ in-loop RHAE hook. The dry-run produces `train/loss/*`,
 `eval/episode/score`, `eval/episode/length`, `fps_train`, etc. The
 per-game RHAE is computed AFTER the run completes via
 `scripts/compute_rhae.py` — see "Post-hoc analysis" below. The
-Phase-4-gate question "did the agent clear vc33 level 1?" is also
-readable directly from `eval/episode/score` (vc33's native reward
+Phase-4-gate question "did the agent clear sb26 level 1?" is also
+readable directly from `eval/episode/score` (sb26's native reward
 fires on level-up).
 
 ## Exit criteria — success
@@ -137,13 +137,13 @@ fires on level-up).
    shape as Phase-3 Run B; baseline from pretrained ckpt is
    `loss/image=53.66`).
 3. `episode/score` non-zero by step 500k (proxy for "level 1 cleared"
-   on vc33; native reward fires on level-up).
+   on sb26; native reward fires on level-up).
 4. Final checkpoint saved to `$LOGDIR/ckpt/latest.pkl`. Upload to B2:
    ```bash
    b2 file upload arc-agi-3-replays-hasaan "$LOGDIR/ckpt/latest.pkl" \
-     "dryruns/p4-vc33-s0-warm-1f6a2d0/latest.pkl"
+     "dryruns/p4-sb26-s0-warm-1b381ae/latest.pkl"
    b2 file upload arc-agi-3-replays-hasaan "$LOGDIR.log" \
-     "dryruns/p4-vc33-s0-warm-1f6a2d0/launch.log"
+     "dryruns/p4-sb26-s0-warm-1b381ae/launch.log"
    ```
 5. Vast instance torn down. Local-laptop `tee` log preserved if you
    ran with `tee`; otherwise pull from B2 per above.
@@ -154,7 +154,7 @@ fires on level-up).
 |---|---|
 | Training crashes / NaN / OOM in first 50k steps | Stop. Attach full log + last wandb step. Surface. |
 | `loss/image` regresses past Phase-3 baseline (53.66) in first 20k steps | Stop. Warm-start may not be seeding correctly. Check `WM seeded:` line in stdout per [phase4-smoke.md §A.3](phase4-smoke.md) signal-3. |
-| `episode/score` stuck at 0 through 500k steps | Note, don't stop — this is one of the things the dry-run is testing. Phase 4 proper's gate is "RHAE > 0 on ≥ 2/3 of {vc33,sb26,cd82}"; a vc33 zero here means the warm-start isn't enough to clear level 1 on vc33 alone and the Phase-4 gate is in danger. |
+| `episode/score` stuck at 0 through 500k steps | Note, don't stop — this is one of the things the dry-run is testing. Phase 4 proper's gate is "RHAE > 0 on ≥ 2/3 of {vc33,sb26,cd82}"; an sb26 zero here means the warm-start isn't enough to clear level 1 on sb26 alone and the Phase-4 gate is in danger. |
 | Cost trending past $6 | Stop. Vast instance teardown takes priority over completion. The $6 ceiling already absorbs the ~48% eval overhead from `--script train_eval`; breaching it means something else is wrong. |
 
 ## Teardown
@@ -168,7 +168,7 @@ kill $(cat "$LOGDIR.pid") 2>/dev/null
 # 3. Vast.ai console → destroy instance.
 
 # 4. Verify B2 artifacts:
-b2 file ls arc-agi-3-replays-hasaan dryruns/p4-vc33-s0-warm-1f6a2d0/
+b2 file ls arc-agi-3-replays-hasaan dryruns/p4-sb26-s0-warm-1b381ae/
 ```
 
 ## Post-hoc analysis — `scripts/compute_rhae.py`
@@ -184,18 +184,18 @@ per line) plus the per-game human baselines from
 ```bash
 # Pull the run logdir from B2 if you ran teardown first.
 b2 file download arc-agi-3-replays-hasaan \
-  dryruns/p4-vc33-s0-warm-1f6a2d0/scope/metrics.jsonl \
+  dryruns/p4-sb26-s0-warm-1b381ae/scope/metrics.jsonl \
   ./metrics.jsonl
 # (Followed by whatever extraction step you use to assemble the
 # per-eval-episode reward streams. See "Known gap" below.)
 
 python scripts/compute_rhae.py \
   --episodes-file ./eval_episodes.jsonl \
-  --game-id vc33 \
+  --game-id sb26 \
   --baselines data/human_baselines.json \
   --step 500000
 
-# → "vc33 @ 500k env steps: levels_completed=N, per_game_rhae=R.RR"
+# → "sb26 @ 500k env steps: levels_completed=N, per_game_rhae=R.RR"
 ```
 
 ## Hand-off note
