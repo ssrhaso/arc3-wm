@@ -138,12 +138,22 @@ fires on level-up).
    `loss/image=53.66`).
 3. `episode/score` non-zero by step 500k (proxy for "level 1 cleared"
    on vc33; native reward fires on level-up).
-4. Final checkpoint saved to `$LOGDIR/ckpt/latest.pkl`. Upload to B2:
+4. Final checkpoint saved to `$LOGDIR/ckpt/{TIMESTAMP}F{NANOS}/` with a
+   22-byte `$LOGDIR/ckpt/latest` pointer file alongside it. DV3 does
+   **NOT** write `latest.pkl` on save (asymmetric with `--init-from-ckpt`
+   input which does take a `.pkl` filename). Tar the directory before B2:
    ```bash
-   b2 file upload arc-agi-3-replays-hasaan "$LOGDIR/ckpt/latest.pkl" \
-     "dryruns/p4-vc33-s0-warm-1f6a2d0/latest.pkl"
+   B2_PREFIX=dryruns/p4-vc33-s0-warm-$(git rev-parse --short HEAD)
+   CKPT_DIR=$(ls -1 "$LOGDIR/ckpt/" | grep -v '^latest$' | head -1)
+   tar czf "$LOGDIR/ckpt-final.tar.gz" -C "$LOGDIR/ckpt" "$CKPT_DIR" latest
+   b2 file upload arc-agi-3-replays-hasaan "$LOGDIR/ckpt-final.tar.gz" \
+     "$B2_PREFIX/ckpt-final.tar.gz"
    b2 file upload arc-agi-3-replays-hasaan "$LOGDIR.log" \
-     "dryruns/p4-vc33-s0-warm-1f6a2d0/launch.log"
+     "$B2_PREFIX/launch.log"
+   b2 file upload arc-agi-3-replays-hasaan "$LOGDIR/metrics.jsonl" \
+     "$B2_PREFIX/metrics.jsonl"
+   b2 file upload arc-agi-3-replays-hasaan "$LOGDIR/eval_episodes.jsonl" \
+     "$B2_PREFIX/eval_episodes.jsonl"
    ```
 5. Vast instance torn down. Local-laptop `tee` log preserved if you
    ran with `tee`; otherwise pull from B2 per above.
@@ -167,8 +177,9 @@ kill $(cat "$LOGDIR.pid") 2>/dev/null
 
 # 3. Vast.ai console → destroy instance.
 
-# 4. Verify B2 artifacts:
-b2 file ls arc-agi-3-replays-hasaan dryruns/p4-vc33-s0-warm-1f6a2d0/
+# 4. Verify B2 artifacts (note: `b2 ls`, NOT `b2 file ls` — there is no
+#    `ls` subcommand under `b2 file` in the current CLI):
+b2 ls --recursive "b2://arc-agi-3-replays-hasaan/$B2_PREFIX/"
 ```
 
 ## Post-hoc analysis — `scripts/compute_rhae.py`
@@ -182,18 +193,16 @@ per line) plus the per-game human baselines from
 `scripts/extract_human_baselines.py`):
 
 ```bash
-# Pull the run logdir from B2 if you ran teardown first.
-b2 file download arc-agi-3-replays-hasaan \
-  dryruns/p4-vc33-s0-warm-1f6a2d0/metrics.jsonl \
-  ./metrics.jsonl
-# (Followed by whatever extraction step you use to assemble the
-# per-eval-episode reward streams. See "Known gap" below.)
+# Pull the eval-episode reward streams from B2 if you ran teardown first.
+b2 file download "b2://arc-agi-3-replays-hasaan/$B2_PREFIX/eval_episodes.jsonl" \
+  ./eval_episodes.jsonl
 
 python scripts/compute_rhae.py \
   --episodes-file ./eval_episodes.jsonl \
   --game-id vc33 \
   --baselines data/human_baselines.json \
-  --step 500000
+  --step 500000 \
+  --print-metrics
 
 # → "vc33 @ 500k env steps: levels_completed=N, per_game_rhae=R.RR"
 ```
@@ -206,3 +215,57 @@ is one of:
 - **Failure path** (no level 1 by 500k, or losses don't descend): debug
   order per `CLAUDE.md` §Risks-4: action mapping → reward signal
   correctness → exploration. Do not silently scale to longer training.
+- **Success path** (≥1 level cleared by 500k, losses descend): recompose
+  Phase 4 proper on the local 5070 cluster with the gate composition
+  `{vc33, sb26, cd82} × 2 seeds × 500k`. Mirror the launcher pattern
+  (`--init-from-ckpt`, `--script train_eval`, EvalRewardSink wraps
+  automatically). Gate: RHAE > 0 on ≥ 2/3 games.
+
+## Dry-run result (2026-05-13)
+
+Run: vc33, seed 0, 500k env steps, warm-start from
+`checkpoints/pretrained-wm/v1/latest.pkl` (Phase-3 Run B). Vast A100
+SXM4 40GB, conda env `main` (Python 3.12.13, JAX 0.4.33, DV3
+b65cf81a). Launcher commit `7d0d17a`.
+
+**Outcome: PASS.**
+
+| Signal | Value |
+|---|---|
+| `check_smoke_green.py` verdict | GREEN on all 6 criteria (final metrics.jsonl) |
+| Warm-start fingerprint | 68 keys / 9,898,179 params matched Phase-3 ckpt; counters reset to 0/0/0 |
+| Steps completed | 499,949 (≈ 500k; clean exit) |
+| `train/loss/image` | 53.66 (warm-start) → 0.14 (final step) |
+| `train/loss/rep` | std=0.04 on last 50 logged values — descending, not plateaued |
+| `episode/score` (train-time) | 9,675 episodes, max=1.0, **17 episodes with score > 0** |
+| `eval_episodes.jsonl` | 18 eval episodes captured by `EvalRewardSink` (D-C plumbing) |
+| `eval/rhae/levels_completed/vc33` | **1** (vc33 level 1 cleared in eval) |
+| `eval/rhae/per_game/vc33` | **0.00786** ≈ 0.01 |
+| `fps/policy` | ~295 (vs runbook estimate ~150 on PCIE A100) |
+| Wall-clock | ~30 min (vs runbook estimate ~7h on PCIE A100) |
+| Cost | ~$0.53 (vs $6 stop-and-surface budget) |
+| NaN / OOM / Arcade crash | none |
+
+**Phase-4-proper gate implication.** The dry-run answers "does the
+warm-start + native-reward pipeline clear vc33 level 1 in 500k?" with
+yes (RHAE > 0). The gate question for Phase 4 proper is the same
+threshold (RHAE > 0) but on ≥ 2/3 of `{vc33, sb26, cd82}` and with 2
+seeds per game. vc33 is precedented; sb26 and cd82 are unseen at
+500k scale.
+
+**B2 artifacts** (`b2://arc-agi-3-replays-hasaan/dryruns/p4-vc33-s0-warm-7d0d17a/`):
+
+- `ckpt-final.tar.gz` (141 MB, contains `{TIMESTAMP}F{NANOS}/` + `latest` pointer)
+- `metrics.jsonl` (730 KB)
+- `eval_episodes.jsonl` (5.2 KB, 18 lines)
+- `launch.log` (59 KB)
+
+**Deviations from spec (logged for record):**
+
+- Python 3.12.13 not 3.11 (Vast image had no `python3.11` apt). JAX
+  0.4.33 and DV3 both spec 3.12, so in-spec, but not the validated
+  laptop path.
+- Used existing conda `main` env, not a fresh `.venv`. Harmless
+  warnings about torch 2.11 / setuptools<82 (we don't use torch).
+- Repo cloned via git bundle, not GitHub. DV3 cloned separately at
+  pinned `b65cf81a`.
