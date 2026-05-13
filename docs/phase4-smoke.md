@@ -210,7 +210,7 @@ When the run exits (cleanly at 10k steps, or you kill it):
 ```bash
 .venv/bin/python scripts/check_smoke_green.py \
   --stdout "$LOGDIR.log" \
-  --jsonl  "$LOGDIR/scope/metrics.jsonl"
+  --jsonl  "$LOGDIR/metrics.jsonl"
 ```
 
 The verdict line is the first stdout line: `GREEN` or `RED`.
