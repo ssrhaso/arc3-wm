@@ -116,7 +116,7 @@ grep -E "Agent Step|train/loss/image" "$LOGDIR.log" | tail -20
 #    every `report_every` seconds (default 300 s). Expect ~60 eval cycles
 #    over ~5 h. Live RHAE keys are NOT in wandb — RHAE is post-hoc, see
 #    "Post-hoc analysis" below.
-grep -E "eval/episode/score" "$LOGDIR/scope/metrics.jsonl" 2>/dev/null | tail -5
+grep -E "eval/episode/score" "$LOGDIR/metrics.jsonl" 2>/dev/null | tail -5
 ```
 
 ## RHAE telemetry — post-hoc only (D2)
@@ -184,7 +184,7 @@ per line) plus the per-game human baselines from
 ```bash
 # Pull the run logdir from B2 if you ran teardown first.
 b2 file download arc-agi-3-replays-hasaan \
-  dryruns/p4-vc33-s0-warm-1f6a2d0/scope/metrics.jsonl \
+  dryruns/p4-vc33-s0-warm-1f6a2d0/metrics.jsonl \
   ./metrics.jsonl
 # (Followed by whatever extraction step you use to assemble the
 # per-eval-episode reward streams. See "Known gap" below.)
