@@ -91,6 +91,15 @@ pip install -U "jax[cuda12]==0.4.33" -f https://storage.googleapis.com/jax-relea
 # 4. DreamerV3 deps.
 pip install -U -r third_party/dreamerv3/requirements.txt
 
+# 4b. wandb media deps — DV3's logger logs video panels to wandb,
+#     which calls moviepy under the hood. moviepy/imageio are NOT
+#     pulled by DV3's requirements.txt and are NOT a hard wandb
+#     dep, so a barebones `pip install wandb` crashes on first eval
+#     boundary with `wandb.errors.errors.Error: wandb.Video requires
+#     moviepy when passing raw data`. Surfaced by the 2026-05-13 vc33
+#     smoke on Vast A100 (run aa9788oi) before this line was added.
+pip install -U "wandb[media]"
+
 # 5. Project deps + dev extras.
 pip install -e .
 pip install pytest pytest-xdist pytest-timeout b2
