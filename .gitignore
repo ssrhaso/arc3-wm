@@ -41,3 +41,7 @@ third_party/
 # --- Spec doc (kept out of git per pre-existing .GITIGNORE; flagged for review) ---
 CLAUDE.md
 scratch/
+
+# --- Generated benchmark outputs (rebuilt by scripts/build_benchmark_table.py) ---
+analysis/benchmark_table.json
+analysis/benchmark_table.md
