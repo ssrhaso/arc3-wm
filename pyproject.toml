@@ -5,10 +5,33 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "arc3-wm"
 version = "0.0.0"
-description = "DreamerV3 world-model RL on ARC-AGI-3 (NeurIPS 2026 Workshop sprint)"
+description = "A Gymnasium / DreamerV3-embodied substrate for world-model RL on ARC-AGI-3"
 requires-python = ">=3.11"
 authors = [{ name = "Haso" }]
 readme = "README.md"
+keywords = [
+    "arc-agi-3",
+    "reinforcement-learning",
+    "world-models",
+    "model-based-rl",
+    "dreamerv3",
+    "gymnasium",
+    "benchmark",
+]
+# NOTE: no `license` field yet — must be chosen before public release.
+# See docs/contribution.md § License. (No license classifier for the
+# same reason.)
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Development Status :: 3 - Alpha",
+]
+
+[project.urls]
+Repository = "https://github.com/ssrhaso/ARC_AGI_3"
+"ARC-AGI-3" = "https://arcprize.org/tasks"
 
 dependencies = [
     "arc-agi",
