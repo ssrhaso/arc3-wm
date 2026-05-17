@@ -90,9 +90,19 @@ run_one() {
     echo "FATAL: ${run_name} exited ${exit_code}. Stopping harness."
     exit "${exit_code}"
   fi
-  if grep -qiE "(NaN|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}"; then
-    echo "FATAL: ${run_name} stdout shows NaN/OOM/CUDA-error/Arcade-crash. Stopping harness."
-    grep -niE "(NaN|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}" | head -10
+  # Surgical fail detection (was a coarse `grep -i NaN`, which false-positives
+  # on the benign startup `replay/replay_ratio nan` before the first training
+  # update — that killed p4-tn36-s0-warm after a clean 500k run). Flag only:
+  #   (a) train losses going NaN in any logged window
+  #   (b) explicit error tokens (Traceback, OOM, CUDA error, Arcade crash)
+  if grep -qE "train/loss/[A-Za-z]+ nan" "${stdout_log}"; then
+    echo "FATAL: ${run_name} train loss went NaN. Stopping harness."
+    grep -nE "train/loss/[A-Za-z]+ nan" "${stdout_log}" | head -10
+    exit 1
+  fi
+  if grep -qiE "(Traceback|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}"; then
+    echo "FATAL: ${run_name} stdout shows Traceback/OOM/CUDA-error/Arcade-crash. Stopping harness."
+    grep -niE "(Traceback|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}" | head -10
     exit 1
   fi
 
