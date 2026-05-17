@@ -19,7 +19,10 @@ os.environ["OPERATION_MODE"] = "normal"
 # but with override=False, so our os.environ takes precedence over .env.
 import arc_agi  # noqa: E402
 
-GAMES = ["vc33", "tu93", "cd82", "sb26"]
+# Pilot trio + Phase-4 expansion trio (tn36, ls20, lf52). All cached in one
+# pass so OFFLINE-mode make() succeeds for every Phase-4 game. Idempotent:
+# arc_agi only downloads games not already present in environment_files/.
+GAMES = ["vc33", "tu93", "cd82", "sb26", "tn36", "ls20", "lf52"]
 
 
 def main() -> int:
