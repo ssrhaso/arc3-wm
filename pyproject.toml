@@ -27,6 +27,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Development Status :: 3 - Alpha",
+    "Typing :: Typed",
 ]
 
 [project.urls]
@@ -50,6 +51,11 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["arc3_wm*"]
 exclude = ["tests*", "third_party*", "scripts*", "configs*", "docs*", "data*", "checkpoints*", "results*"]
+
+[tool.setuptools.package-data]
+# PEP 561: ship the inline-type marker so downstream type-checkers
+# (mypy/pyright) trust arc3_wm's annotations instead of skipping them.
+arc3_wm = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
