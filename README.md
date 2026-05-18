@@ -1,4 +1,4 @@
-# arc3-wm — a world-model RL substrate for ARC-AGI-3
+# arc3-wm - a world-model RL substrate for ARC-AGI-3
 
 `arc3-wm` is a small, dependency-light Python package that makes
 [ARC-AGI-3](https://arcprize.org/tasks) usable as a standard
@@ -20,13 +20,13 @@ Gymnasium-compatible entry point. This provides one.
 
 ## What you get
 
-| Component | Module | What it is |
-|---|---|---|
-| **Gymnasium env** | `arc3_wm.env:ARC3GymEnv` | One ARC-AGI-3 game as a stock `gymnasium.Env`. `Box(0,255,(64,64,3),uint8)` obs, `Discrete(4102)` flat action space, level-up reward. Pure-Python, no JAX. |
-| **DreamerV3 `embodied` env** | `arc3_wm.embodied_env:ARC3EmbodiedEnv` | The same game behind DreamerV3's `embodied.Env` duck-typed interface, no fork of `dreamerv3`. |
-| **Flat action space** | `arc3_wm.action_space` | Bijective `idx ↔ (ACTION_TYPE, x, y)` over the 4102-way space, plus per-step boolean masks. |
-| **Offline replay loader** | `arc3_wm.replay_loader` | The 340-replay human-demonstration JSONL dataset → transition tuples for a world-model buffer. |
-| **RHAE metric** | `arc3_wm.rhae` | Post-hoc Relative Human Action Efficiency: per-game, level-index-weighted, combined across games. The benchmark metric. |
+| Component                            | Module                                   | What it is                                                                                                                                                       |
+| ------------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Gymnasium env**              | `arc3_wm.env:ARC3GymEnv`               | One ARC-AGI-3 game as a stock `gymnasium.Env`. `Box(0,255,(64,64,3),uint8)` obs, `Discrete(4102)` flat action space, level-up reward. Pure-Python, no JAX. |
+| **DreamerV3 `embodied` env** | `arc3_wm.embodied_env:ARC3EmbodiedEnv` | The same game behind DreamerV3's `embodied.Env` duck-typed interface, no fork of `dreamerv3`.                                                                |
+| **Flat action space**          | `arc3_wm.action_space`                 | Bijective `idx ↔ (ACTION_TYPE, x, y)` over the 4102-way space, plus per-step boolean masks.                                                                   |
+| **Offline replay loader**      | `arc3_wm.replay_loader`                | The 340-replay human-demonstration JSONL dataset → transition tuples for a world-model buffer.                                                                  |
+| **RHAE metric**                | `arc3_wm.rhae`                         | Post-hoc Relative Human Action Efficiency: per-game, level-index-weighted, combined across games. The benchmark metric.                                          |
 
 The two interfaces are the contribution: **anything that speaks
 Gymnasium or DreamerV3-`embodied` plugs in with no `arc3_wm` changes.**
