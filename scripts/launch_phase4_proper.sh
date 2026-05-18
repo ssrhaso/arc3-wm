@@ -78,9 +78,17 @@ run_one() {
     echo "FATAL: ${run_name} exited ${exit_code}. Stopping harness."
     exit "${exit_code}"
   fi
-  if grep -qiE "(NaN|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}"; then
-    echo "FATAL: ${run_name} stdout shows NaN/OOM/CUDA-error/Arcade-crash. Stopping harness."
-    grep -niE "(NaN|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}" | head -10
+  # Surgical fail detection. The old coarse `grep -i NaN` false-positives on
+  # the benign startup `replay/replay_ratio nan` (pre-first-update) and aborts
+  # a clean run — aligned to the from-scratch harness's detector.
+  if grep -qE "train/loss/[A-Za-z]+ nan" "${stdout_log}"; then
+    echo "FATAL: ${run_name} train loss went NaN. Stopping harness."
+    grep -nE "train/loss/[A-Za-z]+ nan" "${stdout_log}" | head -10
+    exit 1
+  fi
+  if grep -qiE "(Traceback|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}"; then
+    echo "FATAL: ${run_name} stdout shows Traceback/OOM/CUDA-error/Arcade-crash. Stopping harness."
+    grep -niE "(Traceback|OOM|out of memory|CUDA error|Arcade crash)" "${stdout_log}" | head -10
     exit 1
   fi
 

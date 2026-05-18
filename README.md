@@ -62,6 +62,16 @@ obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
 mask = info["action_mask"]                       # length-4102 bool, apply to your policy logits
 ```
 
+Or via the registered Gymnasium id — `import arc3_wm` self-registers
+`ARC3/<game>-v0` for all 25 public games, so any tooling that resolves
+a gym id reaches ARC-AGI-3 with no `arc3_wm` symbol in the loop:
+
+```python
+import gymnasium as gym
+import arc3_wm                                   # registers ARC3/<game>-v0
+env = gym.make("ARC3/vc33-v0")                   # see examples/gym_make.py
+```
+
 ## Contribution
 
 This repo backs a workshop-paper extension with three pillars, in order

@@ -6,13 +6,16 @@ ARC-AGI-3 is a stock RL environment through this package.
 
 | File | What it shows |
 |---|---|
-| [`random_agent.py`](random_agent.py) | A random policy on one game via the Gymnasium seam (`arc3_wm.env:ARC3GymEnv`), with and without action masking. The minimal "is this really plug-and-play?" check. |
+| [`random_agent.py`](random_agent.py) | A random policy on one game via a direct `arc3_wm.env:ARC3GymEnv` construction, with and without action masking. The minimal "is this really plug-and-play?" check. |
+| [`gym_make.py`](gym_make.py) | The same, driven through the **registered** `gym.make("ARC3/<game>-v0")` id — no `arc3_wm` symbol in the agent. The "formalised gym env" path; `--list` prints all 25 ids. |
 
 Run:
 
 ```bash
 python examples/random_agent.py --game vc33 --episodes 3
 python examples/random_agent.py --game vc33 --episodes 3 --mask
+python examples/gym_make.py --game vc33 --episodes 3
+python examples/gym_make.py --list
 ```
 
 First time only: `pip install -e .`, export `ARC_API_KEY`, run
