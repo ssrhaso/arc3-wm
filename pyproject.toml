@@ -30,10 +30,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-[project.urls]
-Repository = "https://github.com/ssrhaso/ARC_AGI_3"
-"ARC-AGI-3" = "https://arcprize.org/tasks"
-
 dependencies = [
     "arc-agi",
     "gymnasium>=0.29",
@@ -47,6 +43,10 @@ dev = [
     "pytest-xdist",
     "gdown",
 ]
+
+[project.urls]
+Repository = "https://github.com/ssrhaso/ARC_AGI_3"
+"ARC-AGI-3" = "https://arcprize.org/tasks"
 
 [tool.setuptools.packages.find]
 include = ["arc3_wm*"]
