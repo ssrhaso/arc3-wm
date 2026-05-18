@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "arc3-wm"
-version = "0.0.0"
+dynamic = ["version"]
 description = "A Gymnasium / DreamerV3-embodied substrate for world-model RL on ARC-AGI-3"
 requires-python = ">=3.11"
 authors = [{ name = "Haso" }]
@@ -47,6 +47,11 @@ dev = [
 [project.urls]
 Repository = "https://github.com/ssrhaso/ARC_AGI_3"
 "ARC-AGI-3" = "https://arcprize.org/tasks"
+
+[tool.setuptools.dynamic]
+# Single source of truth: arc3_wm.__version__. setuptools reads the
+# string literal statically (no import needed at build time).
+version = { attr = "arc3_wm.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["arc3_wm*"]
