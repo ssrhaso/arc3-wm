@@ -29,58 +29,54 @@ active play. It is scored by RHAE (Relative Human Action Efficiency): per level,
 $s_i=\min\big((\text{human\_actions}/\text{ai\_actions})^2,\,1.15\big)$; a game
 score is the level-index-weighted mean $\sum_i s_i\, i / \sum_i i$ over all
 levels (including uncompleted ones), and the total score averages games equally.
-The ARC-AGI living survey~\cite{survey2026} reviews $\sim$80 papers across
-ARC-AGI-1/2/3, documents a consistent $\sim$3$\times$ performance cliff from
-ARC-AGI-1 to ARC-AGI-3, finds only 3 of 80 papers report any ARC-AGI-3 result,
-\emph{zero} of them world-model based, and explicitly names world-model
-induction as the required next step. Ying et al.~\cite{ying2025} argue the same
-from first principles: today's evaluations test static pre-trained
-representations, whereas the human capability of interest is using an abstract
-world model as a prior to build a task-specific one on the fly, and they propose
-ARC-AGI-3-style games as the ideal testbed. Lee et al.~\cite{lee2024} give the
-one direct precedent --- DreamerV3 beating PPO on multi-step ARC-AGI-1 tasks ---
-and explicitly call for scaling to harder interactive tasks. This work is the
-first model-based RL (MBRL) entry on ARC-AGI-3 and supplies the missing standard
-RL entry point.
+The ARC-AGI living survey~\cite{survey2026} ($\sim$80 papers across
+ARC-AGI-1/2/3) documents a consistent $\sim$3$\times$ performance cliff into
+ARC-AGI-3, finds only 3 of 80 papers report any ARC-AGI-3 result --- \emph{none}
+world-model based --- and names world-model induction as the required next step.
+Ying et al.~\cite{ying2025} argue the same from first principles: current
+evaluations test static pre-trained representations, whereas the capability of
+interest is using an abstract world model as a prior to build task-specific ones
+on the fly, for which ARC-AGI-3-style games are the proposed testbed. Lee et
+al.~\cite{lee2024} give the one direct precedent --- DreamerV3 beating PPO on
+multi-step ARC-AGI-1 --- and call for scaling to harder interactive tasks. This
+work is the first model-based RL (MBRL) entry on ARC-AGI-3 and supplies the
+missing standard RL entry point.
 
 \section{Contributions}
 \textbf{(1) Substrate (primary artifact).} The first Gymnasium- and
-DreamerV3-\texttt{embodied}-compatible wrapper for ARC-AGI-3. It exposes a
-4102-way flat discrete action space ($0$--$4$$\to$\texttt{ACTION1--5};
-$5$--$4100$$\to$\texttt{ACTION6} over the $64\!\times\!64$ click grid via
-\texttt{unravel\_index}; $4101$$\to$\texttt{ACTION7}/undo) with per-game boolean
-action masking applied to the actor logits at reset; a $(64,64,3)$ \texttt{uint8}
-image observation in DreamerV3's native modality; an offline loader for the
-340-replay human-demonstration corpus; and a post-hoc RHAE harness. Round-trip
-action coding, full-corpus loader parse, and RHAE are property-/regression-tested
-(318-test suite green). DreamerV3 is used \emph{stock and unforked} (config
-\texttt{size12m}, the ARC-AGI-1-precedented choice~\cite{lee2024}); the wrapper
-registers as an \texttt{embodied} environment with no upstream modification.
+DreamerV3-\texttt{embodied}-compatible wrapper for ARC-AGI-3: a 4102-way flat
+discrete action space (parameter-less \texttt{ACTION1--5}; \texttt{ACTION6}
+over the $64\!\times\!64$ click grid; \texttt{ACTION7}/undo) with per-game
+boolean masking on the actor logits; a $(64,64,3)$ \texttt{uint8} image
+observation in DreamerV3's native modality; an offline loader for the
+340-replay human corpus; and a post-hoc RHAE harness. Action coding, loader,
+and RHAE are property-/regression-tested (318-test suite green). DreamerV3 is
+used \emph{stock and unforked} (\texttt{size12m}, the ARC-AGI-1-precedented
+choice~\cite{lee2024}), registered as an \texttt{embodied} environment with no
+upstream modification.
 
-\textbf{(2) Controlled negative result.} A paired baseline of stock DreamerV3 on
-6 public games $\times$ 2 seeds, evaluated from-scratch (cold) vs.\ warm-started
-from a cross-game world model pretrained on all 340 human replays mixed across
-25 games (Regime B: shared WM, per-game actor). Cross-game WM pretraining yields
-no measurable benefit within seed variance.
+\textbf{(2) Controlled negative result.} A paired baseline of stock DreamerV3
+on 6 public games $\times$ 2 seeds, from-scratch vs.\ warm-started from a
+cross-game world model pretrained on all 340 replays (Regime B: shared WM,
+per-game actor). Cross-game pretraining yields no measurable benefit within
+seed variance.
 
-\textbf{(3) Mechanistic diagnosis.} The world model's reconstruction and
-dynamics losses collapse to convergence while RHAE stays $\approx$0: the model
-\emph{learns to predict the environment}, but the controller cannot exploit it
-inside imagination within a 500k-step budget.
+\textbf{(3) Mechanistic diagnosis.} World-model reconstruction and dynamics
+losses collapse to convergence while RHAE stays $\approx$0: the model learns
+to predict the environment, but the controller cannot exploit it in
+imagination within the budget.
 
 \section{Method}
-World model (encoder + RSSM + decoders + reward/continue heads) was pretrained
-self-supervised on the full mixed 340-replay buffer (Phase~3, 1$\times$A100; image
-reconstruction loss $53.66\!\to\!0.14$, dynamics loss monotone then flat at
-$\sim$1.12). For each game the pretrained WM is loaded as initialisation, a fresh
-actor and critic are created, the per-game human replays are pre-populated, and
-online interaction proceeds for 500k env-steps with default DreamerV3
-hyperparameters. The from-scratch (cold) arm is identical except the warm-start
-flag is removed --- so warm-start is the \emph{only} difference between arms,
-giving a clean ablation of the central Regime-B premise. Human baselines for
-RHAE use the upper-median of first-time-player action counts; levels with
-$<2$ completers are dropped from both numerator and denominator (resulting
-human-baseline coverage 70.49\%, 129/183 levels over 25 games).
+The world model (encoder + RSSM + decoders + reward/continue heads) was
+pretrained self-supervised on the full mixed 340-replay buffer (1$\times$A100;
+image-reconstruction loss $53.66\!\to\!0.14$). Per game, the pretrained WM
+initialises a run with a fresh actor and critic, the game's human replays
+pre-populate the buffer, and online interaction proceeds for 500k env-steps at
+default DreamerV3 hyperparameters; the cold arm is identical but for removing
+the warm-start, making it the \emph{only} difference between arms --- a clean
+ablation of the Regime-B premise. RHAE human baselines use the upper-median of
+first-time-player action counts, dropping levels with $<2$ completers from both
+numerator and denominator (coverage 70.5\%, 129/183 levels).
 
 \section{Results}
 
@@ -111,13 +107,12 @@ lf52 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
 \end{table}
 
 \vspace{-0.4em}
-Only the easiest game, vc33, is ever non-zero. On vc33 the per-seed sign of
-$\Delta$ disagrees (s0: warm $+0.0137$; s1: cold $+0.0016$); with $n=2$ the
-warm$-$cold delta lies inside per-seed variance, so the Regime-B hypothesis
-that cross-game WM pretraining contributes to downstream control is
-\emph{not supported}. The pre-registered Phase-4 gate (RHAE $>0$ on
-$\ge 2/3$ of \{vc33, sb26, cd82\}) failed at $1/3$. This is a clean, paired,
-6-game negative result, not an unlucky single run.
+Only vc33 is ever non-zero, and there the per-seed sign of $\Delta$ disagrees
+(s0 favours warm by $0.014$, s1 favours cold by $0.002$): at $n=2$ the
+warm$-$cold delta lies within seed variance, so the Regime-B premise that
+cross-game pretraining aids downstream control is \emph{not supported}. The
+pre-registered gate (RHAE $>0$ on $\ge 2/3$ of \{vc33,\,sb26,\,cd82\}) failed
+$1/3$ --- a clean, paired, 6-game negative result, not one unlucky run.
 
 \begin{table}[h]
 \centering
@@ -153,45 +148,53 @@ every cell. The bottleneck is the controller, not the world model --- not a
 single lucky or unlucky run.
 
 \section{Discussion and positioning}
-The result is the first MBRL data point on ARC-AGI-3 and is consistent with,
-and sharpens, the survey's $\sim$3$\times$ cliff~\cite{survey2026}: a model that
-provably fits these environments still cannot act in them under a stock
-controller and a realistic compute budget, which is exactly the
-``static-representation vs.\ on-the-fly task model'' gap Ying et al.\
-predict~\cite{ying2025}. It also qualifies the Lee et al.~\cite{lee2024}
-precedent: DreamerV3's ARC-AGI-1 success does \emph{not} transfer to the
-interactive, rule-inference regime of ARC-AGI-3 at this scale, and cross-game WM
-pretraining does not close the gap --- isolating the controller, not the world
-model, as the locus of difficulty. \textbf{Limitations:} a compute-bounded
-500k-step budget and $N=6$ games $\times$ 2 seeds --- a scoped claim about
-\emph{stock DreamerV3 at this budget $\pm$ this pretraining}, not that MBRL
-cannot do ARC-AGI-3; the diagnosis, not the headline number, carries the weight.
+This is the first MBRL data point on ARC-AGI-3 and sharpens the survey's
+$\sim$3$\times$ cliff~\cite{survey2026}: a model that provably fits these
+environments still cannot act in them under a stock controller at a realistic
+budget --- precisely the ``static representation vs.\ on-the-fly task model''
+gap of Ying et al.~\cite{ying2025}. It also qualifies the Lee et
+al.~\cite{lee2024} precedent: DreamerV3's ARC-AGI-1 success does \emph{not}
+transfer to the interactive, rule-inference regime at this scale, and
+cross-game pretraining does not close the gap --- isolating the controller, not
+the world model, as the locus of difficulty. \textbf{Limitations:} a compute-bounded 500k-step budget and $N=6\times2$ ---
+a scoped claim about \emph{stock DreamerV3 at this budget $\pm$ this
+pretraining}, not that MBRL cannot do ARC-AGI-3; the diagnosis carries the
+weight, not the headline number.
 \textbf{Status and planned work.} The substrate (contribution~1) is complete,
-tested, and reusable independent of any result; the negative result and its
-diagnosis (2--3) are established across the full 6-game paired sweep. The
-immediate next step is a quantitative confirmation of the
-controller-vs.-model localisation --- linear probes on the RSSM latents and
-generative-rollout fidelity (FVD) --- followed by a targeted test of whether
-the gap closes under controller-side changes alone (training ratio and
-exploration schedule) while keeping the world model stock. The substrate
-contribution does not depend on the outcome of either.
+tested, and reusable independent of any result; the controlled negative result
+and its diagnosis (2--3) are established across the full 6-game paired sweep.
+Three steps remain, each with a pre-specified criterion that would confirm or
+relocate the diagnosis. \emph{(i)~Representational probing:} linear decoders
+trained on the frozen RSSM latents for task-relevant variables --- level
+identity, level-transition events, and object configuration --- against a
+label-permuted control; above-control accuracy confirms the world model
+encodes the structure the controller fails to exploit, whereas a null result
+would relocate the bottleneck from control to representation learning.
+\emph{(ii)~Generative-rollout fidelity:} Fr\'echet Video Distance between
+imagined and ground-truth trajectories over the actor's planning horizon,
+establishing whether the model's predictions remain faithful across the
+rollout length on which the policy is trained. \emph{(iii)~Controller-side
+intervention:} a bounded ablation that raises the imagination-to-environment
+training ratio and steepens the entropy-annealing schedule with the world
+model held fixed, isolating whether the gap closes under additional
+policy-improvement compute alone rather than a change of model class. Steps
+(i)--(ii) are compute-light and operate on a frozen model; (iii) is a single
+bounded retraining sweep. The substrate contribution is independent of all
+three outcomes.
 
 \begin{thebibliography}{9}
 \small
+\setlength{\itemsep}{0pt}
 \bibitem{lee2024} D.\ Lee et al.\ \emph{Reinforcement Learning and Model-Based
-Reasoning on the Abstraction and Reasoning Corpus} (DreamerV3 vs.\ PPO on
-ARC-AGI-1). arXiv:2408.14855, 2024.
+Reasoning on the Abstraction and Reasoning Corpus.} arXiv:2408.14855, 2024.
 \bibitem{survey2026} \emph{The Abstraction and Reasoning Corpus: A Living
-Survey} (review of $\sim$80 papers across ARC-AGI-1/2/3; documents the
-$\sim$3$\times$ cliff; zero world-model approaches on ARC-AGI-3).
-arXiv:2603.13372, 2026.
-\bibitem{ying2025} L.\ Ying et al.\ \emph{Instance vs.\ Abstract World Models:
-Evaluating Dynamic World-Model Induction} (proposes ARC-AGI-3 as the testbed).
+Survey.} arXiv:2603.13372, 2026.
+\bibitem{ying2025} L.\ Ying et al.\ \emph{Instance vs.\ Abstract World Models.}
 arXiv:2507.12821, 2025.
 \bibitem{dreamerv3} D.\ Hafner, J.\ Pasukonis, J.\ Ba, T.\ Lillicrap.
-\emph{Mastering Diverse Control Tasks through World Models} (DreamerV3).
-Nature, 2025. arXiv:2301.04104.
-\bibitem{arc3} \emph{ARC-AGI-3: Interactive Reasoning Benchmark} (defines RHAE).
+\emph{Mastering Diverse Control Tasks through World Models.} Nature, 2025.
+arXiv:2301.04104.
+\bibitem{arc3} \emph{ARC-AGI-3: Interactive Reasoning Benchmark.}
 arXiv:2603.24621, 2026.
 \end{thebibliography}
 
