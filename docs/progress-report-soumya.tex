@@ -122,37 +122,35 @@ $\ge 2/3$ of \{vc33, sb26, cd82\}) failed at $1/3$. This is a clean, paired,
 \begin{table}[h]
 \centering
 \small
-\caption{The diagnosis: WM fits while the controller fails (vc33 warm,
-representative 500k run; the signature holds across all 6 pilot warm cells
---- see text). The model converges; the policy does not consolidate.}
+\caption{The dissociation: the world model fits \emph{better} on a game the
+controller never solves (cd82) than on the only game it ever solves (vc33).
+Both columns are seed-0 warm runs from the same paired experiment as
+Table~\ref{tab:rhae}; the pattern holds across all 6 pilot warm cells.}
 \label{tab:diag}
-\begin{tabular}{ll}
+\begin{tabular}{lcc}
 \toprule
-Signal & Value \\
+Signal & vc33 (only solved) & cd82 (never solved) \\
 \midrule
-WM image-reconstruction loss & $53.66 \to 0.136$ ($-99.7\%$) \\
-WM dynamics loss & $\to 1.12$ ($\approx$ flat, $-3.5\%$/100k) \\
-Eval RHAE & $0.0079$ \\
-Eval episodes clearing level 1 & $2/18$ \\
-Eval episodes reaching level 2 & $0/18$ \\
-Train success window & burst at env-step 232k--235k \\
-\quad then & 0 successes for final $\sim$230k \\
-Random-action fraction at 500k & $0.603$ (still $\sim$60\% random) \\
+WM image-recon.\ loss & $58.3 \to 0.16$ ($-99.7\%$) & $31.0 \to \mathbf{0.06}$ ($-99.8\%$) \\
+WM dynamics loss & $10.6 \to 1.24$ & $11.4 \to 1.03$ \\
+Train eps.\ clearing $\ge$1 lvl & $17/9751$ & $0/4950$ \\
+Eval eps.\ clearing $\ge$1 lvl & $4/23$ & $0/24$ \\
+Random-action frac.\ @\,500k & $0.750$ & $\mathbf{1.000}$ \\
+Post-hoc RHAE & $0.0548$ & $0.0000$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \vspace{-0.4em}
-Table~\ref{tab:diag} localises the failure: the world model is \emph{not} the
-bottleneck (its imagination is as accurate as the data permits and has
-plateaued); the controller is. This split is \emph{not} a vc33 artifact. Across
-all six pilot warm cells (\{vc33, sb26, cd82\}$\times$2 seeds) the
-image-reconstruction loss collapses $>$95\% (final $0.14$--$1.9$), yet the two
-gate-failure games clear $0/24$ eval episodes in \emph{every} cell. The sharpest
-case is cd82, where the WM fits \emph{tighter} than on vc33 (image loss
-$\to 0.06$) while the controller holds a $1.000$ random-action fraction for the
-entire run --- the exploration$\to$exploitation schedule never even begins to
-move. The WM-fits/controller-fails signature is the rule, not one lucky run.
+Table~\ref{tab:diag} is the central finding in one view. cd82's world model
+fits \emph{tighter} than vc33's (image loss $0.06$ vs.\ $0.16$) --- yet vc33 is
+the only game the controller ever solves, while cd82's policy never leaves a
+$1.000$ random-action fraction across the entire 500k-step run. The model
+learns the environment; the controller cannot exploit it. This holds across all
+six pilot warm cells (\{vc33, sb26, cd82\}$\times$2 seeds): image loss collapses
+$>$95\% everywhere, while both gate-failure games clear $0/24$ eval episodes in
+every cell. The bottleneck is the controller, not the world model --- not a
+single lucky or unlucky run.
 
 \section{Discussion and positioning}
 The result is the first MBRL data point on ARC-AGI-3 and is consistent with,
@@ -168,11 +166,15 @@ model, as the locus of difficulty. \textbf{Limitations:} a compute-bounded
 500k-step budget and $N=6$ games $\times$ 2 seeds --- a scoped claim about
 \emph{stock DreamerV3 at this budget $\pm$ this pretraining}, not that MBRL
 cannot do ARC-AGI-3; the diagnosis, not the headline number, carries the weight.
-\textbf{Status \& next steps:} Phases 0--4 complete; the substrate is durable
-and reusable independent of any result. Phase~6 (linear probes on RSSM latents,
-FVD, reasoning-axis stratification) will quantitatively confirm the
-localisation; controller-side interventions (raise \texttt{train\_ratio};
-faster entropy decay) are the identified, supervisor-gated levers.
+\textbf{Status and planned work.} The substrate (contribution~1) is complete,
+tested, and reusable independent of any result; the negative result and its
+diagnosis (2--3) are established across the full 6-game paired sweep. The
+immediate next step is a quantitative confirmation of the
+controller-vs.-model localisation --- linear probes on the RSSM latents and
+generative-rollout fidelity (FVD) --- followed by a targeted test of whether
+the gap closes under controller-side changes alone (training ratio and
+exploration schedule) while keeping the world model stock. The substrate
+contribution does not depend on the outcome of either.
 
 \begin{thebibliography}{9}
 \small
