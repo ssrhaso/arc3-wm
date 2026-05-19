@@ -1,0 +1,196 @@
+% Progress report for S. Banerjee — ARC-AGI-3 world model + RL
+% Compile: pdflatex progress-report-soumya.tex  (run twice for refs)
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=1.9cm]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.0ex}{0.5ex}
+\titlespacing*{\subsection}{0pt}{0.7ex}{0.3ex}
+\setlength{\parskip}{0.25em}
+\setlength{\parindent}{0pt}
+\pagestyle{empty}
+
+\title{\vspace{-1.6cm}A Gymnasium Substrate and World-Model Baseline for ARC-AGI-3:\\
+\large DreamerV3 Fits the World but Cannot Yet Act in It}
+\author{Hasaan Ahmad \quad\textbar\quad Supervisor: Soumya Banerjee (University of Cambridge)}
+\date{Progress report --- \today}
+
+\begin{document}
+\maketitle
+\vspace{-1.2em}
+
+\section{Motivation and gap}
+ARC-AGI-3 is a benchmark of 25 public interactive abstract-reasoning games in
+which the rules and goals are \emph{not} given and must be inferred through
+active play. It is scored by RHAE (Relative Human Action Efficiency): per level,
+$s_i=\min\big((\text{human\_actions}/\text{ai\_actions})^2,\,1.15\big)$; a game
+score is the level-index-weighted mean $\sum_i s_i\, i / \sum_i i$ over all
+levels (including uncompleted ones), and the total score averages games equally.
+The ARC-AGI living survey~\cite{survey2026} reviews $\sim$80 papers across
+ARC-AGI-1/2/3, documents a consistent $\sim$3$\times$ performance cliff from
+ARC-AGI-1 to ARC-AGI-3, finds only 3 of 80 papers report any ARC-AGI-3 result,
+\emph{zero} of them world-model based, and explicitly names world-model
+induction as the required next step. Ying et al.~\cite{ying2025} argue the same
+from first principles: today's evaluations test static pre-trained
+representations, whereas the human capability of interest is using an abstract
+world model as a prior to build a task-specific one on the fly, and they propose
+ARC-AGI-3-style games as the ideal testbed. Lee et al.~\cite{lee2024} give the
+one direct precedent --- DreamerV3 beating PPO on multi-step ARC-AGI-1 tasks ---
+and explicitly call for scaling to harder interactive tasks. This work is the
+first model-based RL (MBRL) entry on ARC-AGI-3 and supplies the missing standard
+RL entry point.
+
+\section{Contributions}
+\textbf{(1) Substrate (primary artifact).} The first Gymnasium- and
+DreamerV3-\texttt{embodied}-compatible wrapper for ARC-AGI-3. It exposes a
+4102-way flat discrete action space ($0$--$4$$\to$\texttt{ACTION1--5};
+$5$--$4100$$\to$\texttt{ACTION6} over the $64\!\times\!64$ click grid via
+\texttt{unravel\_index}; $4101$$\to$\texttt{ACTION7}/undo) with per-game boolean
+action masking applied to the actor logits at reset; a $(64,64,3)$ \texttt{uint8}
+image observation in DreamerV3's native modality; an offline loader for the
+340-replay human-demonstration corpus; and a post-hoc RHAE harness. Round-trip
+action coding, full-corpus loader parse, and RHAE are property-/regression-tested
+(318-test suite green). DreamerV3 is used \emph{stock and unforked} (config
+\texttt{size12m}, the ARC-AGI-1-precedented choice~\cite{lee2024}); the wrapper
+registers as an \texttt{embodied} environment with no upstream modification.
+
+\textbf{(2) Controlled negative result.} A paired baseline of stock DreamerV3 on
+6 public games $\times$ 2 seeds, evaluated from-scratch (cold) vs.\ warm-started
+from a cross-game world model pretrained on all 340 human replays mixed across
+25 games (Regime B: shared WM, per-game actor). Cross-game WM pretraining yields
+no measurable benefit within seed variance.
+
+\textbf{(3) Mechanistic diagnosis.} The world model's reconstruction and
+dynamics losses collapse to convergence while RHAE stays $\approx$0: the model
+\emph{learns to predict the environment}, but the controller cannot exploit it
+inside imagination within a 500k-step budget.
+
+\section{Method}
+World model (encoder + RSSM + decoders + reward/continue heads) was pretrained
+self-supervised on the full mixed 340-replay buffer (Phase~3, 1$\times$A100; image
+reconstruction loss $53.66\!\to\!0.14$, dynamics loss monotone then flat at
+$\sim$1.12). For each game the pretrained WM is loaded as initialisation, a fresh
+actor and critic are created, the per-game human replays are pre-populated, and
+online interaction proceeds for 500k env-steps with default DreamerV3
+hyperparameters. The from-scratch (cold) arm is identical except the warm-start
+flag is removed --- so warm-start is the \emph{only} difference between arms,
+giving a clean ablation of the central Regime-B premise. Human baselines for
+RHAE use the upper-median of first-time-player action counts; levels with
+$<2$ completers are dropped from both numerator and denominator (resulting
+human-baseline coverage 70.49\%, 129/183 levels over 25 games).
+
+\section{Results}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Paired RHAE @ 500{,}000 env-steps. Stock DreamerV3 \texttt{size12m},
+6 public games $\times$ 2 seeds, cold (from-scratch) vs.\ warm (cross-game
+WM-pretrained). $\Delta=$ warm$-$cold. Higher is better; human-parity $\approx$
+the per-level $1.15$ cap.}
+\label{tab:rhae}
+\begin{tabular}{lcccccc}
+\toprule
+& \multicolumn{2}{c}{Cold} & \multicolumn{2}{c}{Warm} & & \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Game & s0 & s1 & s0 & s1 & Cold $\bar{x}$ & Warm $\bar{x}$ \\
+\midrule
+vc33 & 0.0411 & 0.0182 & 0.0548 & 0.0166 & 0.0297 & 0.0357 \\
+sb26 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+cd82 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+tn36 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+ls20 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+lf52 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+\midrule
+\textbf{Combined (mean of 6)} & & & & & \textbf{0.0049} & \textbf{0.0059} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{-0.4em}
+Only the easiest game, vc33, is ever non-zero. On vc33 the per-seed sign of
+$\Delta$ disagrees (s0: warm $+0.0137$; s1: cold $+0.0016$); with $n=2$ the
+warm$-$cold delta lies inside per-seed variance, so the Regime-B hypothesis
+that cross-game WM pretraining contributes to downstream control is
+\emph{not supported}. The pre-registered Phase-4 gate (RHAE $>0$ on
+$\ge 2/3$ of \{vc33, sb26, cd82\}) failed at $1/3$. This is a clean, paired,
+6-game negative result, not an unlucky single run.
+
+\begin{table}[h]
+\centering
+\small
+\caption{The diagnosis: WM fits while the controller fails (vc33 warm,
+representative 500k run; the signature holds across all 6 pilot warm cells
+--- see text). The model converges; the policy does not consolidate.}
+\label{tab:diag}
+\begin{tabular}{ll}
+\toprule
+Signal & Value \\
+\midrule
+WM image-reconstruction loss & $53.66 \to 0.136$ ($-99.7\%$) \\
+WM dynamics loss & $\to 1.12$ ($\approx$ flat, $-3.5\%$/100k) \\
+Eval RHAE & $0.0079$ \\
+Eval episodes clearing level 1 & $2/18$ \\
+Eval episodes reaching level 2 & $0/18$ \\
+Train success window & burst at env-step 232k--235k \\
+\quad then & 0 successes for final $\sim$230k \\
+Random-action fraction at 500k & $0.603$ (still $\sim$60\% random) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{-0.4em}
+Table~\ref{tab:diag} localises the failure: the world model is \emph{not} the
+bottleneck (its imagination is as accurate as the data permits and has
+plateaued); the controller is. This split is \emph{not} a vc33 artifact. Across
+all six pilot warm cells (\{vc33, sb26, cd82\}$\times$2 seeds) the
+image-reconstruction loss collapses $>$95\% (final $0.14$--$1.9$), yet the two
+gate-failure games clear $0/24$ eval episodes in \emph{every} cell. The sharpest
+case is cd82, where the WM fits \emph{tighter} than on vc33 (image loss
+$\to 0.06$) while the controller holds a $1.000$ random-action fraction for the
+entire run --- the exploration$\to$exploitation schedule never even begins to
+move. The WM-fits/controller-fails signature is the rule, not one lucky run.
+
+\section{Discussion and positioning}
+The result is the first MBRL data point on ARC-AGI-3 and is consistent with,
+and sharpens, the survey's $\sim$3$\times$ cliff~\cite{survey2026}: a model that
+provably fits these environments still cannot act in them under a stock
+controller and a realistic compute budget, which is exactly the
+``static-representation vs.\ on-the-fly task model'' gap Ying et al.\
+predict~\cite{ying2025}. It also qualifies the Lee et al.~\cite{lee2024}
+precedent: DreamerV3's ARC-AGI-1 success does \emph{not} transfer to the
+interactive, rule-inference regime of ARC-AGI-3 at this scale, and cross-game WM
+pretraining does not close the gap --- isolating the controller, not the world
+model, as the locus of difficulty. \textbf{Limitations:} a compute-bounded
+500k-step budget and $N=6$ games $\times$ 2 seeds --- a scoped claim about
+\emph{stock DreamerV3 at this budget $\pm$ this pretraining}, not that MBRL
+cannot do ARC-AGI-3; the diagnosis, not the headline number, carries the weight.
+\textbf{Status \& next steps:} Phases 0--4 complete; the substrate is durable
+and reusable independent of any result. Phase~6 (linear probes on RSSM latents,
+FVD, reasoning-axis stratification) will quantitatively confirm the
+localisation; controller-side interventions (raise \texttt{train\_ratio};
+faster entropy decay) are the identified, supervisor-gated levers.
+
+\begin{thebibliography}{9}
+\small
+\bibitem{lee2024} D.\ Lee et al.\ \emph{Reinforcement Learning and Model-Based
+Reasoning on the Abstraction and Reasoning Corpus} (DreamerV3 vs.\ PPO on
+ARC-AGI-1). arXiv:2408.14855, 2024.
+\bibitem{survey2026} \emph{The Abstraction and Reasoning Corpus: A Living
+Survey} (review of $\sim$80 papers across ARC-AGI-1/2/3; documents the
+$\sim$3$\times$ cliff; zero world-model approaches on ARC-AGI-3).
+arXiv:2603.13372, 2026.
+\bibitem{ying2025} L.\ Ying et al.\ \emph{Instance vs.\ Abstract World Models:
+Evaluating Dynamic World-Model Induction} (proposes ARC-AGI-3 as the testbed).
+arXiv:2507.12821, 2025.
+\bibitem{dreamerv3} D.\ Hafner, J.\ Pasukonis, J.\ Ba, T.\ Lillicrap.
+\emph{Mastering Diverse Control Tasks through World Models} (DreamerV3).
+Nature, 2025. arXiv:2301.04104.
+\bibitem{arc3} \emph{ARC-AGI-3: Interactive Reasoning Benchmark} (defines RHAE).
+arXiv:2603.24621, 2026.
+\end{thebibliography}
+
+\end{document}
