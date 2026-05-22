@@ -45,3 +45,32 @@ scratch/
 # --- Generated benchmark outputs (rebuilt by scripts/build_benchmark_table.py) ---
 analysis/benchmark_table.json
 analysis/benchmark_table.md
+
+# --- Local-only run/build artifacts (kept on disk, never published) ---
+*.tar.gz
+*.log
+diag.stdout
+diag.stderr
+_p4_analysis/
+docs/sprint-handoff-*.md
+docs/vast-phase3-launch.md
+scripts/diag_*.py
+
+# --- Internal sprint logs (kept on disk, never published) ---
+docs/phase4-dryrun-*.md
+docs/phase4-smoke.md
+docs/phase4-smoke-evidence.md
+docs/eval-pipeline-investigation.md
+
+# --- One-off investigation scripts (kept on disk, never published) ---
+scripts/inspect_*.py
+scripts/survey_*.py
+scripts/check_smoke_green.py
+scripts/validate_5070.py
+tests/test_check_smoke_green.py
+tests/test_validate_5070.py
+
+# --- Dry-run analysis scaffolding (kept on disk, never published) ---
+analysis/build_p4_vc33_diagnosis.py
+analysis/h_classify_p4_vc33.py
+analysis/p4_vc33_dryrun_diagnosis.ipynb
