@@ -55,3 +55,9 @@ _p4_analysis/
 docs/sprint-handoff-*.md
 docs/vast-phase3-launch.md
 scripts/diag_*.py
+
+# --- Internal sprint logs (kept on disk, never published) ---
+docs/phase4-dryrun-*.md
+docs/phase4-smoke.md
+docs/phase4-smoke-evidence.md
+docs/eval-pipeline-investigation.md
