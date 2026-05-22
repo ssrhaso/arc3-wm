@@ -126,5 +126,4 @@ skeleton and BibTeX (added on submission).
 
 ## License
 
-Not yet set — see [docs/contribution.md](docs/contribution.md). A
-license must be added before this is published as a citable artifact.
+MIT — see [LICENSE](LICENSE). © 2026 Hasaan Ahmad.

@@ -90,9 +90,8 @@ mean + combined `total_score`, graceful pre-results).
 
 ## Open before submission (owner: Haso)
 
-- [ ] **License** — none set (pyproject `license` + classifier
-  deliberately omitted; README flags it). Required before public
-  release of a citable artifact. Haso to choose.
+- [x] **License** — MIT (`LICENSE`; `pyproject` `license` field +
+  classifier set; README updated). © 2026 Hasaan Ahmad.
 - [ ] Authorship / acknowledgements / BibTeX.
 - [ ] Venue + format confirmation; whether C8 ships in this paper or a
   follow-up (affects Phase-6 effort allocation).
@@ -103,7 +102,7 @@ mean + combined `total_score`, graceful pre-results).
 ```bibtex
 @misc{arc3wm2026,
   title  = {A Gymnasium Substrate and World-Model Baseline for ARC-AGI-3},
-  author = {TODO},
+  author = {Ahmad, Hasaan},
   year   = {2026},
   note   = {NeurIPS 2026 Workshop (under submission)}
 }

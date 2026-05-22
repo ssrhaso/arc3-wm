@@ -7,7 +7,7 @@ name = "arc3-wm"
 dynamic = ["version"]
 description = "A Gymnasium / DreamerV3-embodied substrate for world-model RL on ARC-AGI-3"
 requires-python = ">=3.11"
-authors = [{ name = "Haso" }]
+authors = [{ name = "Hasaan Ahmad" }]
 readme = "README.md"
 keywords = [
     "arc-agi-3",
@@ -18,10 +18,9 @@ keywords = [
     "gymnasium",
     "benchmark",
 ]
-# NOTE: no `license` field yet — must be chosen before public release.
-# See docs/contribution.md § License. (No license classifier for the
-# same reason.)
+license = { text = "MIT" }
 classifiers = [
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Intended Audience :: Science/Research",
