@@ -45,3 +45,13 @@ scratch/
 # --- Generated benchmark outputs (rebuilt by scripts/build_benchmark_table.py) ---
 analysis/benchmark_table.json
 analysis/benchmark_table.md
+
+# --- Local-only run/build artifacts (kept on disk, never published) ---
+*.tar.gz
+*.log
+diag.stdout
+diag.stderr
+_p4_analysis/
+docs/sprint-handoff-*.md
+docs/vast-phase3-launch.md
+scripts/diag_*.py
