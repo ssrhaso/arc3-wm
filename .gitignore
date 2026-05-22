@@ -69,3 +69,8 @@ scripts/check_smoke_green.py
 scripts/validate_5070.py
 tests/test_check_smoke_green.py
 tests/test_validate_5070.py
+
+# --- Dry-run analysis scaffolding (kept on disk, never published) ---
+analysis/build_p4_vc33_diagnosis.py
+analysis/h_classify_p4_vc33.py
+analysis/p4_vc33_dryrun_diagnosis.ipynb
