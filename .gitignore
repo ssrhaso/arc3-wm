@@ -61,3 +61,11 @@ docs/phase4-dryrun-*.md
 docs/phase4-smoke.md
 docs/phase4-smoke-evidence.md
 docs/eval-pipeline-investigation.md
+
+# --- One-off investigation scripts (kept on disk, never published) ---
+scripts/inspect_*.py
+scripts/survey_*.py
+scripts/check_smoke_green.py
+scripts/validate_5070.py
+tests/test_check_smoke_green.py
+tests/test_validate_5070.py
