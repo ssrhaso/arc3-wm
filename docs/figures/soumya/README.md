@@ -68,7 +68,7 @@ intuition and a real result as evidence):
 | Figure | Shows | File |
 |---|---|---|
 | 3 | A generic ARC-AGI-3 task: level-1 start → solved, from a **human** replay of vc33. | `fig3_task_vc33.png` |
-| 4 | A task our model **SOLVES** (vc33): Level 1 (the first puzzle) → Level 2, a real frame from the agent's own play after it cleared level 1. | `fig4_solved_vc33.png` |
+| 4 | A task our model learns to **SOLVE** (vc33): early in training it is stuck on level 1 → after training it has cleared level 1 and is on level 2. Both real model frames. | `fig4_solved_vc33.png` |
 | 5 | A task our model does **NOT solve** (sb26, a colour-matching puzzle): start → after the agent acts. It places a couple of tiles but never completes the puzzle. | `fig5_notsolved_sb26.png` |
 
 ### `RAW/` — annotation-free images for the paper
@@ -78,23 +78,26 @@ captions** (8× nearest-neighbour upscaled, 512×512), to drop into the paper an
 caption yourself. Names map to the composed figures:
 
 - `fig3_left_task_initial.png`, `fig3_right_task_solved.png`
-- `fig4_left_vc33_level1.png`, `fig4_right_vc33_level2_model.png`
+- `fig4_left_vc33_early_stuck_level1.png`, `fig4_right_vc33_trained_level2.png`
 - `fig5_left_sb26_start.png`, `fig5_right_sb26_after.png`
 - `fig2_wm_reconstruction_panel.png` (top half = real game, bottom half = WM
   prediction; the red borders are DreamerV3's own open-loop marker, not added)
 
 `fig1` (the schematic) has no annotation-free version — it is a labelled diagram.
 
-### How fig 4 was verified (and the honest caveats)
+### How fig 4 was verified (and why it's framed as "learning")
 
-We do **not** have logged frames of the specific eval episodes that cleared a
-level — DreamerV3 only logged *training* rollout GIFs. But those GIFs are real
-environment states, and we verified what level the agent is in by matching every
-rollout frame to a frame from the human win replay (where each level is labelled):
+We matched every logged rollout frame to a frame from the human win replay (where
+each level is labelled). The result, by training step (vc33 seed 0):
 
-- **All vc33 rollout frames match the human's level 2** (warm and from-scratch),
-  not level 1 — i.e. the agent had already cleared level 1 and is playing level 2.
-- The frame in fig 4 is the rollout frame closest to the human level-2 reference.
+- **Steps 0 → ~226k: every rollout frame is on level 1** (the model is stuck).
+- **Steps ~271k → 493k: every rollout frame is on level 2** (it now clears level 1).
+
+So the model demonstrably *learns* to clear level 1 — but **no single rollout
+captures the level-1 → solved transition** (each GIF is entirely level 1 or
+entirely level 2). That is why fig 4 is a before/after-*training* comparison
+(stuck-on-L1 vs on-L2), not a same-level "solved" pair like fig 3. Both frames in
+fig 4 are real model frames (early-training step 135733, and the final policy).
 
 Caveats worth knowing before this goes in the paper:
 
@@ -125,9 +128,9 @@ Caveats worth knowing before this goes in the paper:
 > from our run showing the model predicting the game's future on its own.
 >
 > **Initial → end states** — `fig3` (a task, human solving level 1), `fig4` (a game
-> our model solves: it clears level 1 of vc33 and reaches level 2), `fig5` (a game
-> it does not, sb26 — the agent places a couple of tiles but never completes the
-> colour-matching puzzle).
+> our model learns to solve: early in training it is stuck on level 1, after
+> training it clears level 1 and reaches level 2), `fig5` (a game it does not,
+> sb26 — the agent places a couple of tiles but never completes the puzzle).
 >
 > [paste the two paragraphs from §1]
 >
