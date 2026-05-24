@@ -298,35 +298,27 @@ def _hframe(rows, i):
 
 def task_and_rollouts():
     rows = _human_rows()
-    # ---- single ARC level: start -> solved (level 1 ends at the levelup on row 7) ----
-    before_after(
-        upscale(_hframe(rows, 0), 8), upscale(_hframe(rows, 6), 8),
-        "An ARC-AGI-3 task (game vc33, level 1)",
-        "Initial state", "Solved",
-        "Left: the puzzle as the player first sees it. Right: the same level once solved (a human "
-        "player here). The agent is never told the rules — it must discover them by interacting.",
-        "fig3_task_vc33.png",
-    )
-
-    # ---- SOLVED by our model: a learning (before/after-training) comparison ----
-    # The logged rollouts are entirely level 1 early in training (model stuck) and
-    # entirely level 2 late in training (model cleared level 1) — verified by
-    # matching every frame to the human level dictionary. No single rollout
-    # captures the level-1->solved transition, so we show the learning instead.
+    # ---- SOLVED by our model: a 3-step progression ----
+    # Left/right are real model frames (early training -> stuck on level 1; late
+    # training -> on level 2, having cleared level 1; verified by matching every
+    # frame to the human level dictionary). The centre is the level-1 solved state
+    # (its goal configuration, from the human replay) — what clearing level 1
+    # means. No single model rollout captured the L1->solved transition itself.
     vw = gif_frames(VC33_POLICY)        # late training  -> level 2 (cleared level 1)
     ve_gif = next((PULL / "p4-vc33-s0-warm-98de390/media/videos/epstats")
                   .glob("policy_image_135733_*.gif"))
     ve = gif_frames(ve_gif)             # early training -> still stuck on level 1
     level_ladder(
         [
-            (upscale(ve[3], 8), "Early in training — stuck on level 1"),
-            (upscale(vw[469], 8), "After training — cleared level 1, now on level 2"),
+            (upscale(ve[3], 7), "Level 1 — stuck (early in training)"),
+            (upscale(_hframe(rows, 6), 7), "Level 1 — solved"),
+            (upscale(vw[469], 7), "Level 2 — after training"),
         ],
-        "Our model LEARNS to clear level 1 of vc33",
-        "Both images are real frames from our model's own play. Early in training it is stuck on "
-        "level 1 (left); after training it clears level 1 and reaches level 2 (right) — a visibly "
-        "different, harder puzzle. Confirmed in evaluation: it cleared level 1 in 4 of 23 episodes "
-        "(RHAE > 0). It then plateaus at level 2 and does not go on to finish the game.",
+        "Our model learns to clear level 1 of vc33",
+        "Left and right are real frames from our model's own play: early in training it is stuck on "
+        "level 1; after training it has cleared level 1 and reached level 2. The centre is what "
+        "solving level 1 looks like — the goal the player must reach to advance. Confirmed in "
+        "evaluation: it cleared level 1 in 4 of 23 episodes (RHAE > 0). It then plateaus at level 2.",
         "fig4_solved_vc33.png",
     )
 
@@ -400,11 +392,9 @@ def export_raw():
     sb = gif_frames(next((PULL / "p4-sb26-s0-warm-98de390/media/videos/epstats").glob("*.gif")))
 
     items = {
-        # fig3 — an ARC task (human), single level
-        "fig3_left_task_initial.png": upscale(_hframe(rows, 0), 8),
-        "fig3_right_task_solved.png": upscale(_hframe(rows, 6), 8),
-        # fig4 — our model learns to clear level 1 (real model frames)
+        # fig4 — 3-step progression: stuck on L1 -> L1 solved -> L2
         "fig4_left_vc33_early_stuck_level1.png": upscale(ve[3], 8),
+        "fig4_mid_vc33_level1_solved.png": upscale(_hframe(rows, 6), 8),
         "fig4_right_vc33_trained_level2.png": upscale(vw[469], 8),
         # fig5 — not solved by our model (sb26)
         "fig5_left_sb26_start.png": upscale(sb[0], 8),
