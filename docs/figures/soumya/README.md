@@ -67,7 +67,7 @@ intuition and a real result as evidence):
 
 | Figure | Shows | File |
 |---|---|---|
-| 4 | A task our model learns to **SOLVE** (vc33), as a 3-step progression: Level 1 stuck (early training) → Level 1 solved → Level 2 (after training). Left/right are real model frames; centre is the level-1 goal state. | `fig4_solved_vc33.png` |
+| 4 | A task our model **SOLVES** (vc33), as a 3-step progression: Level 1 start → Level 1 solved → Level 2 (reached by our model). Left = the verified first frame; right = a real trained-model frame. | `fig4_solved_vc33.png` |
 | 5 | A task our model does **NOT solve** (sb26, a colour-matching puzzle): start → after the agent acts. It places a couple of tiles but never completes the puzzle. | `fig5_notsolved_sb26.png` |
 
 (The standalone "generic ARC task" figure was dropped — its solved frame now
@@ -81,7 +81,7 @@ already covered.)
 captions** (8× nearest-neighbour upscaled, 512×512), to drop into the paper and
 caption yourself. Names map to the composed figures:
 
-- `fig4_left_vc33_early_stuck_level1.png`, `fig4_mid_vc33_level1_solved.png`, `fig4_right_vc33_trained_level2.png`
+- `fig4_left_vc33_level1_start.png`, `fig4_mid_vc33_level1_solved.png`, `fig4_right_vc33_trained_level2.png`
 - `fig5_left_sb26_start.png`, `fig5_right_sb26_after.png`
 - `fig2_wm_reconstruction_panel.png` (top half = real game, bottom half = WM
   prediction; the red borders are DreamerV3's own open-loop marker, not added)
@@ -90,21 +90,21 @@ caption yourself. Names map to the composed figures:
 
 ### How fig 4 was verified (and a caveat)
 
-We matched every logged rollout frame to a frame from the human win replay (where
-each level is labelled). The result, by training step (vc33 seed 0):
+- **Left ("Level 1 — start")** is the genuine first observation of vc33 level 1 —
+  verified **pixel-identical** to `env.reset()`, to the human replay's row 0, and
+  to the trained model's own frame 0.
+- **Centre ("Level 1 — solved")** is the level-1 goal configuration (human replay
+  row 6; the level-up to level 2 happens on the next row).
+- **Right ("Level 2 — reached by our model")** is a real frame from the trained
+  policy's rollout. We confirmed it is level 2 (not level 1) by matching every
+  rollout frame to the human level dictionary: vc33 rollouts are 100% level 1 up
+  to ~step 226k and 100% level 2 from ~step 271k — i.e. the model learns to clear
+  level 1. No single rollout captured the level-1 → solved transition, which is
+  why the centre comes from the replay rather than the model.
 
-- **Steps 0 → ~226k: every rollout frame is on level 1** (the model is stuck).
-- **Steps ~271k → 493k: every rollout frame is on level 2** (it now clears level 1).
-
-So the model demonstrably *learns* to clear level 1 — left and right panels of
-fig 4 are real model frames from those two phases. The **centre** ("Level 1
-solved") is the level's goal configuration, taken from the human replay: no
-single model rollout captured the level-1 → solved transition itself (each GIF is
-entirely level 1 or entirely level 2), and the model passes through this goal
-state when it clears level 1. **Visual caveat:** in vc33 the stuck and solved
-level-1 states look nearly identical (solving is a small, precise change); the
-obvious visual jump is to level 2. (The two model frames are early-training
-step 135733 and the final policy.)
+**Visual caveat:** in vc33 the level-1 start and solved states look nearly
+identical (solving is a small, precise change); the obvious visual jump is to
+level 2.
 
 Caveats worth knowing before this goes in the paper:
 
@@ -134,9 +134,9 @@ Caveats worth knowing before this goes in the paper:
 > **A picture of a world model** — `fig1` is a schematic; `fig2` is a real result
 > from our run showing the model predicting the game's future on its own.
 >
-> **Initial → end states** — `fig4` (a game our model learns to solve: stuck on
-> level 1 → level 1 solved → on level 2 after training), `fig5` (a game it does
-> not, sb26 — the agent places a couple of tiles but never completes the puzzle).
+> **Initial → end states** — `fig4` (a game our model solves: level 1 start →
+> level 1 solved → level 2, reached by our model), `fig5` (a game it does not,
+> sb26 — the agent places a couple of tiles but never completes the puzzle).
 >
 > [paste the two paragraphs from §1]
 >
