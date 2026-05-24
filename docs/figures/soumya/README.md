@@ -71,6 +71,20 @@ intuition and a real result as evidence):
 | 4 | A task our model **SOLVES** (vc33): Level 1 (the first puzzle) → Level 2, a real frame from the agent's own play after it cleared level 1. | `fig4_solved_vc33.png` |
 | 5 | A task our model does **NOT solve** (sb26, a colour-matching puzzle): start → after the agent acts. It places a couple of tiles but never completes the puzzle. | `fig5_notsolved_sb26.png` |
 
+### `RAW/` — annotation-free images for the paper
+
+`RAW/` holds the underlying frames with **no titles, arrows, borders, or
+captions** (8× nearest-neighbour upscaled, 512×512), to drop into the paper and
+caption yourself. Names map to the composed figures:
+
+- `fig3_left_task_initial.png`, `fig3_right_task_solved.png`
+- `fig4_left_vc33_level1.png`, `fig4_right_vc33_level2_model.png`
+- `fig5_left_sb26_start.png`, `fig5_right_sb26_after.png`
+- `fig2_wm_reconstruction_panel.png` (top half = real game, bottom half = WM
+  prediction; the red borders are DreamerV3's own open-loop marker, not added)
+
+`fig1` (the schematic) has no annotation-free version — it is a labelled diagram.
+
 ### How fig 4 was verified (and the honest caveats)
 
 We do **not** have logged frames of the specific eval episodes that cleared a

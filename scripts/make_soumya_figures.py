@@ -381,10 +381,45 @@ def activity_timeline():
     print("wrote fig6_activity_timeline.png")
 
 
+def export_raw():
+    """Write the clean underlying frames (no titles/arrows/captions) to RAW/.
+
+    Upscaled 8x nearest-neighbour (lossless pixel scaling) so they stay crisp
+    in the paper. Names map to the composed figures.
+    """
+    raw = OUT / "RAW"
+    raw.mkdir(parents=True, exist_ok=True)
+    rows = _human_rows()
+    vw = gif_frames(VC33_POLICY)
+    sb = gif_frames(next((PULL / "p4-sb26-s0-warm-98de390/media/videos/epstats").glob("*.gif")))
+
+    items = {
+        # fig3 — an ARC task (human), single level
+        "fig3_left_task_initial.png": upscale(_hframe(rows, 0), 8),
+        "fig3_right_task_solved.png": upscale(_hframe(rows, 6), 8),
+        # fig4 — solved by our model (vc33)
+        "fig4_left_vc33_level1.png": upscale(_hframe(rows, 3), 8),
+        "fig4_right_vc33_level2_model.png": upscale(vw[469], 8),
+        # fig5 — not solved by our model (sb26)
+        "fig5_left_sb26_start.png": upscale(sb[0], 8),
+        "fig5_right_sb26_after.png": upscale(sb[-1], 8),
+    }
+    for name, img in items.items():
+        img.save(raw / name)
+        print("wrote RAW/", name, img.size)
+
+    # fig2 — open-loop reconstruction panel (truth + prediction rows), no labels.
+    ol = gif_frames(VC33_OPENL)[28][0:130, :, :]
+    Image.fromarray(ol).resize((ol.shape[1] * 6, ol.shape[0] * 6), Image.NEAREST).save(
+        raw / "fig2_wm_reconstruction_panel.png")
+    print("wrote RAW/ fig2_wm_reconstruction_panel.png")
+
+
 if __name__ == "__main__":
     schematic()
     reconstruction_panel()
     task_and_rollouts()
+    export_raw()
     # activity_timeline() retired: the not-solved example (sb26) is itself active,
     # so the "engagement vs inertness" contrast no longer applies.
     print("\nAll figures in", OUT)
