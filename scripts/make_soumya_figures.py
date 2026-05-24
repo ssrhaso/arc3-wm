@@ -326,16 +326,18 @@ def task_and_rollouts():
         "fig4_solved_vc33.png",
     )
 
-    # ---- NOT solved by our model: lf52 ----
-    lf = gif_frames(LF52_POLICY)
+    # ---- NOT solved by our model: sb26 (a colour-matching puzzle) ----
+    sb_gif = next((PULL / "p4-sb26-s0-warm-98de390/media/videos/epstats").glob("*.gif"))
+    sb = gif_frames(sb_gif)
     before_after(
-        upscale(lf[0], 8), upscale(lf[-1], 8),
-        "A task our model does NOT solve (lf52)",
-        "Start", "End of episode",
-        "Same trained agent on lf52. Start and end are almost identical: the agent nudges pieces "
-        "but never triggers a single level change (0 of 28 evaluation episodes scored, max "
-        "frame-to-frame change ~1.6 vs full-grid redraws on vc33).",
-        "fig5_notsolved_lf52.png",
+        upscale(sb[0], 8), upscale(sb[-1], 8),
+        "A task our model does NOT solve (sb26)",
+        "Start", "After the agent acts",
+        "sb26 asks the player to fill the slots to match the target tiles (top row). Our agent does "
+        "act — it places a couple of tiles (right) — but never completes the puzzle correctly: it "
+        "scored 0 in all 24 evaluation episodes. This is the typical failure: plausible moves, no "
+        "solution.",
+        "fig5_notsolved_sb26.png",
     )
 
 
@@ -383,5 +385,6 @@ if __name__ == "__main__":
     schematic()
     reconstruction_panel()
     task_and_rollouts()
-    activity_timeline()
+    # activity_timeline() retired: the not-solved example (sb26) is itself active,
+    # so the "engagement vs inertness" contrast no longer applies.
     print("\nAll figures in", OUT)
