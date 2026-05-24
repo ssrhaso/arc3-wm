@@ -124,6 +124,46 @@ def before_after(left: Image.Image, right: Image.Image, title, lcap, rcap, capti
     print("wrote", name, canvas.size)
 
 
+def level_ladder(panels, title, caption, name):
+    """N image panels in a row with arrows between, titled, with a caption.
+
+    panels: list of (PIL image, sublabel).
+    """
+    pw, ph = panels[0][0].size
+    gap, margin = 80, 36
+    title_h, sub_h = 56, 34
+    f_title, f_sub, f_cap = _font(34, True), _font(25), _font(22)
+    inner_w = pw * len(panels) + gap * (len(panels) - 1)
+
+    cv = Image.new("RGB", (10, 10)); cd = ImageDraw.Draw(cv)
+    cap_lines = _wrap(cd, caption, f_cap, inner_w)
+    cap_h = 14 + len(cap_lines) * 28 + 8
+
+    W = margin * 2 + inner_w
+    H = margin + title_h + sub_h + ph + sub_h + cap_h + margin
+    canvas = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(canvas)
+    _text_centered(d, W / 2, margin, title, f_title, INK)
+    y0 = margin + title_h
+    iy = y0 + sub_h
+    x = margin
+    for i, (img, lab) in enumerate(panels):
+        _text_centered(d, x + pw / 2, y0, lab, f_sub, SUB)
+        canvas.paste(img, (x, iy))
+        d.rectangle([x, iy, x + pw, iy + ph], outline=(200, 200, 205), width=2)
+        if i < len(panels) - 1:
+            ax0, ax1, ay = x + pw + 14, x + pw + gap - 14, iy + ph / 2
+            d.line([(ax0, ay), (ax1, ay)], fill=INK, width=6)
+            d.polygon([(ax1, ay), (ax1 - 18, ay - 12), (ax1 - 18, ay + 12)], fill=INK)
+        x += pw + gap
+    cy = iy + ph + sub_h - 6
+    for ln in cap_lines:
+        _text_centered(d, W / 2, cy, ln, f_cap, SUB)
+        cy += 28
+    canvas.save(OUT / name)
+    print("wrote", name, canvas.size)
+
+
 def reconstruction_panel():
     frames = gif_frames(VC33_OPENL)
     # Panel is 3 stacked rows (truth / prediction / error). The error row is a
@@ -236,30 +276,53 @@ def schematic():
     print("wrote fig1_what_is_a_world_model.png")
 
 
-def task_and_rollouts():
-    # ---- generic ARC task from a human replay (vc33, 7 levels cleared) ----
-    from arc3_wm.replay_loader import load_replay_file
+def _human_rows():
+    """Raw step rows (with frames) of the 7-level human win replay."""
+    import json
     rp = ROOT / "data/replays/vc33/837812ad-2c5c-4943-8632-b6f8cd4b5b4d.recording.jsonl"
-    ep = next(load_replay_file(rp))
-    t0, t1 = ep[0]["image"], ep[-1]["image"]
+    rows = []
+    for line in open(rp):
+        line = line.strip()
+        if not line:
+            continue
+        d = json.loads(line).get("data", {})
+        if "frame" in d:
+            rows.append(d)
+    return rows
+
+
+def _hframe(rows, i):
+    from arc3_wm.palette import decode_frame
+    return decode_frame(np.asarray(rows[i]["frame"][-1]))
+
+
+def task_and_rollouts():
+    rows = _human_rows()
+    # ---- single ARC level: start -> solved (level 1 ends at the levelup on row 7) ----
     before_after(
-        upscale(t0, 8), upscale(t1, 8),
-        "An ARC-AGI-3 task (game vc33)",
-        "Initial state", "Goal state reached",
-        "Left: the puzzle as the player first sees it. Right: the state after a human player "
-        "solved it. The agent is never told the rules — it must discover them by interacting.",
+        upscale(_hframe(rows, 0), 8), upscale(_hframe(rows, 6), 8),
+        "An ARC-AGI-3 task (game vc33, level 1)",
+        "Initial state", "Solved",
+        "Left: the puzzle as the player first sees it. Right: the same level once solved (a human "
+        "player here). The agent is never told the rules — it must discover them by interacting.",
         "fig3_task_vc33.png",
     )
 
-    # ---- SOLVED by our model: vc33 ----
-    vf = gif_frames(VC33_POLICY)
-    before_after(
-        upscale(vf[0], 8), upscale(vf[107], 8),
-        "A task our model SOLVES (vc33)",
-        "Level-1 start", "End of level 1",
-        "Frames from our trained agent's rollout. vc33 is the only game our model solves: it "
-        "cleared level 1 in 4 of 23 evaluation episodes (RHAE > 0). vc33's levels share a visual "
-        "style, so the clearest view of solving is the activity timeline (next figure).",
+    # ---- SOLVED by our model: a level ladder ----
+    # Level 1 is the game's fixed first puzzle; the model's logged rollouts are
+    # real env states sitting at level 2 (warm, cleared L1) and level 3
+    # (from-scratch, cleared L1+L2) — verified by matching the human level frames.
+    vw = gif_frames(VC33_POLICY)        # warm s0  -> level 2 (cleared level 1)
+    level_ladder(
+        [
+            (upscale(_hframe(rows, 3), 8), "Level 1 (the first puzzle)"),
+            (upscale(vw[469], 8), "Level 2 — our model cleared level 1 to get here"),
+        ],
+        "Our model SOLVES level 1 of vc33",
+        "vc33 is played by clearing levels, each a visibly different, harder puzzle. The right image "
+        "is a real frame from our trained agent's own play: it cleared level 1 and reached level 2. "
+        "Confirmed in evaluation (it cleared level 1 in 4 of 23 episodes; RHAE > 0). It then "
+        "plateaus at level 2 — it does not go on to finish the game the way a human does.",
         "fig4_solved_vc33.png",
     )
 
@@ -289,20 +352,20 @@ def activity_timeline():
     dv, dl = diffs(VC33_POLICY), diffs(LF52_POLICY)
     fig, (a1, a2) = plt.subplots(2, 1, figsize=(11, 5.2), dpi=150, sharex=False)
     a1.plot(dv, color="#4FCC30", lw=1.3)
-    a1.set_title("vc33  —  a game our model SOLVES", fontsize=13, fontweight="bold", loc="left")
+    a1.set_title("vc33  —  our model engages with the game", fontsize=13, fontweight="bold", loc="left")
     a1.set_ylabel("grid change\nper step")
     spikes = [i for i in range(len(dv)) if dv[i] > 4]
     a1.scatter(spikes, dv[spikes], color="#F93C31", zorder=5, s=28)
-    a1.annotate(f"{len(spikes)} level transitions\n(grid fully redraws)",
-                xy=(spikes[0], dv[spikes[0]]), xytext=(spikes[0] + 60, dv.max() * 0.8),
+    a1.annotate("grid fully redraws\n(deaths / retries at its ceiling level)",
+                xy=(spikes[0], dv[spikes[0]]), xytext=(spikes[0] + 50, dv.max() * 0.78),
                 fontsize=10, color="#F93C31",
                 arrowprops=dict(arrowstyle="->", color="#F93C31"))
     a2.plot(dl, color="#1E93FF", lw=1.3)
-    a2.set_title("lf52  —  a game our model does NOT solve", fontsize=13, fontweight="bold", loc="left")
+    a2.set_title("lf52  —  our model is inert", fontsize=13, fontweight="bold", loc="left")
     a2.set_ylabel("grid change\nper step")
     a2.set_xlabel("step within one rollout")
-    a2.annotate("no level ever changes — the agent is stuck",
-                xy=(len(dl) * 0.5, dl.max()), xytext=(len(dl) * 0.25, dv.max() * 0.55),
+    a2.annotate("the grid barely changes — the agent never gets anywhere",
+                xy=(len(dl) * 0.5, dl.max()), xytext=(len(dl) * 0.22, dv.max() * 0.55),
                 fontsize=10, color="#1E93FF",
                 arrowprops=dict(arrowstyle="->", color="#1E93FF"))
     for ax in (a1, a2):

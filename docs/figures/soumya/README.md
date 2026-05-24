@@ -67,26 +67,37 @@ intuition and a real result as evidence):
 
 | Figure | Shows | File |
 |---|---|---|
-| 3 | A generic ARC-AGI-3 task: start → goal, from a **human** replay of vc33 (player cleared 7 levels). | `fig3_task_vc33.png` |
-| 4 | A task our model **SOLVES** (vc33): level-1 start → end of level 1, from the trained agent's own rollout. | `fig4_solved_vc33.png` |
+| 3 | A generic ARC-AGI-3 task: level-1 start → solved, from a **human** replay of vc33. | `fig3_task_vc33.png` |
+| 4 | A task our model **SOLVES** (vc33): Level 1 (the first puzzle) → Level 2, a real frame from the agent's own play after it cleared level 1. | `fig4_solved_vc33.png` |
 | 5 | A task our model does **NOT solve** (lf52): start → end; the grid is essentially unchanged. | `fig5_notsolved_lf52.png` |
-| 6 | *(bonus)* Activity timeline — the clearest view of "solved vs not": on vc33 the agent repeatedly drives the game to new levels (spikes); on lf52 nothing ever changes. | `fig6_activity_timeline.png` |
+| 6 | *(optional)* Activity timeline — on vc33 the agent engages (clears level 1, then dies/retries at level 2); on lf52 it is inert. | `fig6_activity_timeline.png` |
 
-### Honest caveats (worth knowing before this goes in the paper)
+### How fig 4 was verified (and the honest caveats)
 
-- **Why a bonus Figure 6.** vc33's levels share a visual style, so a single
-  before/after pair (Fig 4) does not dramatically *look* solved even though it is.
-  The activity timeline (Fig 6) is the honest, compelling view: vc33 shows 12
-  full-grid redraws (the agent reaching level boundaries); lf52 is dead flat.
-- **"Level transitions" in Fig 6.** A full-grid redraw happens at a level
-  boundary, which can be a level *clear* or a death/reset — from frames alone we
-  cannot distinguish the two. The *verified* claim, from evaluation logs, is:
-  **vc33 cleared level 1 in 4/23 (seed 0) and 2/18 (seed 1) eval episodes
-  (RHAE > 0); lf52, sb26, cd82, tn36, ls20 scored 0 across every eval episode.**
+We do **not** have logged frames of the specific eval episodes that cleared a
+level — DreamerV3 only logged *training* rollout GIFs. But those GIFs are real
+environment states, and we verified what level the agent is in by matching every
+rollout frame to a frame from the human win replay (where each level is labelled):
+
+- **All vc33 rollout frames match the human's level 2** (warm and from-scratch),
+  not level 1 — i.e. the agent had already cleared level 1 and is playing level 2.
+- The frame in fig 4 is the rollout frame closest to the human level-2 reference.
+
+Caveats worth knowing before this goes in the paper:
+
+- **The model clears level 1, and only level 1.** Evidence: rollouts sit at
+  level 2 (above), and **eval reward caps at exactly 1 level cleared in every vc33
+  run** (warm s0 4/23, from-scratch s0 2/21, from-scratch s1 3/19). One
+  from-scratch *training* rollout visually resembled level 3 (two levels cleared),
+  but since no eval episode ever cleared two levels we deliberately **do not**
+  claim level 3 in the figure.
 - **vc33 is our only solved game.** Phase-4 proper + expansion: vc33 is the sole
-  RHAE > 0 result. The not-solved example could equally be sb26 / cd82 / tn36 /
-  ls20; lf52 was chosen because it is the most visually recognisable ARC puzzle
-  and shows the agent active-but-stuck. Say the word to swap it.
+  RHAE > 0 result. lf52/sb26/cd82/tn36/ls20 scored **0** across every eval episode.
+  lf52 was chosen for the not-solved figure because it is the most recognisable
+  ARC puzzle and shows the agent active-but-stuck; swap on request.
+- **Fig 6 is supporting, not the headline.** Its spikes are full-grid redraws =
+  deaths/retries at the ceiling level, *not* "level transitions." The honest
+  message is engagement (vc33) vs inertness (lf52). Drop it if it muddies things.
 
 ---
 
@@ -101,10 +112,10 @@ intuition and a real result as evidence):
 > **A picture of a world model** — `fig1` is a schematic; `fig2` is a real result
 > from our run showing the model predicting the game's future on its own.
 >
-> **Initial → end states** — `fig3` (a task, human solving it), `fig4` (a game our
-> model solves, vc33), `fig5` (a game it does not, lf52). I also added `fig6`,
-> which makes the solved-vs-not contrast clearest: our agent repeatedly drives
-> vc33 to new levels, while on lf52 nothing ever changes.
+> **Initial → end states** — `fig3` (a task, human solving level 1), `fig4` (a game
+> our model solves: it clears level 1 of vc33 and reaches level 2), `fig5` (a game
+> it does not, lf52 — start and end are unchanged). `fig6` is an optional extra
+> contrasting the agent's engagement on vc33 vs lf52.
 >
 > [paste the two paragraphs from §1]
 >
