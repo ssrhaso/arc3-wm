@@ -12,6 +12,13 @@ Episode end: terminated on ``state ∈ {WIN, GAME_OVER}``;
 Action masking is exposed via ``info["action_mask"]`` after every reset/step.
 DreamerV3 doesn't read it directly, but downstream training code can apply
 it to the policy logits.
+
+Rendering: the env supports the ``"rgb_array"`` render mode, which returns
+the most recent decoded observation as an ``(H, W, 3)`` uint8 array. This
+makes the wrapper a complete Gymnasium citizen, so standard utilities such
+as ``gymnasium.wrappers.RecordVideo`` work without any custom code. The
+``"terminal"`` debug renderer of ``arc_agi`` is deliberately not exposed
+here (it is debug-only per CLAUDE.md and never used in training/eval).
 """
 from __future__ import annotations
 
@@ -33,7 +40,7 @@ TERMINAL_STATES = frozenset({GameState.WIN, GameState.GAME_OVER})
 class ARC3GymEnv(gym.Env):
     """Single-game Gymnasium env over ``arc_agi.Arcade`` in OFFLINE mode."""
 
-    metadata = {"render_modes": []}
+    metadata = {"render_modes": ["rgb_array"]}
 
     def __init__(
         self,
@@ -41,8 +48,15 @@ class ARC3GymEnv(gym.Env):
         seed: int = 0,
         max_steps: int = 1000,
         arcade: Optional[arc_agi.Arcade] = None,
+        render_mode: Optional[str] = None,
     ) -> None:
         super().__init__()
+        if render_mode is not None and render_mode not in self.metadata["render_modes"]:
+            raise ValueError(
+                f"unsupported render_mode {render_mode!r}; "
+                f"supported: {self.metadata['render_modes']}"
+            )
+        self.render_mode = render_mode
         # The arc_agi.Arcade is heavy (creates a scorecard, scans environment_files),
         # so allow callers to share one across vector envs / multi-game runs.
         self._arcade = arcade if arcade is not None else arc_agi.Arcade()
@@ -72,6 +86,7 @@ class ARC3GymEnv(gym.Env):
         self._steps = 0
         self._prev_levels_completed = 0
         self._last_available: list[int] = []
+        self._last_frame: Optional[np.ndarray] = None
 
     # --- Gymnasium interface ----------------------------------------------
 
@@ -119,6 +134,22 @@ class ARC3GymEnv(gym.Env):
 
         return self._obs(fd), reward, terminated, truncated, self._info(fd)
 
+    def render(self) -> Optional[np.ndarray]:
+        """Return the most recent observation as an ``(H, W, 3)`` uint8 array.
+
+        Honours the Gymnasium render contract: returns ``None`` when no
+        ``render_mode`` was set, and the last decoded frame under
+        ``render_mode="rgb_array"``. Before the first ``reset()`` (no frame
+        yet) a black frame is returned so ``RecordVideo`` and friends never
+        see ``None`` mid-episode. The array is a copy, so callers may mutate
+        it without corrupting the env's cached frame.
+        """
+        if self.render_mode != "rgb_array":
+            return None
+        if self._last_frame is None:
+            return np.zeros((OBS_HW, OBS_HW, 3), dtype=np.uint8)
+        return self._last_frame.copy()
+
     def close(self) -> None:
         # arc_agi has no explicit close; drop our reference for GC.
         self._wrapper = None  # type: ignore[assignment]
@@ -130,13 +161,15 @@ class ARC3GymEnv(gym.Env):
         if not fd.frame:
             # Engine should never return empty; treat as black frame to avoid
             # propagating None into DreamerV3.
-            return np.zeros((OBS_HW, OBS_HW, 3), dtype=np.uint8)
+            self._last_frame = np.zeros((OBS_HW, OBS_HW, 3), dtype=np.uint8)
+            return self._last_frame
         layer = np.asarray(fd.frame[-1])
         if layer.shape != (OBS_HW, OBS_HW):
             raise RuntimeError(
                 f"unexpected frame layer shape {layer.shape}; expected ({OBS_HW}, {OBS_HW})"
             )
-        return decode_frame(layer)
+        self._last_frame = decode_frame(layer)
+        return self._last_frame
 
     def _info(self, fd) -> dict[str, Any]:
         avail = list(int(a) for a in (fd.available_actions or ()))

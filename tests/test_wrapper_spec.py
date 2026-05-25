@@ -106,6 +106,54 @@ def test_invalid_action_raises(env):
         env.step(-1)
 
 
+def test_render_mode_none_returns_none():
+    """Default (no render_mode) follows the Gymnasium contract: render() -> None."""
+    e = ARC3GymEnv(game_id="vc33", seed=0, max_steps=10)
+    try:
+        assert e.render_mode is None
+        e.reset()
+        assert e.render() is None
+    finally:
+        e.close()
+
+
+def test_render_rgb_array_matches_last_obs():
+    """render_mode='rgb_array' returns the most recent decoded frame."""
+    e = ARC3GymEnv(game_id="vc33", seed=0, max_steps=10, render_mode="rgb_array")
+    try:
+        assert "rgb_array" in e.metadata["render_modes"]
+        obs, _ = e.reset()
+        frame = e.render()
+        assert isinstance(frame, np.ndarray)
+        assert frame.shape == (64, 64, 3) and frame.dtype == np.uint8
+        np.testing.assert_array_equal(frame, obs)
+        # Advances with stepping and stays in sync with the returned obs.
+        obs2, *_ = e.step(5)  # ACTION6 (0, 0)
+        np.testing.assert_array_equal(e.render(), obs2)
+        # Returned frame is a copy: mutating it must not corrupt the env.
+        frame2 = e.render()
+        frame2[:] = 0
+        np.testing.assert_array_equal(e.render(), obs2)
+    finally:
+        e.close()
+
+
+def test_render_before_reset_is_black_frame():
+    """rgb_array before the first reset returns a black frame, never None."""
+    e = ARC3GymEnv(game_id="vc33", seed=0, render_mode="rgb_array")
+    try:
+        frame = e.render()
+        assert frame.shape == (64, 64, 3) and frame.dtype == np.uint8
+        assert not frame.any()
+    finally:
+        e.close()
+
+
+def test_unsupported_render_mode_raises():
+    with pytest.raises(ValueError, match="render_mode"):
+        ARC3GymEnv(game_id="vc33", render_mode="terminal")
+
+
 def test_offline_mode_required(monkeypatch):
     """Constructing the wrapper from a NORMAL-mode Arcade must raise."""
     import arc_agi

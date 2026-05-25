@@ -11,7 +11,14 @@ general-purpose library API.
 
 ## [Unreleased]
 
-- Nothing yet.
+### Added
+
+- **`rgb_array` rendering.** `ARC3GymEnv` now accepts `render_mode` and
+  implements `render()`, returning the most recent observation as an
+  `(H, W, 3)` uint8 array. This completes the Gymnasium render contract,
+  so standard utilities such as `gymnasium.wrappers.RecordVideo` work on
+  the env with no custom code. The debug-only `arc_agi` terminal renderer
+  is deliberately not exposed. Tests in `tests/test_wrapper_spec.py`.
 
 ## [0.1.0] — 2026-05-18
 
