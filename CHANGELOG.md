@@ -19,6 +19,11 @@ general-purpose library API.
   so standard utilities such as `gymnasium.wrappers.RecordVideo` work on
   the env with no custom code. The debug-only `arc_agi` terminal renderer
   is deliberately not exposed. Tests in `tests/test_wrapper_spec.py`.
+- **`action_space.logit_bias(mask)`.** Canonical helper for the masking
+  step CLAUDE.md specifies ("set actor logits to `-inf` on unsupported
+  indices"): returns a length-4102 additive bias (`0.0` allowed, `-inf`
+  masked) to add to policy logits before sampling. Re-exported from the
+  package root. Tests in `tests/test_action_space.py`.
 
 ### Changed
 

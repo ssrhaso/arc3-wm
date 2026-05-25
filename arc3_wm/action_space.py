@@ -86,3 +86,26 @@ def build_mask(available_actions: Iterable[int]) -> np.ndarray:
     if 7 in avail:
         mask[ACTION7_INDEX] = True
     return mask
+
+
+def logit_bias(mask: np.ndarray, dtype: type = np.float32) -> np.ndarray:
+    """Additive bias for actor logits: ``0.0`` where allowed, ``-inf`` where masked.
+
+    This is the canonical realisation of the masking step CLAUDE.md
+    describes ("set actor logits to ``-inf`` on unsupported indices before
+    sampling"): add the returned array to the policy logits, then sample or
+    argmax as usual. Adding ``-inf`` drives the post-softmax probability of
+    masked actions to exactly zero while leaving the relative logits of the
+    allowed actions untouched.
+
+    ``mask`` is the length-4102 boolean array from :func:`build_mask`. The
+    result has the same shape. Keeping bias generation separate from
+    :func:`build_mask` lets callers cache the boolean mask (e.g. to log the
+    number of valid actions) and derive the additive bias on demand.
+    """
+    mask = np.asarray(mask, dtype=bool)
+    if mask.shape != (N_ACTIONS,):
+        raise ValueError(f"mask must have shape ({N_ACTIONS},); got {mask.shape}")
+    bias = np.zeros(N_ACTIONS, dtype=dtype)
+    bias[~mask] = -np.inf
+    return bias

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .action_space import N_ACTIONS, arc_to_flat, build_mask, flat_to_arc
+from .action_space import N_ACTIONS, arc_to_flat, build_mask, flat_to_arc, logit_bias
 from .env import ARC3GymEnv
 from .registration import PUBLIC_GAMES, register_envs
 
@@ -38,6 +38,7 @@ __all__ = [
     "flat_to_arc",
     "arc_to_flat",
     "build_mask",
+    "logit_bias",
     "PUBLIC_GAMES",
     "register_envs",
     "__version__",

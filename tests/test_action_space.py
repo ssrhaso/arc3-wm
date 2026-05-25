@@ -19,6 +19,7 @@ from arc3_wm.action_space import (
     arc_to_flat,
     build_mask,
     flat_to_arc,
+    logit_bias,
 )
 
 
@@ -125,3 +126,29 @@ def test_mask_ignores_unknown_ids():
     m = build_mask([1, 99, 6])
     assert m[0] and m[ACTION6_BASE]  # 1 and 6 honoured
     assert m.sum() == 1 + ACTION6_COUNT
+
+
+def test_logit_bias_zero_on_allowed_neg_inf_on_masked():
+    mask = build_mask([1, 2, 3, 4])  # tu93-style keyboard-only
+    bias = logit_bias(mask)
+    assert bias.shape == (N_ACTIONS,)
+    assert bias.dtype == np.float32
+    # Allowed indices contribute nothing additive; masked ones are -inf.
+    assert np.array_equal(bias == 0.0, mask)
+    assert np.isneginf(bias[~mask]).all()
+    assert not np.isneginf(bias[mask]).any()
+
+
+def test_logit_bias_drives_softmax_to_zero_on_masked():
+    mask = build_mask([1, 2, 3, 4])
+    logits = np.ones(N_ACTIONS, dtype=np.float32)
+    probs = np.exp(logits + logit_bias(mask))
+    probs /= probs.sum()
+    # Masked actions get exactly zero probability; mass is on the 4 allowed.
+    assert probs[~mask].sum() == 0.0
+    np.testing.assert_allclose(probs[mask], 0.25)
+
+
+def test_logit_bias_rejects_wrong_shape():
+    with pytest.raises(ValueError, match="shape"):
+        logit_bias(np.zeros(10, dtype=bool))
