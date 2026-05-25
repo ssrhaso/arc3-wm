@@ -164,27 +164,47 @@ def level_ladder(panels, title, caption, name):
     print("wrote", name, canvas.size)
 
 
+# Open-loop panel geometry (detected): 6 columns of 64px content separated by
+# red/green border strips; 3 stacked rows (truth / prediction / error).
+_OL_COL_X = [2, 70, 138, 206, 274, 342]   # left edge of each 64px column
+_OL_ROW_TRUTH = (2, 66)
+_OL_ROW_PRED = (66, 130)
+
+
+def _clean_openloop_grid(frame, n_cols=6, cell_up=6, gap=2):
+    """Extract truth + prediction cells (no coloured borders, no error row) and
+    re-tile into a clean 2 x n_cols grid on a white background."""
+    cells_truth, cells_pred = [], []
+    for x in _OL_COL_X[:n_cols]:
+        cells_truth.append(frame[_OL_ROW_TRUTH[0]:_OL_ROW_TRUTH[1], x:x + 64])
+        cells_pred.append(frame[_OL_ROW_PRED[0]:_OL_ROW_PRED[1], x:x + 64])
+    c = 64
+    grid = np.full((2 * c + gap, n_cols * c + (n_cols - 1) * gap, 3), 255, np.uint8)
+    for j in range(n_cols):
+        x0 = j * (c + gap)
+        grid[0:c, x0:x0 + c] = cells_truth[j]
+        grid[c + gap:2 * c + gap, x0:x0 + c] = cells_pred[j]
+    img = Image.fromarray(grid)
+    return img.resize((img.width * cell_up, img.height * cell_up), Image.NEAREST)
+
+
 def reconstruction_panel():
     frames = gif_frames(VC33_OPENL)
-    # Panel is 3 stacked rows (truth / prediction / error). The error row is a
-    # flat near-zero map; crop to the top two rows (truth + prediction) which is
-    # what reads clearly. Use an open-loop ("imagined") frame: the model is NOT
-    # shown these real frames yet its prediction still matches (verified diff
-    # ~0.3/255). Each column is one consecutive game step.
-    arr = frames[28][0:130, :, :]  # truth (0:65) + prediction (65:130)
-    H, W, _ = arr.shape
-    mid = H // 2
-    factor = 3
-    panel = upscale(arr, factor)
+    # Use an open-loop ("imagined") frame: the model is NOT shown these real
+    # frames yet its prediction still matches (verified diff ~0.3/255). Build a
+    # clean truth-vs-prediction grid with the coloured borders/error row removed.
+    panel = _clean_openloop_grid(frames[28])
+    pw, ph = panel.size
+    mid = ph // 2
+    factor = 1  # already upscaled in _clean_openloop_grid
     pw, ph = panel.size
     lab_w, margin, title_h = 250, 36, 124
     f_title, f_sub, f_row, f_cap = _font(34, True), _font(22), _font(24, True), _font(21)
 
     cv = Image.new("RGB", (10, 10)); cd = ImageDraw.Draw(cv)
-    caption = ("Each column is one consecutive game step. Here the model is predicting the future "
-               "on its own (red border = open-loop): it is NOT shown these real frames, yet its "
-               "prediction (bottom row) still matches the true game (top row). This is evidence "
-               "the world model has actually learned vc33's dynamics.")
+    caption = ("Top row: real game frames. Bottom row: the world model's predictions of them, made "
+               "open-loop — the model is not shown the real frames, it generates them from its own "
+               "internal state. They match, which is evidence the model has learned vc33's dynamics.")
     cap_lines = _wrap(cd, caption, f_cap, lab_w + pw)
     cap_h = len(cap_lines) * 27 + 16
 
@@ -399,9 +419,8 @@ def export_raw():
         img.save(raw / name)
         print("wrote RAW/", name, img.size)
 
-    # fig2 — open-loop reconstruction panel (truth + prediction rows), no labels.
-    ol = gif_frames(VC33_OPENL)[28][0:130, :, :]
-    Image.fromarray(ol).resize((ol.shape[1] * 6, ol.shape[0] * 6), Image.NEAREST).save(
+    # fig2 — clean truth-vs-prediction grid (borders + error row removed), no labels.
+    _clean_openloop_grid(gif_frames(VC33_OPENL)[28]).save(
         raw / "fig2_wm_reconstruction_panel.png")
     print("wrote RAW/ fig2_wm_reconstruction_panel.png")
 

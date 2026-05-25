@@ -83,8 +83,9 @@ caption yourself. Names map to the composed figures:
 
 - `fig4_left_vc33_level1_start.png`, `fig4_mid_vc33_level1_solved.png`, `fig4_right_vc33_trained_level2.png`
 - `fig5_left_sb26_start.png`, `fig5_right_sb26_after.png`
-- `fig2_wm_reconstruction_panel.png` (top half = real game, bottom half = WM
-  prediction; the red borders are DreamerV3's own open-loop marker, not added)
+- `fig2_wm_reconstruction_panel.png` (clean 2×6 grid: top row = real game frames,
+  bottom row = the WM's open-loop predictions of them; DreamerV3's coloured phase
+  borders and the error row have been stripped out)
 
 `fig1` (the schematic) has no annotation-free version — it is a labelled diagram.
 
