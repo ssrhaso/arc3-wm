@@ -20,6 +20,14 @@ general-purpose library API.
   the env with no custom code. The debug-only `arc_agi` terminal renderer
   is deliberately not exposed. Tests in `tests/test_wrapper_spec.py`.
 
+### Changed
+
+- **`game_id` is validated against `PUBLIC_GAMES`.** `ARC3GymEnv` now
+  raises a clear `ValueError` naming the offending id when constructed
+  with a game outside the 25 public ARC-AGI-3 games, instead of the
+  opaque "make() returned None" `RuntimeError` that a typo previously
+  produced downstream.
+
 ## [0.1.0] — 2026-05-18
 
 First formalised release of the contribution artifact. The wrapper,

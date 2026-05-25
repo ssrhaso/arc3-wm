@@ -32,6 +32,7 @@ import arc_agi
 
 from . import action_space as A
 from .palette import decode_frame
+from .registration import PUBLIC_GAMES
 
 OBS_HW = 64
 TERMINAL_STATES = frozenset({GameState.WIN, GameState.GAME_OVER})
@@ -57,6 +58,13 @@ class ARC3GymEnv(gym.Env):
                 f"supported: {self.metadata['render_modes']}"
             )
         self.render_mode = render_mode
+        if game_id not in PUBLIC_GAMES:
+            # Catch typos early with an actionable message rather than the
+            # opaque "make() returned None" that a bad id triggers downstream.
+            raise ValueError(
+                f"unknown game_id {game_id!r}; expected one of the 25 public "
+                f"ARC-AGI-3 games (see arc3_wm.PUBLIC_GAMES), e.g. 'vc33'."
+            )
         # The arc_agi.Arcade is heavy (creates a scorecard, scans environment_files),
         # so allow callers to share one across vector envs / multi-game runs.
         self._arcade = arcade if arcade is not None else arc_agi.Arcade()

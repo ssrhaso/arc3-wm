@@ -165,7 +165,8 @@ def test_offline_mode_required(monkeypatch):
         ARC3GymEnv(game_id="vc33", arcade=_FakeArcade())
 
 
-def test_make_failure_raises():
-    """Unknown game_id should bubble up with a useful message."""
-    with pytest.raises(RuntimeError, match="returned None"):
-        ARC3GymEnv(game_id="zz99")  # not in environment_files/
+def test_unknown_game_id_raises():
+    """A game_id outside the 25 public games is rejected with a clear error."""
+    with pytest.raises(ValueError, match="unknown game_id"):
+        ARC3GymEnv(game_id="zz99")  # not a public ARC-AGI-3 game
+
