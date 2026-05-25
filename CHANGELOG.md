@@ -29,6 +29,13 @@ general-purpose library API.
   `preferred-citation` block for the workshop paper will be added on
   submission.
 
+### Documentation
+
+- **README.** Added status badges, a Development section (dev install
+  and how to run the test suite, including the laptop/JAX split and the
+  cached-env-files note), a Citing section pointing at `CITATION.cff`,
+  and a quickstart pointer to `logit_bias`.
+
 ### Changed
 
 - **`game_id` is validated against `PUBLIC_GAMES`.** `ARC3GymEnv` now

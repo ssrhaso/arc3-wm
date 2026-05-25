@@ -1,5 +1,10 @@
 # arc3-wm - a world-model RL substrate for ARC-AGI-3
 
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-research%20code-orange)
+![Tests](https://img.shields.io/badge/tests-pytest-informational)
+
 `arc3-wm` is a small, dependency-light Python package that makes
 [ARC-AGI-3](https://arcprize.org/tasks) usable as a standard
 reinforcement-learning environment, plus the offline-data and metric
@@ -59,7 +64,7 @@ arcade = arc_agi.Arcade()                        # OFFLINE mode (set in .env)
 env = ARC3GymEnv(game_id="vc33", arcade=arcade)
 obs, info = env.reset()
 obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
-mask = info["action_mask"]                       # length-4102 bool, apply to your policy logits
+mask = info["action_mask"]                       # length-4102 bool; arc3_wm.logit_bias(mask) -> additive -inf bias for your policy logits
 ```
 
 Or via the registered Gymnasium id — `import arc3_wm` self-registers
@@ -119,10 +124,29 @@ docs/           integration guide, contribution skeleton, compute runbook
 tests/          property + integration tests (the spec)
 ```
 
+## Development
+
+Install the dev extras and run the test suite (the tests are the spec):
+
+```bash
+pip install -e ".[dev]"
+pytest                      # full suite
+pytest tests/test_action_space.py -q   # a single module
+pytest -n auto              # parallel (pytest-xdist)
+```
+
+The pure-Python and Gymnasium tests run on a laptop with no GPU and no
+JAX. A handful of `embodied`/DreamerV3 tests skip automatically when the
+JAX-side `elements` dependency is absent. Env tests read cached OFFLINE
+game files from `environment_files/`; run `python scripts/cache_env_files.py`
+once (needs `ARC_API_KEY`) if they are missing.
+
 ## Citation
 
-See [docs/contribution.md](docs/contribution.md) for the paper
-skeleton and BibTeX (added on submission).
+If you use this software, cite it via the metadata in
+[CITATION.cff](CITATION.cff) (GitHub's "Cite this repository" button reads
+it). The workshop-paper BibTeX is added on submission; see
+[docs/contribution.md](docs/contribution.md) for the paper skeleton.
 
 ## License
 
