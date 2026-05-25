@@ -1,0 +1,34 @@
+# Citation metadata for the arc3-wm software artifact.
+# Schema: https://citation-file-format.github.io (CFF 1.2.0).
+# GitHub renders this as the "Cite this repository" entry.
+cff-version: 1.2.0
+title: "arc3-wm: a world-model RL substrate for ARC-AGI-3"
+message: "If you use this software, please cite it using these metadata."
+type: software
+authors:
+  - given-names: Hasaan
+    family-names: Ahmad
+    email: hasaana2005@gmail.com
+repository-code: "https://github.com/ssrhaso/ARC_AGI_3"
+url: "https://github.com/ssrhaso/ARC_AGI_3"
+abstract: >-
+  A small, dependency-light Python package that exposes ARC-AGI-3 as a
+  standard reinforcement-learning environment, with the offline-data and
+  metric plumbing needed to train and evaluate model-based RL / world
+  models on it. It provides a Gymnasium-compatible env (ARC3GymEnv), a
+  DreamerV3 embodied env, a flat 4102-way action space with per-step
+  masking, a human-replay offline loader, and a reference implementation
+  of the Relative Human Action Efficiency (RHAE) metric.
+keywords:
+  - arc-agi-3
+  - reinforcement-learning
+  - world-models
+  - model-based-rl
+  - dreamerv3
+  - gymnasium
+  - benchmark
+license: MIT
+version: 0.1.0
+date-released: "2026-05-18"
+# A preferred-citation block (the workshop paper) will be added on
+# submission; until then, cite the software metadata above.

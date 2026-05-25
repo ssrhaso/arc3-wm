@@ -24,6 +24,10 @@ general-purpose library API.
   indices"): returns a length-4102 additive bias (`0.0` allowed, `-inf`
   masked) to add to policy logits before sampling. Re-exported from the
   package root. Tests in `tests/test_action_space.py`.
+- **`CITATION.cff`.** Citation File Format (1.2.0) metadata for the
+  software artifact, so GitHub renders a "Cite this repository" entry. A
+  `preferred-citation` block for the workshop paper will be added on
+  submission.
 
 ### Changed
 
