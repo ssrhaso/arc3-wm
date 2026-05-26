@@ -170,3 +170,19 @@ def test_unknown_game_id_raises():
     with pytest.raises(ValueError, match="unknown game_id"):
         ARC3GymEnv(game_id="zz99")  # not a public ARC-AGI-3 game
 
+
+def test_repr_reports_identity(env):
+    r = repr(env)
+    assert r.startswith("ARC3GymEnv(")
+    assert "game_id='vc33'" in r
+    assert "seed=0" in r
+    assert "render_mode=None" in r
+
+
+def test_repr_tracks_step_progress():
+    e = ARC3GymEnv(game_id="vc33", seed=0, max_steps=10)
+    e.reset()
+    assert "step=0" in repr(e)
+    e.step(e.action_space.sample())
+    assert "step=1" in repr(e)
+

@@ -96,6 +96,16 @@ class ARC3GymEnv(gym.Env):
         self._last_available: list[int] = []
         self._last_frame: Optional[np.ndarray] = None
 
+    def __repr__(self) -> str:
+        # At-a-glance identity for the REPL / debugger / log lines: which game,
+        # seed, where in the episode, and how the env will render.
+        return (
+            f"{type(self).__name__}(game_id={self._game_id!r}, seed={self._seed}, "
+            f"max_steps={self._max_steps}, step={self._steps}, "
+            f"levels_completed={self._prev_levels_completed}, "
+            f"render_mode={self.render_mode!r})"
+        )
+
     # --- Gymnasium interface ----------------------------------------------
 
     def reset(
