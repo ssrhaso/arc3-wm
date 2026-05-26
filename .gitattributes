@@ -1,0 +1,25 @@
+# Normalise line endings: store text as LF in the repo, check out native.
+# Keeps a Windows working tree from churning CRLF into every diff.
+* text=auto
+
+# Text data we want to stay LF everywhere (replays, metrics, configs).
+*.py    text eol=lf
+*.jsonl text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.toml  text eol=lf
+*.cff   text eol=lf
+*.md    text eol=lf
+*.sh    text eol=lf
+
+# Binary artifacts — never normalise, never line-diff.
+*.tar.gz binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.pdf    binary
+*.pkl    binary
+*.npy    binary
+*.npz    binary
+*.ipynb  binary
