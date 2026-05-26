@@ -46,6 +46,22 @@ def flat_to_arc(idx: int) -> Tuple[GameAction, Optional[dict]]:
     return GameAction.ACTION6, {"x": int(x), "y": int(y)}
 
 
+def describe_action(idx: int) -> str:
+    """Render a flat index as a human-readable label, e.g. ``"ACTION6(x=32, y=10)"``.
+
+    Inverse-free convenience over :func:`flat_to_arc`, meant for logs and
+    debugging the action mapping (the first step in CLAUDE.md's debug order
+    "action mapping -> reward signal -> exploration"). Parameter-less actions
+    render as their bare name (``"ACTION1"``); ACTION6 carries its decoded
+    grid cell. Raises the same ``ValueError`` as :func:`flat_to_arc` on an
+    out-of-range index.
+    """
+    action, data = flat_to_arc(idx)
+    if data is None:
+        return action.name
+    return f"{action.name}(x={data['x']}, y={data['y']})"
+
+
 def arc_to_flat(action: GameAction, x: Optional[int] = None, y: Optional[int] = None) -> int:
     """Encode ``(GameAction, x, y)`` to a flat index.
 

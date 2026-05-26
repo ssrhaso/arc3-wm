@@ -18,6 +18,7 @@ from arc3_wm.action_space import (
     N_ACTIONS,
     arc_to_flat,
     build_mask,
+    describe_action,
     flat_to_arc,
     logit_bias,
 )
@@ -152,3 +153,30 @@ def test_logit_bias_drives_softmax_to_zero_on_masked():
 def test_logit_bias_rejects_wrong_shape():
     with pytest.raises(ValueError, match="shape"):
         logit_bias(np.zeros(10, dtype=bool))
+
+
+def test_describe_action_parameterless():
+    assert describe_action(0) == "ACTION1"
+    assert describe_action(4) == "ACTION5"
+    assert describe_action(ACTION7_INDEX) == "ACTION7"
+
+
+def test_describe_action_action6():
+    assert describe_action(5) == "ACTION6(x=0, y=0)"
+    assert describe_action(4100) == "ACTION6(x=63, y=63)"
+    assert describe_action(5 + 7 * 64 + 12) == "ACTION6(x=12, y=7)"
+
+
+def test_describe_action_out_of_range():
+    with pytest.raises(ValueError, match="out of range"):
+        describe_action(N_ACTIONS)
+
+
+def test_describe_action_matches_decode_for_all_indices():
+    # describe_action is a thin label over flat_to_arc; it must agree on every idx.
+    for idx in range(N_ACTIONS):
+        arc, data = flat_to_arc(idx)
+        label = describe_action(idx)
+        assert label.startswith(arc.name)
+        if data is not None:
+            assert f"x={data['x']}" in label and f"y={data['y']}" in label
