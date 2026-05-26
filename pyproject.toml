@@ -63,4 +63,7 @@ arc3_wm = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q"
+addopts = "-ra -q --strict-markers"
+markers = [
+    "requires_jax: test needs the JAX/DreamerV3 stack; auto-skipped when jax is unimportable (see tests/conftest.py).",
+]
