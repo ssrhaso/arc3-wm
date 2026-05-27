@@ -93,15 +93,23 @@ of durability:
    independent of any result.
 2. **A controlled negative result.** Stock DreamerV3 (`size12m`, the
    config with direct ARC-1 precedent, Lee et al. 2024) on 6 public
-   games × 2 seeds × paired {from-scratch, cross-game-pretrained}
-   gains ~no traction at a 500k-step budget, and offline world-model
-   pretraining from human demos gives no measurable lift (paired Δ
-   within seed variance).
-3. **A mechanistic diagnosis.** The world model *fits* (image-recon and
-   dynamics losses collapse) while RHAE stays ~0 — the model predicts
-   the world; the controller cannot exploit it in imagination.
-   Latent-probe / FVD / reasoning-axis diagnostics localize where this
-   breaks.
+   games and 2 seeds, paired from-scratch (Regime A) against warm-start
+   from a cross-game world model pretrained on all 340 replays
+   (Regime B). The pre-registered gate (RHAE > 0 on at least 2 of
+   {vc33, sb26, cd82}) failed 1 of 3 at a 500k-step budget: only vc33 is
+   ever non-zero, and there the warm-minus-cold delta disagrees in sign
+   across the two seeds, i.e. lies within seed variance. Cross-game
+   pretraining yields no measurable benefit.
+3. **A mechanistic diagnosis.** The world model *fits* (image
+   reconstruction and dynamics losses collapse to their floors) while
+   RHAE stays near zero, and the failure localises to the policy side.
+   On 5 of the 6 games the actor never commits: policy entropy stays
+   pinned at the uniform maximum `ln(4102) = 8.32` nats and episodic
+   return is identically zero for the full 500k-step budget, because the
+   sparse reward (change in levels completed) emits no gradient until a
+   level is cleared. The dissociation is sharp: cd82's world model fits
+   tighter than vc33's (image loss 0.06 vs. 0.16), yet vc33 is the only
+   game whose controller ever clears a level.
 
 The RHAE benchmark reports each game **independently level-weighted**
 and then combined (see [`arc3_wm/rhae.py`](arc3_wm/rhae.py) and
