@@ -36,7 +36,7 @@ was no Gymnasium-compatible entry point either. This provides one.
 | **DreamerV3 `embodied` env** | `arc3_wm.embodied_env:ARC3EmbodiedEnv` | The same game behind DreamerV3's `embodied.Env` duck-typed interface, no fork of `dreamerv3`.                                                                |
 | **Flat action space**          | `arc3_wm.action_space`                 | Bijective `idx ↔ (ACTION_TYPE, x, y)` over the 4102-way space, plus per-step boolean masks.                                                                   |
 | **Offline replay loader**      | `arc3_wm.replay_loader`                | The 340-replay human-demonstration JSONL dataset → transition tuples for a world-model buffer.                                                                  |
-| **RHAE metric**                | `arc3_wm.rhae`                         | Post-hoc Relative Human Action Efficiency: per-game, level-index-weighted, combined across games. The benchmark metric.                                          |
+| **RHAE metric**                | `arc3_wm.rhae`                         | Post-hoc Relative Human Action Efficiency, the benchmark metric. Per level `s_i = min((human/ai)^2, 1.15)`; per game the level-index-weighted mean over all levels, including uncompleted ones; the total averages games equally. Baselines are the upper-median of first-time-player action counts, dropping levels with fewer than 2 completers (70.5% coverage, 129/183 levels). |
 
 The two interfaces are the contribution: **anything that speaks
 Gymnasium or DreamerV3-`embodied` plugs in with no `arc3_wm` changes.**
