@@ -5,19 +5,24 @@
 ![Status](https://img.shields.io/badge/status-research%20code-orange)
 ![Tests](https://img.shields.io/badge/tests-pytest-informational)
 
+*DreamerV3 fits the world but cannot yet act in it.*
+
 `arc3-wm` is a small, dependency-light Python package that makes
 [ARC-AGI-3](https://arcprize.org/tasks) usable as a standard
 reinforcement-learning environment, plus the offline-data and metric
 plumbing needed to train and evaluate **model-based RL (MBRL) / world
 models** on it.
 
-It is the substrate behind a NeurIPS-2026-workshop study. The study's
-finding is a *diagnosed negative result* (see
-[Contribution](#contribution)); the **wrapper and harness are the
-durable artifact** and the reason this repo is public: as of writing,
-the [ARC-AGI Living Survey](https://arxiv.org/abs/2603.13372) records
-*zero* world-model approaches on ARC-AGI-3, and there was no
-Gymnasium-compatible entry point. This provides one.
+It is the substrate behind a NeurIPS-2026-workshop study, the first
+model-based RL entry on ARC-AGI-3. The study's finding is a *diagnosed
+negative result* (see [Contribution](#contribution)): stock DreamerV3
+provably fits these environments yet cannot act in them under a stock
+controller at a realistic budget. The **wrapper and harness are the
+durable artifact** and the reason this repo is public. The
+[ARC-AGI Living Survey](https://arxiv.org/abs/2603.13372) (around 80
+papers) finds only 3 reporting any ARC-AGI-3 result, none world-model
+based, and names world-model induction as the required next step; there
+was no Gymnasium-compatible entry point either. This provides one.
 
 > **Status:** research code, pinned for reproducibility — not a
 > general-purpose library. It does one thing (ARC-AGI-3 → standard RL
