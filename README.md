@@ -24,23 +24,23 @@ papers) finds only 3 reporting any ARC-AGI-3 result, none world-model
 based, and names world-model induction as the required next step; there
 was no Gymnasium-compatible entry point either. This provides one.
 
-> **Status:** research code, pinned for reproducibility — not a
-> general-purpose library. It does one thing (ARC-AGI-3 → standard RL
+> **Status:** research code, pinned for reproducibility, not a
+> general-purpose library. It does one thing (ARC-AGI-3 -> standard RL
 > interfaces) and does it cleanly. See [Scope](#scope-and-non-goals).
 
 ## What you get
 
-| Component                            | Module                                   | What it is                                                                                                                                                       |
-| ------------------------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Gymnasium env**              | `arc3_wm.env:ARC3GymEnv`               | One ARC-AGI-3 game as a stock `gymnasium.Env`. `Box(0,255,(64,64,3),uint8)` obs, `Discrete(4102)` flat action space, level-up reward. Pure-Python, no JAX. |
-| **DreamerV3 `embodied` env** | `arc3_wm.embodied_env:ARC3EmbodiedEnv` | The same game behind DreamerV3's `embodied.Env` duck-typed interface, no fork of `dreamerv3`.                                                                |
-| **Flat action space**          | `arc3_wm.action_space`                 | Bijective `idx ↔ (ACTION_TYPE, x, y)` over the 4102-way space, plus per-step boolean masks.                                                                   |
-| **Offline replay loader**      | `arc3_wm.replay_loader`                | The 340-replay human-demonstration JSONL dataset → transition tuples for a world-model buffer.                                                                  |
+| Component                            | Module                                   | What it is                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Gymnasium env**              | `arc3_wm.env:ARC3GymEnv`               | One ARC-AGI-3 game as a stock `gymnasium.Env`. `Box(0,255,(64,64,3),uint8)` obs, `Discrete(4102)` flat action space, level-up reward. Pure-Python, no JAX.                                                                                                                                                                                                                      |
+| **DreamerV3 `embodied` env** | `arc3_wm.embodied_env:ARC3EmbodiedEnv` | The same game behind DreamerV3's `embodied.Env` duck-typed interface, no fork of `dreamerv3`.                                                                                                                                                                                                                                                                                     |
+| **Flat action space**          | `arc3_wm.action_space`                 | Bijective `idx <-> (ACTION_TYPE, x, y)` over the 4102-way space, plus per-step boolean masks.                                                                                                                                                                                                                                                                                        |
+| **Offline replay loader**      | `arc3_wm.replay_loader`                | The 340-replay human-demonstration JSONL dataset -> transition tuples for a world-model buffer.                                                                                                                                                                                                                                                                                       |
 | **RHAE metric**                | `arc3_wm.rhae`                         | Post-hoc Relative Human Action Efficiency, the benchmark metric. Per level `s_i = min((human/ai)^2, 1.15)`; per game the level-index-weighted mean over all levels, including uncompleted ones; the total averages games equally. Baselines are the upper-median of first-time-player action counts, dropping levels with fewer than 2 completers (70.5% coverage, 129/183 levels). |
 
 The two interfaces are the contribution: **anything that speaks
 Gymnasium or DreamerV3-`embodied` plugs in with no `arc3_wm` changes.**
-There is deliberately no custom abstraction layer — the standard
+There is deliberately no custom abstraction layer; the standard
 interface *is* the integration point. See
 [docs/using-the-wrapper.md](docs/using-the-wrapper.md).
 
@@ -52,7 +52,7 @@ python scripts/cache_env_files.py  # one-time: cache OFFLINE game files (needs A
 ```
 
 For the DreamerV3 training path additionally clone the pinned reference
-impl and install its deps — see
+impl and install its deps; see
 [docs/vast-quickstart.md](docs/vast-quickstart.md).
 
 ## 60-second quickstart (Gymnasium, laptop, no GPU)
@@ -72,7 +72,7 @@ obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
 mask = info["action_mask"]                       # length-4102 bool; arc3_wm.logit_bias(mask) -> additive -inf bias for your policy logits
 ```
 
-Or via the registered Gymnasium id — `import arc3_wm` self-registers
+Or via the registered Gymnasium id: `import arc3_wm` self-registers
 `ARC3/<game>-v0` for all 25 public games, so any tooling that resolves
 a gym id reaches ARC-AGI-3 with no `arc3_wm` symbol in the loop:
 
@@ -147,7 +147,7 @@ independent of all three outcomes.
 This is pinned research code, not a framework:
 
 - No custom encoder, no DreamerV3 fork, no second world-model backend,
-  no intrinsic-motivation/reward-shaping — all are explicit non-goals
+  no intrinsic-motivation/reward-shaping; all are explicit non-goals
   (follow-up work). The wrapper is intentionally *not* generalized for
   speculative future use; it exposes standard interfaces and stops
   there.
@@ -190,4 +190,4 @@ it). The workshop-paper BibTeX is added on submission; see
 
 ## License
 
-MIT — see [LICENSE](LICENSE). © 2026 Hasaan Ahmad.
+MIT; see [LICENSE](LICENSE). (c) 2026 Hasaan Ahmad.
