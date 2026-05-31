@@ -28,4 +28,4 @@ A system for orchestrating multiple agents across multiple games simultaneously.
 
 ## Toolkit
 
-The ARC-AGI Toolkit — an open-source Python SDK for interacting with ARC-AGI-3 environments locally or via API.
+The ARC-AGI Toolkit - an open-source Python SDK for interacting with ARC-AGI-3 environments locally or via API.

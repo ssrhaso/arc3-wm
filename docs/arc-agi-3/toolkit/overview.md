@@ -10,9 +10,9 @@ The ARC-AGI Toolkit is an open-source Python SDK for ARC-AGI-3 environments, gea
 
 The Toolkit enables:
 
-* **Local development** — Run your agents locally without needing the API, built on top of the [ARC-AGI-3 game engine](https://github.com/arcprize/ARCEngine)
-* **Customization** — Edit existing games and create new ones
-* **Flexibility** — Interact with environments locally or via API
+* **Local development** - Run your agents locally without needing the API, built on top of the [ARC-AGI-3 game engine](https://github.com/arcprize/ARCEngine)
+* **Customization** - Edit existing games and create new ones
+* **Flexibility** - Interact with environments locally or via API
 
 ## QuickStart
 
@@ -53,9 +53,9 @@ print(arc.get_scorecard())
 
 ## Next Steps
 
-* [Minimal Example](./minimal) — A complete script example
-* [List Games](./list-games) — Discover available games
-* [Local vs Online](/local-vs-online) — Choose how to run games
+* [Minimal Example](./minimal) - A complete script example
+* [List Games](./list-games) - Discover available games
+* [Local vs Online](/local-vs-online) - Choose how to run games
 
 ## Changelog
 

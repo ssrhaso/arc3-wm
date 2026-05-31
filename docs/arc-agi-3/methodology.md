@@ -14,8 +14,8 @@ RHAE measures per-level action efficiency compared to a human baseline, normaliz
 
 AI is scored on two criteria:
 
-1. **Completion** — How many levels did the AI complete in each game?
-2. **Efficiency** — How many actions did the AI take compared to humans?
+1. **Completion** - How many levels did the AI complete in each game?
+2. **Efficiency** - How many actions did the AI take compared to humans?
 
 ## What Counts as an Action
 
@@ -45,9 +45,9 @@ For each level the AI completes, calculate:
 level_score = (human_baseline_actions / ai_actions) ^ 2
 ```
 
-* If human baseline is 10 actions and AI takes 10 → level score is 1.0 (100%)
-* If human baseline is 10 actions and AI takes 20 → level score is 0.25 (25%)
-* If human baseline is 10 actions and AI takes 1,00 → level score is 0.01 (1%)
+* If human baseline is 10 actions and AI takes 10 -> level score is 1.0 (100%)
+* If human baseline is 10 actions and AI takes 20 -> level score is 0.25 (25%)
+* If human baseline is 10 actions and AI takes 1,00 -> level score is 0.01 (1%)
 
 ### Per-Level Score Cap
 
@@ -59,7 +59,7 @@ This ensures a single subpar level does not disproportionately drag down the ove
 
 The game score is the **weighted average** of all per-level scores, using the 1-indexed level number as the weight. This underweights the starting tutorial/easy levels and overweights the more difficult later levels where mastery must be demonstrated.
 
-The maximum game score is also determined by this weighted average structure — it is capped based on how many levels the AI actually completed. To unlock a maximum game score of 100%, the AI must complete all levels, including the final one.
+The maximum game score is also determined by this weighted average structure - it is capped based on how many levels the AI actually completed. To unlock a maximum game score of 100%, the AI must complete all levels, including the final one.
 
 **Example:** A game has 5 levels and the AI completes only the first 4:
 
@@ -67,7 +67,7 @@ The maximum game score is also determined by this weighted average structure —
 max_game_score = (1 + 2 + 3 + 4) / (1 + 2 + 3 + 4 + 5) = 10 / 15 = 66.7%
 ```
 
-No matter how efficiently the AI played levels 1–4, its game score cannot exceed 66.7%.
+No matter how efficiently the AI played levels 1-4, its game score cannot exceed 66.7%.
 
 ### Total Score
 

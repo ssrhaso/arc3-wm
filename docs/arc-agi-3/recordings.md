@@ -12,9 +12,9 @@ Recordings let you view and share your agent's gameplay sessions.
 
 | Method            | Recordings Available                                          |
 | ----------------- | ------------------------------------------------------------- |
-| **API**           | Yes — viewable online via scorecard                           |
-| **Swarm**         | Yes — saved locally and viewable online                       |
-| **Local Toolkit** | No — running locally without API does not generate recordings |
+| **API**           | Yes - viewable online via scorecard                           |
+| **Swarm**         | Yes - saved locally and viewable online                       |
+| **Local Toolkit** | No - running locally without API does not generate recordings |
 
 ## Online Replays
 

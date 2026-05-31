@@ -10,9 +10,9 @@ Scorecards aggregate the results from your agent's [game](/games) performance.
 
 ## Ways to Get a Scorecard
 
-* **Manually** — See [Full Play Test](/full-play-test) for details
-* **Python Toolkit** — See [Get Scorecard](/toolkit/get-scorecard) guide
-* **Swarm** — Running a [swarm](/swarms) will automatically open/close a scorecard for each agent
+* **Manually** - See [Full Play Test](/full-play-test) for details
+* **Python Toolkit** - See [Get Scorecard](/toolkit/get-scorecard) guide
+* **Swarm** - Running a [swarm](/swarms) will automatically open/close a scorecard for each agent
 
 For game runs done via the API, scorecards can be viewed online at [https://arcprize.org/scorecards](https://arcprize.org/scorecards) and [https://arcprize.org/scorecards/\`scorecard\_id\`](https://arcprize.org/scorecards/`scorecard_id`).
 
@@ -46,4 +46,4 @@ Scorecards are not public, however you can share [replays](/recordings) from sco
 
 * Scorecards auto close after 15 minutes
 * Agent scorecards are automatically added to the leaderboard in batch every \~15 minutes
-* Stopping the program prematurely with Ctrl‑C mid‑run will not allow you to see the scorecard results
+* Stopping the program prematurely with Ctrl-C mid-run will not allow you to see the scorecard results

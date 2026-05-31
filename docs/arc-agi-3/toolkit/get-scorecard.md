@@ -56,6 +56,6 @@ if scorecard:
 
 ## Next Steps
 
-* [Create Scorecard](/toolkit/create-scorecard) — Create a custom scorecard with tags
-* [Close Scorecard](/toolkit/close-scorecard) — Finalize and close a scorecard
+* [Create Scorecard](/toolkit/create-scorecard) - Create a custom scorecard with tags
+* [Close Scorecard](/toolkit/close-scorecard) - Finalize and close a scorecard
 * [Learn about scoring methodology](/methodology)

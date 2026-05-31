@@ -37,8 +37,8 @@ Controls where games are loaded from. See [Local vs Online](/local-vs-online) fo
 | Mode                    | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
 | `OperationMode.NORMAL`  | Load both local and remote games (default)              |
-| `OperationMode.OFFLINE` | Load local games only — fast, no rate limits            |
-| `OperationMode.ONLINE`  | Load remote games only — enables scorecards and replays |
+| `OperationMode.OFFLINE` | Load local games only - fast, no rate limits            |
+| `OperationMode.ONLINE`  | Load remote games only - enables scorecards and replays |
 
 ```python theme={null}
 from arc_agi import Arcade, OperationMode

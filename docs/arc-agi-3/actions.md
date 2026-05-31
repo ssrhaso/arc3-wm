@@ -26,7 +26,7 @@ When playing games manually in the ARC-AGI-3 UI, you can use these keyboard shor
 | Control Scheme     | ACTION1 | ACTION2 | ACTION3 | ACTION4 | ACTION5 | ACTION6     | ACTION7    |
 | ------------------ | ------- | ------- | ------- | ------- | ------- | ----------- | ---------- |
 | **WASD + Space**   | `W`     | `S`     | `A`     | `D`     | `Space` | Mouse Click | CTRL/CMD+Z |
-| **Arrow Keys + F** | `↑`     | `↓`     | `←`     | `→`     | `F`     | Mouse Click | CTRL/CMD+Z |
+| **Arrow Keys + F** | `Up`     | `Down`     | `Left`     | `Right`     | `F`     | Mouse Click | CTRL/CMD+Z |
 
 All control schemes support mouse clicking for ACTION6 (coordinate-based actions). Choose whichever scheme feels most comfortable for your playstyle.
 
