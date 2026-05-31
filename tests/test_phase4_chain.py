@@ -1,7 +1,7 @@
 """Phase-4 wired-chain integration test.
 
-Exercises every laptop-verifiable interface in the warm-start →
-eval-sink → post-hoc RHAE chain against REAL artifacts:
+Exercises every laptop-verifiable interface in the warm-start ->
+eval-sink -> post-hoc RHAE chain against REAL artifacts:
 
   - real Phase-3 pkl at checkpoints/pretrained-wm/v1/latest.pkl
   - real ARC3EmbodiedEnv on a cached game in environment_files/
@@ -219,11 +219,11 @@ def test_eval_sink_writes_real_rewards_jsonl(game_id, tmp_path):
 
 @pytest.mark.parametrize("game_id", PILOT_GAMES)
 def test_compute_rhae_cli_consumes_real_sink_output(game_id, tmp_path):
-    """End-to-end: real env → real sink → real compute_rhae CLI.
+    """End-to-end: real env -> real sink -> real compute_rhae CLI.
 
     A random-action policy on 200 steps almost certainly clears zero
     levels. The assertion is "CLI ran cleanly and emitted a numeric
-    non-NaN per_game_rhae" — proves the format contract holds end-to-
+    non-NaN per_game_rhae" - proves the format contract holds end-to-
     end. Future training runs that DO clear levels still satisfy this
     test; it only asserts numeric-ness.
     """

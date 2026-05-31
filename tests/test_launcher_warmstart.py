@@ -29,7 +29,7 @@ import scripts.launch_pergame as L  # noqa: E402
 
 
 # ----------------------------------------------------------------------
-# Helpers — synthetic state fabricators
+# Helpers - synthetic state fabricators
 # ----------------------------------------------------------------------
 
 
@@ -228,7 +228,7 @@ def test_check_no_double_load_both_set_raises():
 
 
 # ----------------------------------------------------------------------
-# seed_wm_from_ckpt — schema validation
+# seed_wm_from_ckpt - schema validation
 # ----------------------------------------------------------------------
 
 
@@ -257,12 +257,12 @@ def test_seed_wm_from_ckpt_rejects_missing_updates_counter(tmp_path):
 
 
 # ----------------------------------------------------------------------
-# seed_wm_from_ckpt — fail-loud invariants
+# seed_wm_from_ckpt - fail-loud invariants
 # ----------------------------------------------------------------------
 
 
 def test_seed_wm_from_ckpt_fails_loud_on_zero_regex_matches(tmp_path):
-    """No WM-prefixed keys → must abort BEFORE calling agent.load.
+    """No WM-prefixed keys -> must abort BEFORE calling agent.load.
 
     This is the most important fail-loud: a future refactor that
     renames module prefixes or changes the save format would silently
@@ -308,7 +308,7 @@ def test_seed_wm_from_ckpt_fails_loud_on_wrong_param_count(tmp_path, monkeypatch
 
 
 # ----------------------------------------------------------------------
-# seed_wm_from_ckpt — happy path
+# seed_wm_from_ckpt - happy path
 # ----------------------------------------------------------------------
 
 
@@ -396,7 +396,7 @@ def test_seed_wm_from_ckpt_diagnostics_includes_live_counters(tmp_path, monkeypa
 
 
 def test_wm_regex_matches_only_wm_prefixes():
-    """Direct regex coverage — defends against tweaks to WM_REGEX."""
+    """Direct regex coverage - defends against tweaks to WM_REGEX."""
     good = [
         "dyn/dyngru/kernel", "enc/conv0/kernel", "dec/sp0/scale",
         "rew/head/logits/bias", "con/head/logit/kernel",
@@ -404,7 +404,7 @@ def test_wm_regex_matches_only_wm_prefixes():
     bad = [
         "opt/state/1/0", "opt/state/1/1/dyn/x",  # opt/-prefixed must NOT match
         "pol/head/kernel", "val/head/kernel",     # future actor/critic
-        "agent/dyn/x",                            # nested style — must NOT match flat
+        "agent/dyn/x",                            # nested style - must NOT match flat
     ]
     for k in good:
         assert re.match(L.WM_REGEX, k), f"WM_REGEX should match {k!r}"
@@ -425,7 +425,7 @@ _REAL_CKPT = _REPO_ROOT / "checkpoints" / "pretrained-wm" / "v1" / "latest.pkl"
 def test_seed_wm_from_ckpt_against_real_v1_pkl():
     """Smoke-test the helper end-to-end against the real Phase-3 ckpt.
 
-    Uses a MagicMock agent so no JAX is needed — but the validation
+    Uses a MagicMock agent so no JAX is needed - but the validation
     runs against the actual file, exercising every assertion path
     with the real production-shape state dict.
     """

@@ -24,7 +24,7 @@ def test_palette_is_immutable():
 
 
 def test_palette_matches_arc_agi_color_map():
-    """If arc-agi changes the palette, fail loud — don't silently diverge."""
+    """If arc-agi changes the palette, fail loud - don't silently diverge."""
     from arc_agi.rendering import COLOR_MAP, hex_to_rgb
 
     assert set(COLOR_MAP.keys()) == set(range(16))

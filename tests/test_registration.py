@@ -25,7 +25,7 @@ def test_public_games_is_canonical_25():
 def test_public_games_matches_baseline_fixture():
     """If the human-baseline fixture is present, its keys must match.
 
-    Skips (not fails) on a fresh clone with no data/ — registration must
+    Skips (not fails) on a fresh clone with no data/ - registration must
     not depend on the fixture, but when both exist they must agree.
     """
     import json

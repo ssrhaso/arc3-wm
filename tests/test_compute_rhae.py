@@ -1,10 +1,10 @@
-"""Tests for ``scripts/compute_rhae.py`` — Phase-4 post-hoc RHAE CLI.
+"""Tests for ``scripts/compute_rhae.py`` - Phase-4 post-hoc RHAE CLI.
 
 Per D2 the Phase-4 pipeline computes RHAE post-hoc after the
 ``--script train_eval`` run completes. This CLI consumes a JSONL of
 per-eval-episode reward streams (one episode per line, ``{"rewards":
 [r0, r1, ...]}``), segments each episode by level via the cumulative
-``r = Δ levels_completed`` signal from ``arc3_wm/env.py:113``, takes
+``r = delta levels_completed`` signal from ``arc3_wm/env.py:113``, takes
 MIN action count per level across eval episodes (mirroring
 ``scripts.extract_human_baselines.extract_per_session_baselines``),
 and feeds the result to ``arc3_wm.rhae.RHAEAggregator``.
@@ -33,14 +33,14 @@ from scripts.compute_rhae import (
 
 
 # ===========================================================================
-# segment_episode_actions_per_level — single eval episode → cleared-level counts
+# segment_episode_actions_per_level - single eval episode -> cleared-level counts
 # ===========================================================================
 
 
 def test_segment_level_boundaries_from_synthetic_stream():
     """Brief test (2): level-boundary detection from cumulative-reward diffs.
     Reward stream encodes: 5 actions to clear lvl 1, 3 actions to clear lvl 2,
-    3 actions on lvl 3 (didn't clear). Output: {1: 5, 2: 3} — level 3 is
+    3 actions on lvl 3 (didn't clear). Output: {1: 5, 2: 3} - level 3 is
     not in the output (only CLEARED levels)."""
     # Index 0 is the initial-obs reward (always 0 in DV3 convention).
     # Indices 1..5: 5 actions on level 1; index 5 = level-up reward.
@@ -51,7 +51,7 @@ def test_segment_level_boundaries_from_synthetic_stream():
 
 
 def test_segment_all_levels_cleared():
-    """Reward stream ends with a level-up — all levels cleared. The final
+    """Reward stream ends with a level-up - all levels cleared. The final
     level-up reward fires at the last step; completed_max counts it.
     10 actions cleared lvl 1, 8 cleared lvl 2."""
     rewards = [0] + [0] * 9 + [1] + [0] * 7 + [1]  # length 19
@@ -80,14 +80,14 @@ def test_segment_empty_or_initial_only_returns_empty():
 
 
 def test_segment_rejects_negative_rewards():
-    """Reward signal is r ∈ {0, +1} per arc3_wm/env.py:113. A negative
-    reward indicates either a different env or a parsing bug — surface."""
+    """Reward signal is r in {0, +1} per arc3_wm/env.py:113. A negative
+    reward indicates either a different env or a parsing bug - surface."""
     with pytest.raises(ValueError, match="negative|non-binary"):
         segment_episode_actions_per_level([0, -1, 0, 0])
 
 
 # ===========================================================================
-# aggregate_eval_episodes — MIN across episodes per cleared level
+# aggregate_eval_episodes - MIN across episodes per cleared level
 # ===========================================================================
 
 
@@ -105,7 +105,7 @@ def test_aggregate_min_across_episodes():
 
 
 def test_aggregate_empty_episode_list():
-    """No eval episodes at all → empty per-level dict."""
+    """No eval episodes at all -> empty per-level dict."""
     assert aggregate_eval_episodes([]) == {}
 
 
@@ -119,7 +119,7 @@ def test_aggregate_all_zero_level_runs():
 
 
 # ===========================================================================
-# compute_rhae — end-to-end with synthetic episodes + baselines
+# compute_rhae - end-to-end with synthetic episodes + baselines
 # ===========================================================================
 
 
@@ -130,13 +130,13 @@ _BASELINES = {
 
 
 def test_compute_rhae_brief_synthetic_example():
-    """Brief test (1): synthetic eval/episode/* series → expected RHAE
+    """Brief test (1): synthetic eval/episode/* series -> expected RHAE
     output. Two eval episodes on vc33:
     - A: cleared lvl 1 in 12 actions, lvl 2 in 25.
     - B: cleared lvl 1 in 15, died on lvl 2.
     MIN: lvl1=12, lvl2=25. Baselines: lvl1=10, lvl2=20, lvl3=30 (3 levels).
     Expected:
-      level_score(10, 12) = (10/12)^2 ≈ 0.6944
+      level_score(10, 12) = (10/12)^2 ~ 0.6944
       level_score(20, 25) = (20/25)^2 = 0.64
       per_game = (1*0.6944 + 2*0.64) / (1+2+3) = (0.6944 + 1.28) / 6
       levels_completed = 2"""
@@ -196,7 +196,7 @@ def test_compute_rhae_handles_baselines_with_string_level_keys():
 
 
 # ===========================================================================
-# load_episodes_from_jsonl — input parsing
+# load_episodes_from_jsonl - input parsing
 # ===========================================================================
 
 
@@ -230,13 +230,13 @@ def test_load_jsonl_skips_blank_lines(tmp_path: Path):
 
 def test_load_jsonl_missing_file_raises(tmp_path: Path):
     """Stop-point fail-clean: nonexistent file errors cleanly with the
-    path in the message — caller (CLI) surfaces this verbatim."""
+    path in the message - caller (CLI) surfaces this verbatim."""
     with pytest.raises(FileNotFoundError, match="no_such"):
         load_episodes_from_jsonl(tmp_path / "no_such.jsonl")
 
 
 def test_load_jsonl_empty_file_returns_empty_list(tmp_path: Path):
-    """Empty file → empty episodes list. compute_rhae then emits the
+    """Empty file -> empty episodes list. compute_rhae then emits the
     0-levels-completed degenerate output. Distinguishes 'file exists,
     no eval data' from 'file not found'."""
     f = tmp_path / "empty.jsonl"
@@ -245,7 +245,7 @@ def test_load_jsonl_empty_file_returns_empty_list(tmp_path: Path):
 
 
 def test_load_jsonl_missing_rewards_key_raises(tmp_path: Path):
-    """A row without a 'rewards' key is a malformed eval log — surface
+    """A row without a 'rewards' key is a malformed eval log - surface
     rather than silently emit an empty episode."""
     f = tmp_path / "bad.jsonl"
     f.write_text(json.dumps({"score": 1, "length": 10}) + "\n", encoding="utf-8")
@@ -254,7 +254,7 @@ def test_load_jsonl_missing_rewards_key_raises(tmp_path: Path):
 
 
 # ===========================================================================
-# format_summary — the one-line stdout the brief specifies
+# format_summary - the one-line stdout the brief specifies
 # ===========================================================================
 
 

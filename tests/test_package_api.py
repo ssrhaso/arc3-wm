@@ -54,7 +54,7 @@ def test_embodied_env_not_imported_eagerly():
     """``import arc3_wm`` must not pull in ``arc3_wm.embodied_env``.
 
     Eager import would drag the JAX-side ``elements`` dependency into the
-    laptop/Gymnasium-only path. Checked in a *fresh* interpreter — within
+    laptop/Gymnasium-only path. Checked in a *fresh* interpreter - within
     one pytest session an earlier ``hasattr`` over ``__all__`` would have
     already triggered the lazy import, masking a regression.
     """

@@ -99,7 +99,7 @@ def test_arc3_block_shape():
 
 
 def test_load_merged_configs_collision_guard(tmp_path, monkeypatch):
-    """A block name that already exists in dreamerv3 must raise — defends
+    """A block name that already exists in dreamerv3 must raise - defends
     against silent overrides of upstream config."""
     bad = tmp_path / "arc3_bad.yaml"
     bad.write_text("size12m:\n  task: bogus\n", encoding="utf-8")

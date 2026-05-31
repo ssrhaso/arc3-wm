@@ -79,7 +79,7 @@ def _episode(rewards, *, length=None):
 
 
 def test_flushes_one_line_per_episode(tmp_path: Path):
-    """Single full episode → exactly one JSONL line with the full reward
+    """Single full episode -> exactly one JSONL line with the full reward
     stream including the initial-obs reward (0)."""
     sink = tmp_path / "eval_episodes.jsonl"
     env = DummyEnv(_episode([0, 0, 1, 0, 1]))  # 5-step episode
@@ -94,7 +94,7 @@ def test_flushes_one_line_per_episode(tmp_path: Path):
 
 
 def test_multiple_episodes_one_line_each(tmp_path: Path):
-    """Three consecutive episodes → three JSONL lines, in order."""
+    """Three consecutive episodes -> three JSONL lines, in order."""
     sink = tmp_path / "eval_episodes.jsonl"
     eps = (
         _episode([0, 1, 1])
@@ -114,7 +114,7 @@ def test_multiple_episodes_one_line_each(tmp_path: Path):
 
 def test_is_first_resets_buffer_mid_episode(tmp_path: Path):
     """Pathological case: an in-progress episode is reset by is_first=True
-    before is_last fires. The pre-reset rewards are discarded — the
+    before is_last fires. The pre-reset rewards are discarded - the
     flushed line reflects only the post-reset run. Defends against a
     driver-side reset that doesn't go through is_last (e.g. preemption-
     style abort)."""
@@ -125,7 +125,7 @@ def test_is_first_resets_buffer_mid_episode(tmp_path: Path):
         {"reward": 0, "is_first": True, "is_last": False, "is_terminal": False},
         {"reward": 5, "is_first": False, "is_last": False, "is_terminal": False},
         {"reward": 7, "is_first": False, "is_last": False, "is_terminal": False},
-        # is_first=True here — buffer should drop the [0, 5, 7] and start fresh.
+        # is_first=True here - buffer should drop the [0, 5, 7] and start fresh.
         {"reward": 0, "is_first": True, "is_last": False, "is_terminal": False},
         {"reward": 1, "is_first": False, "is_last": False, "is_terminal": False},
         {"reward": 1, "is_first": False, "is_last": True, "is_terminal": True},
@@ -145,7 +145,7 @@ def test_no_flush_until_is_last(tmp_path: Path):
     transitions = _episode([0, 0, 0, 1], length=5)  # length 5 but only 4 in list
     env = DummyEnv(transitions)
     w = EvalRewardSink(env, sink_path=sink)
-    # Take 3 of 4 steps — episode not yet terminal.
+    # Take 3 of 4 steps - episode not yet terminal.
     for _ in range(3):
         w.step({"action": 0, "reset": False})
     # Sink may or may not exist on disk depending on parent-dir creation,
@@ -207,7 +207,7 @@ def test_attribute_forwarding_missing_attribute_raises(tmp_path: Path):
 
 
 def test_len_and_bool_forward(tmp_path: Path):
-    """``len(wrapper)`` and ``bool(wrapper)`` forward to the inner env —
+    """``len(wrapper)`` and ``bool(wrapper)`` forward to the inner env -
     embodied driver / parallel infrastructure relies on this."""
     env = DummyEnv(_episode([0, 1, 1]))
     w = EvalRewardSink(env, sink_path=tmp_path / "eval_episodes.jsonl")
@@ -221,7 +221,7 @@ def test_len_and_bool_forward(tmp_path: Path):
 
 
 def test_creates_parent_dir(tmp_path: Path):
-    """Construction creates the sink's parent dir if it doesn't exist —
+    """Construction creates the sink's parent dir if it doesn't exist -
     avoids a FileNotFoundError on first flush mid-run."""
     sink = tmp_path / "nested" / "deeper" / "eval_episodes.jsonl"
     env = DummyEnv(_episode([0, 1]))
@@ -257,8 +257,8 @@ def test_appends_to_existing_file(tmp_path: Path):
 def test_output_round_trips_through_compute_rhae_loader(tmp_path: Path):
     """End-to-end format check: a few episodes written through the sink
     are parsed cleanly by ``scripts.compute_rhae.load_episodes_from_jsonl``.
-    Pinned because the sink and the loader live in different files —
-    any drift in field name or shape ('rewards' → 'reward', etc.)
+    Pinned because the sink and the loader live in different files -
+    any drift in field name or shape ('rewards' -> 'reward', etc.)
     breaks the dry-run pipeline silently otherwise."""
     from scripts.compute_rhae import load_episodes_from_jsonl
 

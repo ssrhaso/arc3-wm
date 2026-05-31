@@ -6,12 +6,12 @@ fixture downstream of ``arc3_wm.rhae.RHAEAggregator``. Per D5 it reuses
 segmentation rather than re-parsing raw JSONLs.
 
 Per D1 the upper-median rule is methodology.md's "upper of the two middle
-entries" — ``sorted(values)[len(values) // 2]`` 0-indexed. (The
+entries" - ``sorted(values)[len(values) // 2]`` 0-indexed. (The
 colloquial "3rd-place for ~10 testers" framing is wrong and not used.)
 
 Action-counting semantic note (surfaced, not silently chosen): every
 non-RESET row in a JSONL is a state-changing engine submission per
-methodology.md §"What Counts as an Action"; the loader already discards
+methodology.md Section "What Counts as an Action"; the loader already discards
 RESET rows (they're episode boundaries) and pads each episode's last
 step with a sentinel action that's masked by ``is_last``. So
 "state-changing action count for level k" = count of non-sentinel steps
@@ -26,7 +26,7 @@ submission, consistent with the only signal we have.
 Per-session aggregation: each ``.recording.jsonl`` is one session per
 ``docs/replay-format.md`` ("Each .recording.jsonl is one human play
 session (one guid)"). Per (session, level): take MIN action count
-across episodes within the session that cleared that level — captures
+across episodes within the session that cleared that level - captures
 the player's best-known attempt at the level, consistent with
 methodology.md's "by fewest actions" framing. Each session contributes
 at most one entry per level to the upper-median pool.
@@ -39,7 +39,7 @@ Output shape per task brief:
       ...
     }
 
-— JSON-serializable; outer keys are game_id strings; inner keys are
+- JSON-serializable; outer keys are game_id strings; inner keys are
 1-indexed level numbers as strings; values are positive ints.
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ from scripts.extract_human_baselines import (
 
 
 # ---------------------------------------------------------------------------
-# Step-dict synthesis helpers — match arc3_wm.replay_loader output schema
+# Step-dict synthesis helpers - match arc3_wm.replay_loader output schema
 # ---------------------------------------------------------------------------
 
 
@@ -75,7 +75,7 @@ def _make_step(
 ) -> dict[str, Any]:
     """Build a single step-dict matching ``load_replay_file`` output.
 
-    Image is a zero placeholder — count_actions_per_level only inspects
+    Image is a zero placeholder - count_actions_per_level only inspects
     ``reward`` and ``is_last``.
     """
     return {
@@ -136,12 +136,12 @@ def _episode_with_level_ups(
 
 
 # ===========================================================================
-# upper_median — methodology.md "upper of two middle entries" (D1)
+# upper_median - methodology.md "upper of two middle entries" (D1)
 # ===========================================================================
 
 
 def test_upper_median_n10_returns_index_5():
-    """n=10 → sorted[5] (0-indexed). Documents D1 outcome for the
+    """n=10 -> sorted[5] (0-indexed). Documents D1 outcome for the
     n=~10 testers case used across the 25 ARC-AGI-3 games."""
     # sorted ascending: [10, 12, 14, 16, 18, 20, 22, 24, 26, 28]; idx 5 = 20
     values = [28, 14, 22, 10, 18, 24, 12, 26, 16, 20]
@@ -149,20 +149,20 @@ def test_upper_median_n10_returns_index_5():
 
 
 def test_upper_median_n9_returns_index_4():
-    """n=9 (odd) → middle element = sorted[4]."""
+    """n=9 (odd) -> middle element = sorted[4]."""
     values = [50, 10, 30, 20, 40, 70, 60, 90, 80]
     assert upper_median(values) == 50  # sorted[4] of [10,20,30,40,50,60,70,80,90]
 
 
 def test_upper_median_n2_returns_larger():
-    """n=2 (even) → "upper of two middle entries" = the larger value."""
+    """n=2 (even) -> "upper of two middle entries" = the larger value."""
     assert upper_median([10, 20]) == 20
     assert upper_median([20, 10]) == 20  # input order doesn't matter
 
 
 def test_upper_median_n1_returns_sole_value():
     """n=1: ``sorted[1 // 2] = sorted[0]`` = the sole value. Documented
-    edge case — the upper-median rule degenerates cleanly to "take what
+    edge case - the upper-median rule degenerates cleanly to "take what
     you have". Real Phase-4 implication: a level cleared by only one
     tester in the public-demo dataset still gets a baseline (with a
     single-completer caveat). Surfaces during Step-3 fixture review
@@ -171,14 +171,14 @@ def test_upper_median_n1_returns_sole_value():
 
 
 def test_upper_median_n4_returns_index_2():
-    """methodology.md illustrative example: 4 players → "third place is
+    """methodology.md illustrative example: 4 players -> "third place is
     the baseline". 0-indexed that's sorted[2] (= 3rd-from-fewest).
     Sanity-check the rule matches methodology.md's n=4 case."""
     assert upper_median([10, 20, 30, 40]) == 30
 
 
 def test_upper_median_n5_returns_index_2():
-    """methodology.md illustrative example: 5 players → "third place".
+    """methodology.md illustrative example: 5 players -> "third place".
     For odd n, sorted[n//2] is the true middle."""
     assert upper_median([10, 20, 30, 40, 50]) == 30
 
@@ -191,7 +191,7 @@ def test_upper_median_empty_raises():
 
 
 def test_upper_median_handles_duplicates():
-    """Ties don't change the rule — sort-then-index works directly."""
+    """Ties don't change the rule - sort-then-index works directly."""
     assert upper_median([5, 5, 5, 5]) == 5
     assert upper_median([10, 10, 20, 20]) == 20  # sorted[2] = 20
 
@@ -204,7 +204,7 @@ def test_upper_median_does_not_mutate_input():
 
 
 # ===========================================================================
-# count_actions_per_level — per-episode level segmentation
+# count_actions_per_level - per-episode level segmentation
 # ===========================================================================
 
 
@@ -215,7 +215,7 @@ def test_count_actions_empty_episode():
 
 
 def test_count_actions_single_step_sentinel_only():
-    """A 1-step episode is just the sentinel — no real action taken,
+    """A 1-step episode is just the sentinel - no real action taken,
     no level cleared. Returns empty dict."""
     episode = [_make_step(reward=0.0, is_first=True, is_last=True)]
     assert count_actions_per_level(episode) == {}
@@ -223,7 +223,7 @@ def test_count_actions_single_step_sentinel_only():
 
 def test_count_actions_no_levels_cleared():
     """Player took 5 actions and died on level 1 without clearing it.
-    No completed levels → empty dict. (Distinguishes from level-1 entry
+    No completed levels -> empty dict. (Distinguishes from level-1 entry
     with action_count=5: only CLEARED levels contribute.)"""
     episode = _episode_with_level_ups(action_counts=[5], cleared=[False])
     assert count_actions_per_level(episode) == {}
@@ -256,7 +256,7 @@ def test_count_actions_all_levels_cleared():
 
 
 def test_count_actions_does_not_count_sentinel_action():
-    """The last step's action is a sentinel (placeholder) — must NOT
+    """The last step's action is a sentinel (placeholder) - must NOT
     contribute to any level's count. Regression guard."""
     # 5-step episode where the player cleared exactly one level. The level-up
     # appears WITH the sentinel step's reward; that sentinel itself adds 0.
@@ -267,7 +267,7 @@ def test_count_actions_does_not_count_sentinel_action():
 
 
 # ===========================================================================
-# extract_per_session_baselines — per-file MIN across episodes per level
+# extract_per_session_baselines - per-file MIN across episodes per level
 # ===========================================================================
 
 
@@ -280,7 +280,7 @@ def test_per_session_single_episode():
 
 def test_per_session_min_across_retries():
     """Player retried within the session and got a faster clear on the
-    second attempt (25 → 18 actions). The session's level-1 entry is
+    second attempt (25 -> 18 actions). The session's level-1 entry is
     the MIN (18), not the first (25). Justification: methodology.md's
     "by fewest actions" framing favors the player's best attempt."""
     ep1 = _episode_with_level_ups(action_counts=[25], cleared=[True])
@@ -301,7 +301,7 @@ def test_per_session_partial_clears():
 
 
 def test_per_session_no_clears():
-    """Player died on level 1 in every attempt — no level contribution
+    """Player died on level 1 in every attempt - no level contribution
     from this session. Returns empty dict; the session does not
     participate in any per-level pool downstream."""
     ep1 = _episode_with_level_ups(action_counts=[5], cleared=[False])
@@ -310,7 +310,7 @@ def test_per_session_no_clears():
 
 
 # ===========================================================================
-# extract_baselines — full extraction against a synthetic replays dir
+# extract_baselines - full extraction against a synthetic replays dir
 # ===========================================================================
 
 
@@ -333,7 +333,7 @@ def _synth_row(
     x: int | None = None,
     y: int | None = None,
 ) -> dict[str, Any]:
-    """One synthetic JSONL row — minimal fields for load_replay_file.
+    """One synthetic JSONL row - minimal fields for load_replay_file.
 
     The frame is a (1, 64, 64) palette-int grid of all zeros (decoded
     by ``decode_frame`` to a black RGB image).
@@ -406,7 +406,7 @@ def _synth_session(
 
 
 def test_extract_baselines_three_sessions_upper_median(tmp_path: Path):
-    """3 sessions clearing level 1 in {10, 20, 30} actions. n=3 ≥ 2,
+    """3 sessions clearing level 1 in {10, 20, 30} actions. n=3 >= 2,
     upper_median = sorted[1] = 20. total_levels = 7 (synth default
     win_levels). Output: {"synth": {"total_levels": 7,
     "baselines": {"1": 20}}}."""
@@ -428,9 +428,9 @@ def test_extract_baselines_died_on_level3_contributes_only_1_and_2(
     for levels 1 and 2 only.' Two sessions:
     - A: cleared 1,2 in {10, 20}, died on level 3 after 5.
     - B: cleared 1,2,3 in {30, 40, 100}.
-    Level 1 pool: {10, 30} → n=2 kept, upper_median=30.
-    Level 2 pool: {20, 40} → n=2 kept, upper_median=40.
-    Level 3 pool: {100} → n=1 DROPPED per D-B."""
+    Level 1 pool: {10, 30} -> n=2 kept, upper_median=30.
+    Level 2 pool: {20, 40} -> n=2 kept, upper_median=40.
+    Level 3 pool: {100} -> n=1 DROPPED per D-B."""
     rows_a = _synth_session(
         action_counts=[10, 20, 5], cleared=[True, True, False]
     )
@@ -450,7 +450,7 @@ def test_extract_baselines_died_on_level3_contributes_only_1_and_2(
 
 def test_extract_baselines_multiple_games_isolated(tmp_path: Path):
     """Two game subdirs, each with two sessions clearing level 1.
-    Each game's pool is independent — no cross-contamination."""
+    Each game's pool is independent - no cross-contamination."""
     for i, count in enumerate([10, 20]):
         rows = _synth_session(action_counts=[count], cleared=[True])
         _write_replay(tmp_path / "vc33" / f"p{i}.recording.jsonl", rows)
@@ -498,7 +498,7 @@ def test_extract_baselines_output_is_json_serializable(tmp_path: Path):
 
 
 def test_extract_baselines_is_deterministic(tmp_path: Path):
-    """Same input replays → identical output (no dict-ordering surprises,
+    """Same input replays -> identical output (no dict-ordering surprises,
     no random tie-breaking)."""
     for i, count in enumerate([10, 20, 30]):
         rows = _synth_session(action_counts=[count], cleared=[True])
@@ -510,7 +510,7 @@ def test_extract_baselines_is_deterministic(tmp_path: Path):
 
 
 # ===========================================================================
-# Decision A — total_levels comes from JSONL win_levels, not baseline coverage
+# Decision A - total_levels comes from JSONL win_levels, not baseline coverage
 # ===========================================================================
 
 
@@ -544,7 +544,7 @@ def test_read_win_levels_returns_constant_per_file(tmp_path: Path):
 
 def test_read_win_levels_raises_on_intra_file_mismatch(tmp_path: Path):
     """Defensive: if a single session's rows disagree on win_levels,
-    the data is broken — raise rather than silently picking one."""
+    the data is broken - raise rather than silently picking one."""
     rows = _synth_session(action_counts=[5], cleared=[True])
     for i, r in enumerate(rows):
         r["data"]["win_levels"] = 7 if i % 2 == 0 else 9
@@ -593,7 +593,7 @@ def test_extract_baselines_win_levels_mismatch_across_sessions_raises(
 
 
 # ===========================================================================
-# Decision B — n >= 2 coverage threshold; uncovered levels excluded
+# Decision B - n >= 2 coverage threshold; uncovered levels excluded
 # ===========================================================================
 
 
@@ -621,15 +621,15 @@ def test_n1_specific_level_dropped_others_kept(tmp_path: Path):
     _write_replay(tmp_path / "synth" / "a.recording.jsonl", rows_a)
     _write_replay(tmp_path / "synth" / "b.recording.jsonl", rows_b)
     out = extract_baselines(tmp_path)
-    # Level 1 pool: {10, 15} → n=2, upper_median=15.
-    # Level 2 pool: {20} → n=1, DROPPED.
+    # Level 1 pool: {10, 15} -> n=2, upper_median=15.
+    # Level 2 pool: {20} -> n=1, DROPPED.
     assert out == {
         "synth": {"total_levels": 7, "baselines": {"1": 15}}
     }
 
 
 def test_all_uncovered_game_emits_empty_baselines(tmp_path: Path):
-    """Edge case: a game where every level has n<2 → baselines is empty
+    """Edge case: a game where every level has n<2 -> baselines is empty
     but total_levels is still recorded. Downstream RHAEAggregator skips
     the game from the total-score mean (tested separately in Step 3)."""
     rows = _synth_session(action_counts=[10, 20], cleared=[True, True])
@@ -651,9 +651,9 @@ def test_extract_baselines_min_completers_threshold_configurable(
     rows_b = _synth_session(action_counts=[20], cleared=[True])
     _write_replay(tmp_path / "synth" / "a.recording.jsonl", rows_a)
     _write_replay(tmp_path / "synth" / "b.recording.jsonl", rows_b)
-    # Default min_completers=2 → level 1 kept.
+    # Default min_completers=2 -> level 1 kept.
     assert extract_baselines(tmp_path)["synth"]["baselines"] == {"1": 20}
-    # min_completers=3 → level 1 dropped.
+    # min_completers=3 -> level 1 dropped.
     assert extract_baselines(tmp_path, min_completers=3)["synth"]["baselines"] == {}
 
 
@@ -666,13 +666,13 @@ def test_extract_baselines_rejects_min_completers_below_1():
 
 
 # ===========================================================================
-# cn04-style noise — extractor inherits load_replay_file's noise handling
+# cn04-style noise - extractor inherits load_replay_file's noise handling
 # ===========================================================================
 
 
 def test_extract_baselines_handles_trailing_terminal_noise(tmp_path: Path):
     """load_replay_file discards post-terminal noise rows (cn04 quirk).
-    The extractor must inherit that behavior — adding trailing GAME_OVER
+    The extractor must inherit that behavior - adding trailing GAME_OVER
     rows after a clean level-1-clear must NOT inflate the level-1 count.
     Two sessions so n=2 keeps the level in baselines per D-B."""
     for i in range(2):
@@ -685,7 +685,7 @@ def test_extract_baselines_handles_trailing_terminal_noise(tmp_path: Path):
         )
         _write_replay(tmp_path / "synth" / f"p{i}.recording.jsonl", rows)
     out = extract_baselines(tmp_path)
-    # Both sessions: level 1 in 10 actions each. n=2 → upper_median = 10.
+    # Both sessions: level 1 in 10 actions each. n=2 -> upper_median = 10.
     # The trailing noise rows did not get counted as level-1 actions
     # (would have inflated the count past 10 if not discarded).
     assert out == {

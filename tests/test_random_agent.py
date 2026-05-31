@@ -1,8 +1,8 @@
 """End-to-end smoke + Phase-1 stress sweep for the random-agent wrapper path.
 
 Two tests:
-- ``test_random_agent_100_episodes_vc33`` — milestone (1) gate (kept).
-- ``test_random_agent_1000_episodes_pilot_games`` — Phase-1 exit-criterion
+- ``test_random_agent_100_episodes_vc33`` - milestone (1) gate (kept).
+- ``test_random_agent_1000_episodes_pilot_games`` - Phase-1 exit-criterion
   stress sweep per CLAUDE.md ("Wrapper: 1000 episodes random agent, all
   three pilot games (vc33, tu93, cd82), no exceptions"). Parameterized
   over the three pilot games; weaker scorecard assertion (non-empty runs
@@ -28,7 +28,7 @@ MAX_STEPS_PER_EPISODE = 200  # vc33 random clicks GAME_OVER ~50 steps; 200 is pl
 
 def _sample_masked(mask: np.ndarray, rng: random.Random) -> int:
     idxs = np.flatnonzero(mask)
-    assert idxs.size > 0, "no available actions — mask is empty"
+    assert idxs.size > 0, "no available actions - mask is empty"
     return int(rng.choice(idxs.tolist()))
 
 
@@ -65,7 +65,7 @@ def test_random_agent_100_episodes_vc33():
 
     assert mask_violations == 0
     assert total_steps >= N_EPISODES, "every episode should run at least 1 step"
-    # Loose FPS floor — protects against pathological regressions.
+    # Loose FPS floor - protects against pathological regressions.
     assert fps > 200, f"FPS regression: {fps:.0f} (Phase 0 baseline ~921)"
 
     # Scorecard sanity.
@@ -79,7 +79,7 @@ def test_random_agent_100_episodes_vc33():
 
 
 # ---------------------------------------------------------------------------
-# Phase-1 stress sweep: 1000 episodes × 3 pilot games (CLAUDE.md exit criterion)
+# Phase-1 stress sweep: 1000 episodes x 3 pilot games (CLAUDE.md exit criterion)
 # ---------------------------------------------------------------------------
 
 
@@ -122,7 +122,7 @@ def test_random_agent_1000_episodes_pilot_games(game_id: str):
     assert total_steps >= N_STRESS_EPISODES, "every episode should run at least 1 step"
     assert fps > 200, f"FPS regression on {game_id}: {fps:.0f} (Phase 0 baseline ~921)"
 
-    # Scorecard sanity — weaker than the milestone test since baselines vary
+    # Scorecard sanity - weaker than the milestone test since baselines vary
     # per game. Just check a run exists with a positive-length baseline vector.
     sc = arcade.get_scorecard()
     assert sc is not None

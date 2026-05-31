@@ -1,4 +1,4 @@
-"""Tests for ``scripts/pretrain_wm.py`` — Phase 3 cross-game WM pretraining.
+"""Tests for ``scripts/pretrain_wm.py`` - Phase 3 cross-game WM pretraining.
 
 This is the red-skeleton companion file. The script does not exist yet;
 collection will fail at the top-level ``import scripts.pretrain_wm`` and
@@ -15,9 +15,9 @@ Phase 3 gate (from ``docs/phase-checklists.md``):
   imagination + actor + critic loss terms).
 - All four WM losses (recon, dynamics, reward, continue) are wired
   through to the optimizer.
-- Checkpoint cadence — ≥30 min in production; here we test the cadence
+- Checkpoint cadence - >=30 min in production; here we test the cadence
   *mechanism* fires on a dialled-down interval.
-- Resume verified — round-trip checkpoint write / read.
+- Resume verified - round-trip checkpoint write / read.
 - RHAE logging hook fires every N steps on a held-out replay.
 
 Heavy DreamerV3 / JAX deps are NOT imported here. The pretrain script is
@@ -48,7 +48,7 @@ import scripts.pretrain_wm as P  # noqa: E402
 # pretrain_wm_loop. Post-D14 the loop imports embodied at runtime to wire
 # Consec; the real package pulls `portal` via embodied.core.clock, which
 # isn't installed on laptops. The test contract is "agent.train gets called
-# with mock batches" — what the stream produces is irrelevant — so a
+# with mock batches" - what the stream produces is irrelevant - so a
 # pass-through shim suffices. Autouse so it survives sibling tests
 # (e.g. test_launcher_imports) that pop embodied from sys.modules.
 class _StatelessShim:
@@ -72,7 +72,7 @@ def _stub_embodied_streams(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Fabricated-replay helpers — mirror tests/test_replay_loader.py
+# Fabricated-replay helpers - mirror tests/test_replay_loader.py
 # ---------------------------------------------------------------------------
 
 OBS_HW = 64
@@ -132,7 +132,7 @@ def _make_synthetic_replay_tree(root: Path) -> int:
     """Build a 2-game / 2-file synthetic replay tree under ``root``.
 
     Each file: RESET + 3 step rows + WIN. Replay loader yields one episode
-    of 4 step dicts per file → 16 step dicts total across 2 games × 2 files.
+    of 4 step dicts per file -> 16 step dicts total across 2 games x 2 files.
     Returns the expected total step-dict count.
     """
     rows = [
@@ -144,11 +144,11 @@ def _make_synthetic_replay_tree(root: Path) -> int:
     for game_id in ("alpha", "beta"):
         for i in range(2):
             _write_jsonl(root / game_id / f"file{i}.recording.jsonl", rows)
-    return 2 * 2 * 4  # 2 games × 2 files × 4 steps/episode
+    return 2 * 2 * 4  # 2 games x 2 files x 4 steps/episode
 
 
 # ---------------------------------------------------------------------------
-# Mock objects — stand-ins for embodied.replay / dreamerv3.Agent
+# Mock objects - stand-ins for embodied.replay / dreamerv3.Agent
 # ---------------------------------------------------------------------------
 
 
@@ -171,7 +171,7 @@ class FakeReplay:
         return {"items": len(self.added), "inserts": len(self.added)}
 
     def sample(self, batch: int, mode: str = "train") -> dict:
-        # Tiny mock batch — shape mirrors embodied stream output but with
+        # Tiny mock batch - shape mirrors embodied stream output but with
         # B=batch, T=1 so dims line up for any downstream einops.
         self._sample_idx += 1
         return {
@@ -203,7 +203,7 @@ class RecordingAgent:
     Phase 3 gates after option-(A) landing:
 
     1. ``agent.train`` IS the WM-only path (no separate ``wm_train``
-       method). The pretrain loop calls ``agent.train`` — the contract
+       method). The pretrain loop calls ``agent.train`` - the contract
        no longer hangs on a method-name distinction.
     2. ``agent.policy`` is never called (no env rollouts in pretrain).
     3. The actor/critic update paths (``self.pol.update`` /
@@ -226,7 +226,7 @@ class RecordingAgent:
         # Spies on the actor/critic grad-application paths. The real
         # upstream Agent.train calls self.slowval.update() unconditionally;
         # the WM-only override must skip that. We expose pol.update and
-        # val.update as the property-based gate — both must stay at 0.
+        # val.update as the property-based gate - both must stay at 0.
         self.pol = type("_Mod", (), {"update": _Spy()})()
         self.val = type("_Mod", (), {"update": _Spy()})()
         self.slowval = type("_Mod", (), {"update": _Spy()})()
@@ -241,16 +241,16 @@ class RecordingAgent:
         return self._carry
 
     def stream(self, source):
-        # Pass-through — pretrain loop iterates the source directly.
+        # Pass-through - pretrain loop iterates the source directly.
         return iter(source)
 
     def train(self, carry, batch):
-        # WM-only path — 4 loss terms, 5 modules. Mirrors the override
+        # WM-only path - 4 loss terms, 5 modules. Mirrors the override
         # on WMOnlyAgent.train: no slowval.update, no actor/critic
         # bookkeeping.
         self.train_calls += 1
         self.wm_modules_updated.extend(["enc", "dyn", "dec", "rew", "con"])
-        # 4 loss terms: recon (one per image obs key — here a single
+        # 4 loss terms: recon (one per image obs key - here a single
         # 'image'), dyn, rew, con. NO actor/critic keys.
         loss_dict = {
             "loss/image": 0.5,   # recon (per-key)
@@ -265,9 +265,9 @@ class RecordingAgent:
         self.report_calls += 1
         return carry, {"report/anything": 0.0}
 
-    def policy(self, *args, **kwargs):  # pragma: no cover — pretrain has no policy rollouts
+    def policy(self, *args, **kwargs):  # pragma: no cover - pretrain has no policy rollouts
         raise AssertionError(
-            "pretrain WM loop must not invoke agent.policy — no env interaction"
+            "pretrain WM loop must not invoke agent.policy - no env interaction"
         )
 
     def save(self):
@@ -278,13 +278,13 @@ class RecordingAgent:
 
 
 # ---------------------------------------------------------------------------
-# (1) Module surface — public API contract
+# (1) Module surface - public API contract
 # ---------------------------------------------------------------------------
 
 
 def test_module_imports_without_jax():
     """Heavy deps stay lazy. Module-level import must succeed on a laptop
-    with no JAX / portal / dreamerv3 — same discipline as launch_pergame."""
+    with no JAX / portal / dreamerv3 - same discipline as launch_pergame."""
     # Drop cached state and re-import via spec to catch top-level leaks.
     for m in [k for k in list(sys.modules) if k.startswith(("jax", "portal", "dreamerv3", "embodied"))]:
         sys.modules.pop(m, None)
@@ -316,7 +316,7 @@ def test_public_surface_present():
 
 
 # ---------------------------------------------------------------------------
-# (2) Argparse — required flags + leftover passthrough
+# (2) Argparse - required flags + leftover passthrough
 # ---------------------------------------------------------------------------
 
 
@@ -367,7 +367,7 @@ def test_argparser_default_configs_includes_size12m_and_arc3(tmp_path):
             "--replays-root", str(tmp_path / "rep"),
         ]
     )
-    # Order matters — 'pretrain' overrides come last.
+    # Order matters - 'pretrain' overrides come last.
     assert args.configs[-1] == "pretrain", (
         f"pretrain must be the rightmost config block; got {args.configs}"
     )
@@ -378,7 +378,7 @@ def test_argparser_default_configs_includes_size12m_and_arc3(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (3) Buffer pre-population — load_replays_directory → replay.add
+# (3) Buffer pre-population - load_replays_directory -> replay.add
 # ---------------------------------------------------------------------------
 
 
@@ -402,7 +402,7 @@ def test_populate_buffer_synthetic_count_and_keys(tmp_path):
 
 def test_populate_buffer_dtypes_match_replay_loader(tmp_path):
     """Whatever ``arc3_wm.replay_loader`` yields per-step lands in the
-    buffer unchanged — uint8 image, int32 action, float32 reward, bool
+    buffer unchanged - uint8 image, int32 action, float32 reward, bool
     flags. Catches a future regression where pretrain_wm cast on the way
     in and silently shifted the WM input distribution."""
     root = tmp_path / "replays"
@@ -419,8 +419,8 @@ def test_populate_buffer_dtypes_match_replay_loader(tmp_path):
 
 
 def test_populate_buffer_per_game_distribution(tmp_path):
-    """Per-game distribution must be roughly even — Phase 3 gate row 1
-    explicitly calls this out. With 2 games × 2 files each, exactly half
+    """Per-game distribution must be roughly even - Phase 3 gate row 1
+    explicitly calls this out. With 2 games x 2 files each, exactly half
     the transitions come from each game.
 
     The fake replay's worker-id channel is what we'd use in production
@@ -445,7 +445,7 @@ def test_populate_buffer_per_game_distribution(tmp_path):
 def test_populate_buffer_skips_post_terminal_noise(tmp_path):
     """Replay loader's post-terminal-noise rule (Phase 1.7) must flow
     through unchanged. A terminal row followed by another terminal row
-    is noise — those rows do not become buffer transitions."""
+    is noise - those rows do not become buffer transitions."""
     rows = [
         _row(0),
         _row(1, levels_completed=0),
@@ -465,7 +465,7 @@ def test_populate_buffer_skips_post_terminal_noise(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (4) Custom run loop — WM-only, no actor/critic, no env rollouts
+# (4) Custom run loop - WM-only, no actor/critic, no env rollouts
 # ---------------------------------------------------------------------------
 
 
@@ -483,12 +483,12 @@ def test_pretrain_loop_calls_train(tmp_path):
 
 
 def test_pretrain_loop_does_not_invoke_policy(tmp_path):
-    """No env rollouts during pretrain — ``agent.policy`` must never run.
+    """No env rollouts during pretrain - ``agent.policy`` must never run.
     The mock raises AssertionError if it does, so this also tests a future
     regression where someone adds a Driver to the pretrain loop."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
-    # If policy is touched, RecordingAgent.policy raises — catches regressions.
+    # If policy is touched, RecordingAgent.policy raises - catches regressions.
     P.pretrain_wm_loop(agent=agent, replay=replay, logger=mock.MagicMock(), args=args)
 
 
@@ -518,10 +518,10 @@ def test_pretrain_loop_actor_critic_paths_not_invoked(tmp_path):
     """SHARPENED GATE (option-(A) property contract): the actor / critic
     grad-application paths must not fire during pretrain. Concretely,
     ``self.pol.update``, ``self.val.update``, and ``self.slowval.update``
-    are spied on — all must stay at zero invocations across the loop.
+    are spied on - all must stay at zero invocations across the loop.
 
     This replaces the old "self.opt vs self.wm_opt distinct optimizers"
-    test — there is now exactly one optimizer (over WM modules only),
+    test - there is now exactly one optimizer (over WM modules only),
     so the gate can no longer be expressed by counting steps on a
     second optimizer instance."""
     agent = RecordingAgent()
@@ -530,15 +530,15 @@ def test_pretrain_loop_actor_critic_paths_not_invoked(tmp_path):
     P.pretrain_wm_loop(agent=agent, replay=replay, logger=mock.MagicMock(), args=args)
 
     assert agent.pol.update.call_count == 0, (
-        f"agent.pol.update fired {agent.pol.update.call_count}× — actor "
+        f"agent.pol.update fired {agent.pol.update.call_count}x - actor "
         "grad-application must not run on the WM-only path"
     )
     assert agent.val.update.call_count == 0, (
-        f"agent.val.update fired {agent.val.update.call_count}× — critic "
+        f"agent.val.update fired {agent.val.update.call_count}x - critic "
         "grad-application must not run on the WM-only path"
     )
     assert agent.slowval.update.call_count == 0, (
-        f"agent.slowval.update fired {agent.slowval.update.call_count}× — "
+        f"agent.slowval.update fired {agent.slowval.update.call_count}x - "
         "slow-critic bookkeeping is upstream Agent.train's last line and "
         "must be skipped by WMOnlyAgent.train"
     )
@@ -549,8 +549,8 @@ def test_pretrain_loop_actor_critic_paths_not_invoked(tmp_path):
 
 
 def test_pretrain_loop_emits_only_four_wm_loss_terms(tmp_path):
-    """SHARPENED GATE (chat sharpening — reconciliation): exactly the 4
-    WM LOSS TERMS appear in the loss dict — recon (per-image-key, here
+    """SHARPENED GATE (chat sharpening - reconciliation): exactly the 4
+    WM LOSS TERMS appear in the loss dict - recon (per-image-key, here
     single ``image``), ``dyn``, ``rew``, ``con``. None of upstream
     ``loss()``'s actor/critic/replay-value keys leak through.
 
@@ -578,7 +578,7 @@ def test_pretrain_loop_emits_only_four_wm_loss_terms(tmp_path):
 
 
 def test_pretrain_loop_five_wm_modules_receive_gradients(tmp_path):
-    """SHARPENED GATE (chat sharpening — reconciliation): the 5 MODULES
+    """SHARPENED GATE (chat sharpening - reconciliation): the 5 MODULES
     that receive gradient updates are exactly ``{enc, dyn, dec, rew,
     con}``. Module count = 5 (the recorded modules) is deliberately
     distinct from loss-term count = 4 (the loss-key families)."""
@@ -605,7 +605,7 @@ def test_pretrain_loop_five_wm_modules_receive_gradients(tmp_path):
 
 def test_pretrain_checkpoint_written_at_cadence(tmp_path):
     """Checkpoint mechanism fires at the configured cadence. Phase-3
-    requirement: ≥30 min in production; here we set save_every=0 (fire
+    requirement: >=30 min in production; here we set save_every=0 (fire
     every step) so the test runs in ms."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=3)
@@ -628,14 +628,14 @@ def test_pretrain_resume_picks_up_from_existing_logdir(tmp_path):
     replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
     args.logdir = str(tmp_path / "run-resume")
     args.save_every = 0
-    # First run — writes a checkpoint.
+    # First run - writes a checkpoint.
     P.pretrain_wm_loop(agent=RecordingAgent(), replay=replay, logger=mock.MagicMock(), args=args)
 
-    # Second run — same logdir → must trigger a load on the new agent.
+    # Second run - same logdir -> must trigger a load on the new agent.
     agent2 = RecordingAgent()
     P.pretrain_wm_loop(agent=agent2, replay=replay, logger=mock.MagicMock(), args=args)
     assert hasattr(agent2, "_loaded"), (
-        "second invocation against an existing logdir didn't call agent.load — "
+        "second invocation against an existing logdir didn't call agent.load - "
         "Phase 3 resume gate fails"
     )
 
@@ -648,7 +648,7 @@ def test_pretrain_resume_picks_up_from_existing_logdir(tmp_path):
 def test_rhae_hook_fires_every_n_steps():
     """The held-out RHAE hook fires exactly every ``every_n_steps``, no
     more, no less. Phase 3 gate row 7: predicted level-up probability
-    spikes near actual level-up boundaries on a held-out replay — the
+    spikes near actual level-up boundaries on a held-out replay - the
     hook is what produces that figure."""
     held_out = [{"image": np.zeros((OBS_HW, OBS_HW, 3), np.uint8)} for _ in range(3)]
     hook = P.RHAEHeldOutHook(holdout=held_out, every_n_steps=5)
@@ -678,7 +678,7 @@ def test_rhae_hook_emits_level_up_probability_metric():
 
 def test_rhae_hook_does_not_fire_off_schedule():
     """Sanity check that step-not-a-multiple-of-N truly returns None,
-    not an empty dict — the loop uses ``if metrics is not None``."""
+    not an empty dict - the loop uses ``if metrics is not None``."""
     held_out = [{"image": np.zeros((OBS_HW, OBS_HW, 3), np.uint8)}]
     hook = P.RHAEHeldOutHook(holdout=held_out, every_n_steps=10)
     assert hook(step=1, agent=mock.MagicMock()) is None
@@ -686,10 +686,10 @@ def test_rhae_hook_does_not_fire_off_schedule():
 
 
 def test_rhae_hook_short_circuits_on_none_holdout():
-    """``holdout=None`` is the smoke-mode sentinel — hook fires on
+    """``holdout=None`` is the smoke-mode sentinel - hook fires on
     schedule but returns a placeholder metric without invoking
     ``agent.report``. The real ``WMOnlyAgent.report`` signature is
-    (carry, batch); passing ``None`` would error. The smoke (step 5b →
+    (carry, batch); passing ``None`` would error. The smoke (step 5b ->
     Phase-3 Run A criterion c) only needs the schedule + key contract,
     not the actual value flow."""
     hook = P.RHAEHeldOutHook(holdout=None, every_n_steps=1)
@@ -705,7 +705,7 @@ def test_rhae_hook_short_circuits_on_none_holdout():
 
 
 def test_rhae_hook_none_holdout_respects_schedule():
-    """Even with the short-circuit, the schedule remains authoritative —
+    """Even with the short-circuit, the schedule remains authoritative -
     off-schedule calls still return ``None``."""
     hook = P.RHAEHeldOutHook(holdout=None, every_n_steps=5)
     assert hook(step=1, agent=mock.MagicMock()) is None
@@ -721,7 +721,7 @@ def test_rhae_hook_none_holdout_respects_schedule():
 def test_pretrain_loop_invokes_hook_on_every_iteration(tmp_path):
     """Loop calls ``hook(step=step, agent=agent)`` once per outer-loop
     iteration when provided. Schedule + return-value gating are the
-    hook's responsibility — the loop is dumb."""
+    hook's responsibility - the loop is dumb."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=3)
     hook = mock.MagicMock(return_value=None)
@@ -730,10 +730,10 @@ def test_pretrain_loop_invokes_hook_on_every_iteration(tmp_path):
         agent=agent, replay=replay, logger=mock.MagicMock(), args=args, hook=hook,
     )
     assert hook.call_count == 3, (
-        f"hook called {hook.call_count}× across 3 outer-loop iterations; "
+        f"hook called {hook.call_count}x across 3 outer-loop iterations; "
         "expected 1 call per iteration"
     )
-    # Step values seen by the hook are 0..steps-1 — the runbook's
+    # Step values seen by the hook are 0..steps-1 - the runbook's
     # "15 emissions at every_n_steps=100 over 1500 outer-loop iters"
     # calculation hinges on this ordering.
     seen_steps = [c.kwargs.get("step") for c in hook.call_args_list]
@@ -742,7 +742,7 @@ def test_pretrain_loop_invokes_hook_on_every_iteration(tmp_path):
 
 def test_pretrain_loop_logs_hook_metrics_with_train_prefix(tmp_path):
     """When the hook returns a metrics dict, the loop forwards it to
-    ``logger.add(metrics, prefix='train')`` — same surface as the
+    ``logger.add(metrics, prefix='train')`` - same surface as the
     per-iteration WM-loss log."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
@@ -768,7 +768,7 @@ def test_pretrain_loop_logs_hook_metrics_with_train_prefix(tmp_path):
 def test_pretrain_loop_skips_logger_when_hook_returns_none(tmp_path):
     """When the hook returns None (off-schedule), the loop must NOT call
     ``logger.add`` for hook metrics on that iteration. The
-    ``if metrics is not None`` guard is the contract — off-schedule must
+    ``if metrics is not None`` guard is the contract - off-schedule must
     be a true no-op, not an empty-dict log."""
     agent = RecordingAgent()
     replay, args = _seed_replay_and_args(tmp_path, n_seed=4, steps=2)
@@ -788,7 +788,7 @@ def test_pretrain_loop_skips_logger_when_hook_returns_none(tmp_path):
 
 
 def test_pretrain_loop_without_hook_still_runs(tmp_path):
-    """``hook`` is optional — existing callers (smoke before G2 wiring,
+    """``hook`` is optional - existing callers (smoke before G2 wiring,
     laptop tests that pre-date this) keep working when no hook kwarg is
     passed. Default must be ``None``."""
     agent = RecordingAgent()
@@ -799,17 +799,17 @@ def test_pretrain_loop_without_hook_still_runs(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (7) Config — pretrain block layered cleanly on top of size12m + arc3
+# (7) Config - pretrain block layered cleanly on top of size12m + arc3
 # ---------------------------------------------------------------------------
 
 
 def test_pretrain_config_block_present():
     """``configs/arc3.yaml`` (or wherever pretrain_wm pulls from) defines
-    a ``pretrain`` block. Same collision discipline as launch_pergame —
+    a ``pretrain`` block. Same collision discipline as launch_pergame -
     the merged dict must carry the block name."""
     merged = P.load_merged_configs()
     assert "pretrain" in merged, (
-        "pretrain block missing from merged configs — add to configs/arc3.yaml"
+        "pretrain block missing from merged configs - add to configs/arc3.yaml"
     )
 
 
@@ -835,18 +835,18 @@ def test_pretrain_config_disables_imagination_loss():
 
 
 # ---------------------------------------------------------------------------
-# (8) main() — end-to-end argparse + orchestration smoke
+# (8) main() - end-to-end argparse + orchestration smoke
 # ---------------------------------------------------------------------------
 
 
 def test_main_orchestrates_buffer_agent_logger_loop(tmp_path, monkeypatch):
     """``main()`` is the Run-B entry point. It must wire:
-      build_config → make_replay → populate_buffer_from_replays →
-      make_wm_only_agent → make_logger → pretrain_wm_loop (with an
+      build_config -> make_replay -> populate_buffer_from_replays ->
+      make_wm_only_agent -> make_logger -> pretrain_wm_loop (with an
       RHAE hook constructed for free).
 
     Heavy DV3 / JAX bits are monkeypatched out so this stays a laptop
-    test — mirrors the discipline of the launcher smoke. The order
+    test - mirrors the discipline of the launcher smoke. The order
     check is the load-bearing assertion: a misordered orchestration
     (e.g. build agent before buffer) silently breaks the Phase-3
     pre-populate contract."""
@@ -864,7 +864,7 @@ def test_main_orchestrates_buffer_agent_logger_loop(tmp_path, monkeypatch):
         calls.append("populate_buffer_from_replays")
         captured["replays_root"] = Path(root)
         # Seed the replay so the loop's len-check passes if it ever
-        # runs (it shouldn't — loop itself is patched).
+        # runs (it shouldn't - loop itself is patched).
         for _ in range(4):
             replay.add({"image": np.zeros((1,), np.uint8)})
         return 16
@@ -885,7 +885,7 @@ def test_main_orchestrates_buffer_agent_logger_loop(tmp_path, monkeypatch):
     monkeypatch.setattr(P, "make_wm_only_agent", fake_make_agent)
     monkeypatch.setattr(P, "pretrain_wm_loop", fake_loop)
 
-    # Lazy dreamerv3.main imports — stub here, not in the autouse
+    # Lazy dreamerv3.main imports - stub here, not in the autouse
     # fixture, so other tests don't accidentally pick up these doubles.
     fake_dreamerv3 = types.ModuleType("dreamerv3")
     fake_dreamerv3_main = types.ModuleType("dreamerv3.main")
@@ -923,7 +923,7 @@ def test_main_orchestrates_buffer_agent_logger_loop(tmp_path, monkeypatch):
 
 def test_main_writes_config_yaml_into_logdir(tmp_path, monkeypatch):
     """``main()`` saves the resolved config under ``$LOGDIR/config.yaml``
-    so the run is reproducible — same convention as launch_pergame and
+    so the run is reproducible - same convention as launch_pergame and
     pretrain_wm_smoke. Vast preemption recovery + paper-time
     reproducibility both depend on this artifact."""
     replays_root = tmp_path / "replays"
@@ -945,7 +945,7 @@ def test_main_writes_config_yaml_into_logdir(tmp_path, monkeypatch):
         "--replays-root", str(replays_root),
     ])
     assert (logdir / "config.yaml").exists(), (
-        f"main() did not write {logdir}/config.yaml — Vast resume + paper "
+        f"main() did not write {logdir}/config.yaml - Vast resume + paper "
         "reproducibility both rely on this artifact"
     )
 
@@ -953,7 +953,7 @@ def test_main_writes_config_yaml_into_logdir(tmp_path, monkeypatch):
 def test_main_does_not_override_run_steps(tmp_path, monkeypatch):
     """G1 invariant: ``main()`` lets the ``pretrain`` block's
     ``run.steps: 2.2e8`` win. The smoke (pretrain_wm_smoke.py) overrides
-    to 1500 for short wall-clock; the production entry point must NOT —
+    to 1500 for short wall-clock; the production entry point must NOT -
     otherwise a stray Run B finishes in seconds rather than 6h."""
     replays_root = tmp_path / "replays"
     _make_synthetic_replay_tree(replays_root)
@@ -978,8 +978,8 @@ def test_main_does_not_override_run_steps(tmp_path, monkeypatch):
         "--logdir", str(logdir),
         "--replays-root", str(replays_root),
     ])
-    # The YAML pretrain block sets 2.2e8 — main() must not silently shrink.
+    # The YAML pretrain block sets 2.2e8 - main() must not silently shrink.
     assert captured["steps"] >= 100_000_000, (
-        f"main() resolved run.steps to {captured['steps']}; expected ≥1e8 "
+        f"main() resolved run.steps to {captured['steps']}; expected >=1e8 "
         "(pretrain YAML default is 2.2e8). G1 contract violated."
     )

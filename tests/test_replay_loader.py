@@ -1,4 +1,4 @@
-"""Tests for ``arc3_wm.replay_loader`` — JSONL → DreamerV3-buffer step dicts.
+"""Tests for ``arc3_wm.replay_loader`` - JSONL -> DreamerV3-buffer step dicts.
 
 Schema reference: ``docs/replay-format.md``.
 Locked-in choices (see chat log around this file's creation):
@@ -7,14 +7,14 @@ Locked-in choices (see chat log around this file's creation):
   ``is_last``, ``is_terminal``. Matches ``ARC3EmbodiedEnv._pack`` plus
   ``action``. Drop-in for embodied's online buffer.
 - Action alignment **(B)**: ``action[t] = flat(action_input on line t+1)``
-  — the action chosen *at* obs[t]. dreamerv3's WM loss expects exactly
+  - the action chosen *at* obs[t]. dreamerv3's WM loss expects exactly
   this; (A) would force an off-by-one shift on every batch.
 - Last-step sentinel: ``action = 0`` (= ACTION1 in our flat space). With
   ``is_last=True`` the slot is masked from the dynamics + actor + critic
   losses, so any value works; ``0`` keeps everything inside Discrete(4102)
   with no sentinel-detection branching.
 - Episodes split on ``action_input.id == 0`` (RESET) after line 0.
-  ``full_reset=True`` is informational only — emit a ``UserWarning`` and
+  ``full_reset=True`` is informational only - emit a ``UserWarning`` and
   keep going (D5: surface, don't silently re-interpret schema).
 - A file with only a RESET line + summary line yields **0 episodes**, not
   1 with a phantom action (Q5b edge case).
@@ -107,7 +107,7 @@ def _write_jsonl(path: Path, rows: list) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Real staged replays — discovered relative to repo root
+# Real staged replays - discovered relative to repo root
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -145,15 +145,15 @@ def _read_win_levels(path: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
-# (1) Parse coverage — every staged JSONL must load without crashing
+# (1) Parse coverage - every staged JSONL must load without crashing
 # ---------------------------------------------------------------------------
 
 
 def test_parse_all_staged_jsonls(real_replay_files):
-    """All staged JSONLs parse without raising; each yields ≥1 episode.
+    """All staged JSONLs parse without raising; each yields >=1 episode.
 
     Originally 39 (Phase-0 partial download); now 340 (full set landed
-    2026-05-09 after OAuth gdown). Spec says 342 — accept ≥340 to
+    2026-05-09 after OAuth gdown). Spec says 342 - accept >=340 to
     tolerate small drift if a future re-download lands the missing 2.
     """
     n_files = 0
@@ -164,7 +164,7 @@ def test_parse_all_staged_jsonls(real_replay_files):
         n_episodes += len(eps)
         assert eps, f"{p.name}: zero episodes from non-trivial JSONL"
     assert n_files >= 340, (
-        f"expected ≥340 staged replays (full set landed 2026-05-09); "
+        f"expected >=340 staged replays (full set landed 2026-05-09); "
         f"got {n_files}. If files were intentionally removed, update."
     )
     assert n_episodes >= n_files  # at minimum one ep per file
@@ -198,7 +198,7 @@ def test_step_dict_keys_and_dtypes(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (3) Reward = Δ levels_completed (D4)
+# (3) Reward = delta levels_completed (D4)
 # ---------------------------------------------------------------------------
 
 
@@ -226,7 +226,7 @@ def test_reward_never_uses_raw_level_count(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (4) Episode boundaries — is_first / is_last / is_terminal
+# (4) Episode boundaries - is_first / is_last / is_terminal
 # ---------------------------------------------------------------------------
 
 
@@ -303,7 +303,7 @@ def test_each_episode_has_exactly_one_is_first_and_one_is_last(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (5) Action alignment — convention (B): action[t] = flat(action_input[t+1])
+# (5) Action alignment - convention (B): action[t] = flat(action_input[t+1])
 # ---------------------------------------------------------------------------
 
 
@@ -338,7 +338,7 @@ def test_last_step_action_is_sentinel_zero_on_eof(tmp_path):
 
 def test_last_step_action_is_sentinel_zero_before_mid_reset(tmp_path):
     """The last step of episode 1 (immediately before a mid-session RESET)
-    must use sentinel 0 — RESET is not in the flat action space."""
+    must use sentinel 0 - RESET is not in the flat action space."""
     rows = [
         _row(0),
         _row(2),
@@ -365,7 +365,7 @@ def test_reset_line_action_is_first_real_action(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (6) action_input.id parsing — int (public replays) AND string (live wrapper); D5
+# (6) action_input.id parsing - int (public replays) AND string (live wrapper); D5
 # ---------------------------------------------------------------------------
 
 
@@ -455,7 +455,7 @@ def test_blank_lines_tolerated(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (9) full_reset flag — informational only (Q3)
+# (9) full_reset flag - informational only (Q3)
 # ---------------------------------------------------------------------------
 
 
@@ -477,24 +477,24 @@ def test_full_reset_emits_warning_but_does_not_split_episode(tmp_path):
 # ---------------------------------------------------------------------------
 # (9.5) Post-terminal noise + symmetric tripwire
 #
-# Empirical scan of all 39 staged files: every terminal→non-terminal
+# Empirical scan of all 39 staged files: every terminal->non-terminal
 # transition (122 of them) goes through an explicit RESET row. The cn04
 # levels_completed drops are post-terminal bookkeeping noise emitted
 # between the player's death (GAME_OVER row) and their explicit RESET
-# (several frames later) — not implicit restarts. Rule:
+# (several frames later) - not implicit restarts. Rule:
 #   1. Episode ends at first terminal row.
 #   2. Subsequent terminal-state rows are discarded as noise.
 #   3. Next explicit RESET starts the next episode.
-#   4. NOT_FINISHED + drop → ReplayParseError (tripwire #1).
+#   4. NOT_FINISHED + drop -> ReplayParseError (tripwire #1).
 #   5. NOT_FINISHED row after a terminal block with no intervening RESET
-#      → ReplayParseError (tripwire #2; symmetric to #1, surfaces a
+#      -> ReplayParseError (tripwire #2; symmetric to #1, surfaces a
 #      hypothetical case the survey didn't see).
 # ---------------------------------------------------------------------------
 
 
 def test_post_terminal_noise_after_game_over_is_discarded(tmp_path):
-    """GAME_OVER row → noise rows (still GAME_OVER, levels can drop) →
-    explicit RESET → new episode. The noise rows do NOT appear in any
+    """GAME_OVER row -> noise rows (still GAME_OVER, levels can drop) ->
+    explicit RESET -> new episode. The noise rows do NOT appear in any
     output episode, and the noise count is exposed via stats."""
     rows = [
         _row(0, levels_completed=0),                      # ep1 RESET
@@ -545,12 +545,12 @@ def test_post_terminal_noise_after_win_is_discarded(tmp_path):
 
 def test_levels_drop_with_not_finished_state_raises(tmp_path):
     """Tripwire #1: levels drops while pending's last row is NOT_FINISHED.
-    Surface as ReplayParseError — drops should only appear post-terminal,
+    Surface as ReplayParseError - drops should only appear post-terminal,
     so this is unverified schema drift."""
     rows = [
         _row(0, levels_completed=0),
         _row(3, levels_completed=2),
-        _row(3, levels_completed=0),  # drop while NOT_FINISHED — illegal
+        _row(3, levels_completed=0),  # drop while NOT_FINISHED - illegal
     ]
     p = _write_jsonl(tmp_path / "drop_not_finished.jsonl", rows)
     with pytest.raises(ReplayParseError) as exc:
@@ -564,13 +564,13 @@ def test_levels_drop_with_not_finished_state_raises(tmp_path):
 def test_not_finished_after_terminal_without_reset_raises(tmp_path):
     """Tripwire #2 (symmetric): NOT_FINISHED row follows a terminal block
     with no intervening RESET. The 39-file scan saw zero such transitions
-    — every terminal block exits via explicit RESET — so this would be
+    - every terminal block exits via explicit RESET - so this would be
     real engine-behaviour news worth surfacing for review."""
     rows = [
         _row(0, levels_completed=0),
         _row(3, levels_completed=1),
         _row(3, state="GAME_OVER", levels_completed=1),
-        # No RESET row here — straight back to gameplay.
+        # No RESET row here - straight back to gameplay.
         _row(2, state="NOT_FINISHED", levels_completed=1),
     ]
     p = _write_jsonl(tmp_path / "no_reset_after_term.jsonl", rows)
@@ -583,7 +583,7 @@ def test_not_finished_after_terminal_without_reset_raises(tmp_path):
 
 
 def test_explicit_reset_immediately_after_game_over_yields_one_boundary(tmp_path):
-    """Composition: GAME_OVER row → explicit RESET row, no noise in between.
+    """Composition: GAME_OVER row -> explicit RESET row, no noise in between.
     Single boundary, no phantom episode."""
     rows = [
         _row(0, levels_completed=0),
@@ -601,17 +601,17 @@ def test_explicit_reset_immediately_after_game_over_yields_one_boundary(tmp_path
     assert bool(eps[0][-1]["is_terminal"]) is True
     assert bool(eps[1][0]["is_first"]) is True
     assert bool(eps[1][-1]["is_terminal"]) is True
-    # No noise between terminal and RESET → counter stays 0.
+    # No noise between terminal and RESET -> counter stays 0.
     assert stats.get("noise_rows_discarded", 0) == 0
 
 
 def test_real_cn04_files_split_at_explicit_reset_after_terminal_block(
     real_replay_files,
 ):
-    """Empirical contract: every terminal→non-terminal transition in the
+    """Empirical contract: every terminal->non-terminal transition in the
     staged 39 goes through an explicit RESET. cn04 has post-terminal
     noise rows between death and RESET; those get discarded. The 3 cn04
-    files with drops should each yield ≥2 episodes, every closing
+    files with drops should each yield >=2 episodes, every closing
     non-final row terminal."""
     cn04 = [p for p in real_replay_files if p.parent.name == "cn04"]
     if not cn04:
@@ -625,26 +625,26 @@ def test_real_cn04_files_split_at_explicit_reset_after_terminal_block(
         # No mid-episode terminals in any episode (the load-bearing
         # invariant; post-terminal noise discard guarantees this).
         # Non-final episodes can be truncated (player hit RESET without
-        # dying first) — that's fine, just not terminal.
+        # dying first) - that's fine, just not terminal.
         for ep in eps:
             assert not any(bool(s["is_terminal"]) for s in ep[:-1]), (
                 f"{p.name}: mid-episode is_terminal=True"
             )
     assert found_multi_episode >= 3, (
-        f"expected ≥3 cn04 files to split (post-terminal RESET or "
+        f"expected >=3 cn04 files to split (post-terminal RESET or "
         f"mid-session RESET); got {found_multi_episode}"
     )
     # Observability: cn04 noise rows should be > 0 across the 3 files
     # with the survey-confirmed drop pattern.
     assert stats.get("noise_rows_discarded", 0) >= 3, (
-        f"expected ≥3 post-terminal noise rows discarded across cn04 "
-        f"(survey saw 1 per file × 3 files); got "
+        f"expected >=3 post-terminal noise rows discarded across cn04 "
+        f"(survey saw 1 per file x 3 files); got "
         f"{stats.get('noise_rows_discarded', 0)}"
     )
 
 
 # ---------------------------------------------------------------------------
-# (10) Error handling — ReplayParseError surfaces path + line number (D5)
+# (10) Error handling - ReplayParseError surfaces path + line number (D5)
 # ---------------------------------------------------------------------------
 
 
@@ -655,7 +655,7 @@ def test_unknown_action_id_int_raises_with_path_and_line(tmp_path):
         list(load_replay_file(p))
     msg = str(exc.value)
     assert "bad_int_id.jsonl" in msg
-    # Bad action is on line 1 (0-indexed) → 1-indexed line 2.
+    # Bad action is on line 1 (0-indexed) -> 1-indexed line 2.
     assert "line 2" in msg or "line=2" in msg
 
 
@@ -671,7 +671,7 @@ def test_unknown_action_id_string_raises_with_path_and_line(tmp_path):
 
 def test_missing_frame_on_step_row_raises(tmp_path):
     """A step row missing `frame` (and not the trailing summary shape) is a
-    schema deviation — surface it."""
+    schema deviation - surface it."""
     bad = _row(3)
     del bad["data"]["frame"]
     bad["data"]["action_input"] = {"id": 3, "data": {}, "reasoning": None}  # still has action_input
@@ -692,7 +692,7 @@ def test_malformed_json_line_raises_with_line_number(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (11) Directory walker — yields (game_id, episode) pairs
+# (11) Directory walker - yields (game_id, episode) pairs
 # ---------------------------------------------------------------------------
 
 
@@ -737,7 +737,7 @@ def test_load_replays_directory_is_deterministic(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# (12) Real-replay invariants — strictest gate
+# (12) Real-replay invariants - strictest gate
 # ---------------------------------------------------------------------------
 
 
@@ -746,7 +746,7 @@ def test_real_replay_invariants(real_replay_files, capsys):
     - Each episode has exactly one is_first (at index 0) and one is_last (at index -1).
     - All actions are integers in [0, 4102).
     - Rewards satisfy D4: non-negative integer-valued (stored as float32),
-      strictly less than win_levels — a single transition cannot complete
+      strictly less than win_levels - a single transition cannot complete
       every level in the game. {0, 1} would be too tight: e.g., cd82 ACTION5
       runs through 15 animation layers in one transition, and we have no
       source-of-truth that the engine never resolves multiple level
@@ -773,8 +773,8 @@ def test_real_replay_invariants(real_replay_files, capsys):
                 assert r >= 0.0, f"{p.name}: negative reward {r}"
                 assert float(r).is_integer(), f"{p.name}: non-integer reward {r}"
                 assert r < win_levels, (
-                    f"{p.name}: reward {r} >= win_levels {win_levels} — "
-                    f"likely raw levels_completed leaked instead of Δ"
+                    f"{p.name}: reward {r} >= win_levels {win_levels} - "
+                    f"likely raw levels_completed leaked instead of delta"
                 )
                 if r > 1.0:
                     n_multi_level += 1
@@ -782,7 +782,7 @@ def test_real_replay_invariants(real_replay_files, capsys):
             assert not mid_terminal, f"{p.name}: is_terminal=True before last step"
     assert n_episodes >= 39  # at least one episode per file
     if n_multi_level:
-        # Observational only — multi-level transitions are interesting
+        # Observational only - multi-level transitions are interesting
         # signal for WM pretrain (rare high-reward transitions worth
         # oversampling), not a bug.
         with capsys.disabled():
@@ -806,6 +806,6 @@ def test_real_replay_image_obs_is_decoded_uint8(real_replay_files):
     # If the loader forgot to palette-decode, values would all be in [0, 15].
     # After decode, the palette includes (0xFF, 0xFF, 0xFF) etc., so max
     # should exceed 15 unless every pixel happens to be palette index 0.
-    # Allow the latter (legitimately black post-reset frames exist) — fall
+    # Allow the latter (legitimately black post-reset frames exist) - fall
     # back to checking dtype + shape only if max <= 15.
     _ = img.max()  # smoke

@@ -49,7 +49,7 @@ def test_third_party_dreamerv3_on_sys_path_after_import():
     """The launcher prepends third_party/dreamerv3 so 'embodied'/'dreamerv3'
     resolve. We don't import them here (laptop has no portal/JAX), only
     assert the path entry is present."""
-    import scripts.launch_pergame  # noqa: F401 — side-effect: sys.path mutation
+    import scripts.launch_pergame  # noqa: F401 - side-effect: sys.path mutation
 
     expected = (
         Path(__file__).resolve().parents[1]
