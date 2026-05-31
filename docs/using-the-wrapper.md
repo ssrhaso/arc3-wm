@@ -1,4 +1,4 @@
-# Using the wrapper — integrating an RL / world-model method
+# Using the wrapper - integrating an RL / world-model method
 
 This guide is for someone who wants to run **their own** agent or
 world model on ARC-AGI-3 using `arc3_wm`. The whole point of the
@@ -10,13 +10,13 @@ bespoke "world-model interface" would be a second, non-standard thing
 to learn and would rot. Instead the integration seam is an interface
 your framework almost certainly already supports:
 
-- **Gymnasium** (`arc3_wm.env:ARC3GymEnv`) — for anything Gym-based.
-- **DreamerV3 `embodied`** (`arc3_wm.embodied_env:ARC3EmbodiedEnv`) —
+- **Gymnasium** (`arc3_wm.env:ARC3GymEnv`) - for anything Gym-based.
+- **DreamerV3 `embodied`** (`arc3_wm.embodied_env:ARC3EmbodiedEnv`) -
   for the `embodied` ecosystem (Driver / Replay / wrappers).
 
 If your method consumes either, ARC-AGI-3 is already plug-and-play.
 
-## Path A — Gymnasium (most methods)
+## Path A - Gymnasium (most methods)
 
 `ARC3GymEnv` is a stock `gymnasium.Env`. No special casing:
 
@@ -40,11 +40,11 @@ Contract:
 | Field | Value | Notes |
 |---|---|---|
 | `observation_space` | `Box(0, 255, (64, 64, 3), uint8)` | Palette-decoded last frame, HWC. |
-| `action_space` | `Discrete(4102)` | Flat layout — see below. |
-| `reward` | `Δ levels_completed` | Native level-up signal, unmodified. |
-| `terminated` | `state ∈ {WIN, GAME_OVER}` | True task end. |
+| `action_space` | `Discrete(4102)` | Flat layout - see below. |
+| `reward` | `delta levels_completed` | Native level-up signal, unmodified. |
+| `terminated` | `state in {WIN, GAME_OVER}` | True task end. |
 | `truncated` | `steps == max_steps` | Timeout, not failure. |
-| `info["action_mask"]` | length-4102 `bool` ndarray | Valid actions this step. **Exposed, not enforced** — apply it to your policy logits; `arc_agi` silently no-ops invalid actions if you don't. |
+| `info["action_mask"]` | length-4102 `bool` ndarray | Valid actions this step. **Exposed, not enforced** - apply it to your policy logits; `arc_agi` silently no-ops invalid actions if you don't. |
 
 Flat action layout (`arc3_wm.action_space`, bijective):
 
@@ -58,19 +58,19 @@ Use `arc3_wm.action_space.build_mask(available)` /
 `decode(idx)` / `encode(...)` if you need to reason about action
 semantics; round-trip is property-tested.
 
-## Path B — DreamerV3 `embodied`
+## Path B - DreamerV3 `embodied`
 
 `ARC3EmbodiedEnv` duck-types `embodied.Env` (it does **not** subclass
-it, so importing it does not drag in JAX/`portal` — laptop-importable).
+it, so importing it does not drag in JAX/`portal` - laptop-importable).
 It exposes `obs_space`, `act_space`, `step(action_dict)`, `close`. The
-Gymnasium→embodied translation (e.g. `is_terminal = terminated` only,
+Gymnasium->embodied translation (e.g. `is_terminal = terminated` only,
 not on truncation; `log/`-prefixed non-agent keys) is handled for you.
 
 `scripts/launch_pergame.py` is the reference wiring: it builds the
 DreamerV3 agent + replay + driver around `ARC3EmbodiedEnv` **without
 forking `dreamerv3`** (the pinned reference impl lives untouched in
 `third_party/`). To bring a different `embodied`-compatible world
-model, reuse that launcher and swap the agent — the env half is done.
+model, reuse that launcher and swap the agent - the env half is done.
 
 ## Swapping in offline data
 
@@ -85,7 +85,7 @@ parse-tested across the full dataset.
 ## Evaluating with RHAE
 
 RHAE (Relative Human Action Efficiency) is the benchmark metric and is
-**post-hoc** — it never touches your training loop. Capture per-eval
+**post-hoc** - it never touches your training loop. Capture per-eval
 episode rewards (the `embodied` path does this via
 `arc3_wm.eval_reward_sink`) then:
 
@@ -96,15 +96,15 @@ python scripts/compute_rhae.py \
 ```
 
 RHAE weights each level by its index *within a game*, then combines
-games — so games are **independently weighted**. See
+games - so games are **independently weighted**. See
 [`arc3_wm/rhae.py`](../arc3_wm/rhae.py) for the exact definition and
 `scripts/build_benchmark_table.py` for the multi-game report.
 
 ## Prerequisites
 
-- `ARC_API_KEY` (free from <https://three.arcprize.org>) — needed once
+- `ARC_API_KEY` (free from <https://three.arcprize.org>) - needed once
   to cache game files.
-- `python scripts/cache_env_files.py` — downloads the OFFLINE game
+- `python scripts/cache_env_files.py` - downloads the OFFLINE game
   files into `environment_files/`. After this, training/eval runs
   fully offline (no rate limits). `ARC3GymEnv` *requires* OFFLINE mode
   and raises a clear error otherwise.
@@ -115,6 +115,6 @@ games — so games are **independently weighted**. See
 
 This wrapper is project-pinned research code. It will not grow a
 multi-backend abstraction, a custom encoder, or config knobs for
-methods other than the reported baseline — those are explicit
+methods other than the reported baseline - those are explicit
 follow-up-paper non-goals. Fork it if you need that; the standard
 interfaces are stable to build on.

@@ -52,8 +52,8 @@ trailing summary line at end-of-session whose `data` has a different shape
 
 ### `data` payload (per-step rows)
 
-Keys verified across `ar25/00589449…jsonl` (1556 lines) and
-`cd82/0c6d47d7…jsonl`:
+Keys verified across `ar25/00589449...jsonl` (1556 lines) and
+`cd82/0c6d47d7...jsonl`:
 
 | Field | Type | Notes |
 |---|---|---|
@@ -63,7 +63,7 @@ Keys verified across `ar25/00589449…jsonl` (1556 lines) and
 | `levels_completed` | int | monotonically non-decreasing within a session |
 | `win_levels` | int | total levels in the game (`info.win_levels`) |
 | `available_actions` | list[int] | subset of `[1..7]`, dynamic per-step |
-| `full_reset` | bool | `true` only on a hard reset (not seen in sample data — always false) |
+| `full_reset` | bool | `true` only on a hard reset (not seen in sample data - always false) |
 | `action_input` | object | `{id, data, reasoning}` of the most-recent action |
 | `frame` | list[list[list[int]]] | `frame[layer][row][col]` palette index in `[0..15]`; layer count varies (see harness-analysis.md) |
 
@@ -81,17 +81,17 @@ Note: in the live `arc_agi.wrapper.EnvironmentWrapper._set_last_response` code
 the recorded `action_input.id` is written as the **enum name string** (e.g.
 `"ACTION1"`). In the human replays we downloaded, `action_input.id` is the
 **integer value** (e.g. `5`). This means **two distinct serialisations
-exist** — the replay loader must accept both. Verified in:
+exist** - the replay loader must accept both. Verified in:
 
-- `arcengine.../local_wrapper.py` `_set_last_response` writes `id.name if hasattr(id, "name") else str(id)` → string.
+- `arcengine.../local_wrapper.py` `_set_last_response` writes `id.name if hasattr(id, "name") else str(id)` -> string.
 - Sampled human JSONLs ar25/cd82: `id` is integer.
 
 The replay loader (Phase 1) must coerce: `int(id)` if int, otherwise `GameAction[id].value`.
 
 ### Trailing session-summary line
 
-The very last line in `ar25/00589449…jsonl` (line 1557 of 1557) has a
-different `data` payload — no `frame`, no `action_input`. It looks like a
+The very last line in `ar25/00589449...jsonl` (line 1557 of 1557) has a
+different `data` payload - no `frame`, no `action_input`. It looks like a
 session footer summarising the run:
 
 ```
@@ -107,28 +107,28 @@ To turn one JSONL into DreamerV3 transition tuples `(o_t, a_t, r_t, done_t,
 o_{t+1})`:
 
 1. **State `o_t` (image obs):** apply the same layer-selection + palette-decode
-   policy as the live wrapper (default proposal: `frame[-1]` → palette → `(64, 64, 3) uint8`).
-2. **Action `a_t`:** map `(action_id, data.x, data.y)` to the flat index 0–4101
-   (see CLAUDE.md §"Action space"). For ACTION1..5 / ACTION7, indices 0..4 / 4101.
+   policy as the live wrapper (default proposal: `frame[-1]` -> palette -> `(64, 64, 3) uint8`).
+2. **Action `a_t`:** map `(action_id, data.x, data.y)` to the flat index 0-4101
+   (see CLAUDE.md Section "Action space"). For ACTION1..5 / ACTION7, indices 0..4 / 4101.
    For ACTION6, use `5 + 64*y + x`.
 3. **Reward `r_t`:** `levels_completed[t+1] - levels_completed[t]` is the simplest
    level-up reward signal. Confirm with Haso whether to additionally use
-   terminal +/- bonuses. Methodology says env's "native level-up rewards" —
-   that's `Δ levels_completed`.
+   terminal +/- bonuses. Methodology says env's "native level-up rewards" -
+   that's `delta levels_completed`.
 4. **Done `done_t`:** `state[t+1] in {"WIN", "GAME_OVER"}` OR `t+1 == last_per-step row`.
 5. **Episode boundary:** within a single JSONL, `levels_completed` only increases.
    When a player resets after losing or to retry a level, the engine increments
    `resets` (visible in scorecard but not in replay rows directly). The
-   `full_reset` field appears reserved for that — but it was `false` on every
+   `full_reset` field appears reserved for that - but it was `false` on every
    line of the 1557-line ar25 sample, so resets in replays may be marked
    differently. Phase 1 loader should handle: end of file = end of episode.
 
-### Worked example — `ar25/00589449….recording.jsonl`, first 5 rows
+### Worked example - `ar25/00589449....recording.jsonl`, first 5 rows
 
 Annotated. Frame data abbreviated.
 
 ```jsonc
-// Line 0 — RESET frame (action_input.id == 0)
+// Line 0 - RESET frame (action_input.id == 0)
 {
   "timestamp": "2025-11-10T17:36:18.020120+00:00",
   "data": {
@@ -144,7 +144,7 @@ Annotated. Frame data abbreviated.
   }
 }
 
-// Line 1 — first action (ACTION3, no x/y)
+// Line 1 - first action (ACTION3, no x/y)
 {
   "timestamp": "2025-11-10T17:36:19....",
   "data": {
@@ -160,7 +160,7 @@ Annotated. Frame data abbreviated.
   }
 }
 
-// Lines 2–4 follow the same pattern, with action_input.id varying across {1..6} and
+// Lines 2-4 follow the same pattern, with action_input.id varying across {1..6} and
 // occasionally id=6 (ACTION6) with data containing {"x": ..., "y": ...}
 ```
 
@@ -180,19 +180,19 @@ frame layout:            list[1] of (64, 64) on most rows
 ```
 
 > **WARNING on layer count in replays.** The cd82 replay sample
-> (`cd82/0c6d47d7…recording.jsonl`) has multi-layer frames (e.g. line 1 has
+> (`cd82/0c6d47d7...recording.jsonl`) has multi-layer frames (e.g. line 1 has
 > `list[15]` after an ACTION5), matching the live API. Replays preserve the
-> animation layers — confirm in Phase 1 that the layer-selection policy
+> animation layers - confirm in Phase 1 that the layer-selection policy
 > applied during DreamerV3 buffer construction matches the policy applied
 > at training time on the live env. If they diverge, the buffer state
 > distribution will not match the runtime distribution.
 
 ## Schema variation across games
 
-Sampled three games (ar25, bp35, cd82, cn04) — primary fields identical;
+Sampled three games (ar25, bp35, cd82, cn04) - primary fields identical;
 `available_actions` and per-(game, action) frame-layer counts vary per game.
 Definitive cross-game schema inspection is gated on completing the Drive
-download — see open issue.
+download - see open issue.
 
 ## Open issue: Drive quota (Phase 0, must resolve before Phase 1)
 
@@ -204,7 +204,7 @@ accesses." after ~39 files. The bundled
 
 Possible resolutions, ordered by friction:
 
-1. **Wait 24–48 h** for Google's per-IP quota to reset, then re-run
+1. **Wait 24-48 h** for Google's per-IP quota to reset, then re-run
    `gdown --folder --continue` (it skips already-downloaded files).
 2. **Make a personal Drive copy.** Sign in to Drive, "Make a copy" of the
    bundled zip into Haso's own Drive, download from there. Bypasses share
@@ -212,7 +212,7 @@ Possible resolutions, ordered by friction:
 3. **Authenticated gdown.** `gdown --use-cookies` with a logged-in browser
    session export. Requires Haso's browser cookies.
 4. **Mirror.** If Arc Prize publishes the bundle elsewhere (HuggingFace,
-   GitHub release, S3), use that instead — currently unknown; flag.
+   GitHub release, S3), use that instead - currently unknown; flag.
 5. **Manual download.** Open the Drive folder in a browser and "Download"
    the zip; manual but reliable.
 
