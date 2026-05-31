@@ -1,4 +1,4 @@
-"""``python -m arc3_wm`` — a one-command install sanity check.
+"""``python -m arc3_wm`` - a one-command install sanity check.
 
 Imports the package (which self-registers the Gymnasium ids), then prints
 the version, the flat action-space size, and every registered

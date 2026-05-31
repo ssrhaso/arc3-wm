@@ -1,10 +1,10 @@
-"""arc3_wm.wm_only_agent — WM-only DreamerV3 Agent subclass.
+"""arc3_wm.wm_only_agent - WM-only DreamerV3 Agent subclass.
 
 Subclass of upstream ``dreamerv3.agent.Agent`` that overrides ``loss``
 and ``train`` so the inherited DreamerV3 pipeline runs the WM-only
 path instead of the full imagination + actor + critic path.
 ``third_party/dreamerv3/`` stays untouched (CLAUDE.md anti-goal +
-D12: "DreamerV3 source is unmodified — env registered via embodied/,
+D12: "DreamerV3 source is unmodified - env registered via embodied/,
 no fork").
 
 Why an override of ``loss``/``train`` rather than a parallel
@@ -15,7 +15,7 @@ dreamerv3/embodied/jax/agent.py:38-48) hardcodes
 The outer wrapper exposes only ``train``/``policy``/``report``; any
 new method on the model class is unreachable via the outer's JIT
 pipeline. So the WM-only path has to live on a method the outer
-already knows about — ``train`` (which calls ``loss``).
+already knows about - ``train`` (which calls ``loss``).
 
 Lazy parent (PEP 562 ``__getattr__``):
 - Module load itself imports nothing from ``dreamerv3`` / ``embodied`` /
@@ -28,10 +28,10 @@ Lazy parent (PEP 562 ``__getattr__``):
   laptop the dreamerv3 import raises ``ImportError`` (chex / jax are
   missing); the factory falls back to ``object`` so the class is still
   importable but cannot be instantiated. ``inspect.getsource(...)``
-  works in both cases — the methods are defined on the class regardless
+  works in both cases - the methods are defined on the class regardless
   of which parent is in effect.
 
-Phase-3 contract — see ``tests/test_wm_only_agent.py`` and
+Phase-3 contract - see ``tests/test_wm_only_agent.py`` and
 ``tests/test_pretrain_wm.py`` concern-group #4 for the binding tests:
 
 - ``WMOnlyAgent.loss`` returns ``(loss, (carry, entries, outs,
@@ -39,7 +39,7 @@ Phase-3 contract — see ``tests/test_wm_only_agent.py`` and
   ``{recon-key(s), dyn, rew, con}``. No imagination, no replay-value,
   no policy/value losses.
 - ``WMOnlyAgent.train`` is upstream ``Agent.train`` minus
-  ``self.slowval.update()`` — that's the only material delta.
+  ``self.slowval.update()`` - that's the only material delta.
 - ``self.modules`` and ``self.opt`` are rebuilt in ``__init__`` over
   ``[dyn, enc, dec, rew, con]`` only. Pol and val instances still exist
   on the model (they're constructed by the parent ``__init__``) but
@@ -54,7 +54,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# third_party/dreamerv3 path — used only on first WMOnlyAgent access.
+# third_party/dreamerv3 path - used only on first WMOnlyAgent access.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DV3 = _REPO_ROOT / "third_party" / "dreamerv3"
 if _DV3.is_dir() and str(_DV3) not in sys.path:
@@ -69,13 +69,13 @@ def _build_wm_only_agent_class():
 
     On Vast (full DV3 stack): inherits from ``dreamerv3.agent.Agent``.
     On laptop (no JAX): ``ImportError`` is caught and the class falls
-    back to ``object`` parent — importable for source inspection but
+    back to ``object`` parent - importable for source inspection but
     not instantiable.
     """
     try:
         from dreamerv3.agent import Agent as _Parent
         _laptop_fallback = False
-    except ImportError:  # noqa: BLE001 — laptop path is intentionally tolerant
+    except ImportError:  # noqa: BLE001 - laptop path is intentionally tolerant
         _Parent = object
         _laptop_fallback = True
 
@@ -108,7 +108,7 @@ def _build_wm_only_agent_class():
             )
 
         def loss(self, carry, obs, prevact, training):
-            """Verbatim copy of upstream ``Agent.loss`` (agent.py:156-186) —
+            """Verbatim copy of upstream ``Agent.loss`` (agent.py:156-186) -
             the World-model block. Branches BEFORE the imagination block at
             agent.py:188 so neither ``self.dyn.imagine`` nor ``imag_loss``
             nor ``repl_loss`` runs.
@@ -126,7 +126,7 @@ def _build_wm_only_agent_class():
             losses = {}
             metrics = {}
 
-            # World model — same flow as upstream agent.py:163-186.
+            # World model - same flow as upstream agent.py:163-186.
             enc_carry, enc_entries, tokens = self.enc(
                 enc_carry, obs, reset, training)
             dyn_carry, dyn_entries, los, repfeat, mets = self.dyn.loss(
@@ -148,7 +148,7 @@ def _build_wm_only_agent_class():
                 losses[key] = recon.loss(sg(target))
 
             # END of WM block. Imagination + replay-value-loss are skipped
-            # entirely — that's the entire point of this override.
+            # entirely - that's the entire point of this override.
 
             metrics.update({f'loss/{k}': v.mean() for k, v in losses.items()})
             # Sum only the WM scales; pol/val scales are silently absent
@@ -172,7 +172,7 @@ def _build_wm_only_agent_class():
                 self.loss, carry, obs, prevact, training=True, has_aux=True)
             metrics.update(mets)
             # NB: deliberately omit the slow-critic update from upstream
-            # train (last line of agent.py:137-154) — that's the
+            # train (last line of agent.py:137-154) - that's the
             # pol/val-side bookkeeping we want to skip.
             outs = {}
             if self.config.replay_context:

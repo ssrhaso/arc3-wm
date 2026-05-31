@@ -1,13 +1,13 @@
 """Flat 4102-way action space for ARC-AGI-3.
 
-Layout (matches CLAUDE.md §"Action space"):
+Layout (matches CLAUDE.md Section "Action space"):
 
     0..4    -> ACTION1..ACTION5  (parameter-less)
     5..4100 -> ACTION6 with (x, y) = unravel_index(idx - 5, (64, 64))
     4101    -> ACTION7
 
 ACTION6 is the only "complex" action (carries x, y in [0, 63]).
-``GameAction.RESET`` is *not* in the flat space — the wrapper calls
+``GameAction.RESET`` is *not* in the flat space - the wrapper calls
 ``env.reset()`` directly. Per-step masking comes from
 ``fd.available_actions`` (a list of int IDs in 1..7); use
 :func:`build_mask` to project that to a length-4102 boolean array.
@@ -66,7 +66,7 @@ def arc_to_flat(action: GameAction, x: Optional[int] = None, y: Optional[int] = 
     """Encode ``(GameAction, x, y)`` to a flat index.
 
     ``x`` and ``y`` are required iff ``action == ACTION6``; both must be in
-    ``[0, 63]``. Raises on RESET — RESET is not in the flat space.
+    ``[0, 63]``. Raises on RESET - RESET is not in the flat space.
     """
     if action == GameAction.RESET:
         raise ValueError("RESET is not in the flat action space; call env.reset() directly")
@@ -89,8 +89,8 @@ def build_mask(available_actions: Iterable[int]) -> np.ndarray:
 
     ``available_actions`` is a list of integer action IDs in ``1..7`` (the
     raw form the engine returns on ``FrameDataRaw.available_actions``).
-    ACTION6 is treated as a single "click is allowed" flag — when
-    ``6 ∈ available``, all 4096 grid cells are unmasked.
+    ACTION6 is treated as a single "click is allowed" flag - when
+    ``6 in available``, all 4096 grid cells are unmasked.
     """
     mask = np.zeros(N_ACTIONS, dtype=bool)
     avail = set(int(a) for a in available_actions)

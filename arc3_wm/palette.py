@@ -45,7 +45,7 @@ def decode_frame(layer: np.ndarray) -> np.ndarray:
 
     Accepts int8 / uint8 / int32; values must be in ``[0, 15]``. Indexing
     is done via ``PALETTE_RGB[layer]`` so the result is contiguous and
-    already uint8 — no copy or normalisation needed before DreamerV3's
+    already uint8 - no copy or normalisation needed before DreamerV3's
     image encoder.
     """
     arr = np.asarray(layer)

@@ -1,11 +1,11 @@
 """Reference implementation of Relative Human Action Efficiency (RHAE).
 
-Source of truth at training time is ``arc.get_scorecard().score`` — the
+Source of truth at training time is ``arc.get_scorecard().score`` - the
 toolkit computes RHAE from the scorecard the engine maintains internally
 (per Phase-0 verification, ``docs/phase-checklists.md``). This module
 exists per D6 for two reasons:
 
-1. **Per-checkpoint logging** during Phase 4–5 without re-instantiating
+1. **Per-checkpoint logging** during Phase 4-5 without re-instantiating
    ``Arcade`` (cheap pure functions, no engine state).
 2. **Sanity fixture** so any silent change to the toolkit's scoring
    trips a test.
@@ -18,7 +18,7 @@ Spec: ``docs/arc-agi-3/methodology.md``. Formula:
 
 Per D-B (n>=2 coverage threshold, this session), only levels with a
 defensible upper-median baseline (>= 2 completer sessions) are scoreable
-— uncovered levels are excluded from BOTH the per-game numerator and
+- uncovered levels are excluded from BOTH the per-game numerator and
 denominator. The "failing the final scored level caps the game score"
 property is preserved for covered levels: their weight stays in the
 denominator while their numerator term goes to zero.
@@ -46,7 +46,7 @@ LEVEL_SCORE_CAP = 1.15
 
 
 def level_score(human_baseline_actions: int, ai_actions: int) -> float:
-    """Per-level efficiency, capped at ``LEVEL_SCORE_CAP`` (1.15× baseline)."""
+    """Per-level efficiency, capped at ``LEVEL_SCORE_CAP`` (1.15x baseline)."""
     if human_baseline_actions <= 0:
         raise ValueError(
             f"human_baseline_actions must be positive; got {human_baseline_actions}"
@@ -65,14 +65,14 @@ def game_score(
 
     Per D-B, ``covered_levels`` is the set of level indices that
     contribute to BOTH numerator and denominator. ``level_scores`` keys
-    must be a subset of ``covered_levels`` — uncovered AI completions
+    must be a subset of ``covered_levels`` - uncovered AI completions
     must be skipped by the caller (RHAEAggregator does this). Uncompleted
     covered levels are absent from ``level_scores`` and contribute 0 to
     the numerator; their weight stays in the denominator, which is what
     preserves the "failing the final scored level caps the game score"
     property under D-B.
 
-    Returns 0.0 when ``covered_levels`` is empty (all-uncovered game —
+    Returns 0.0 when ``covered_levels`` is empty (all-uncovered game -
     no real fixture data triggers this but pinned for safety).
     """
     covered = set(covered_levels)
@@ -97,7 +97,7 @@ def game_score(
 
 
 def total_score(game_scores: Iterable[float]) -> float:
-    """Arithmetic mean across games. Empty iterable → 0.0."""
+    """Arithmetic mean across games. Empty iterable -> 0.0."""
     scores = list(game_scores)
     if not scores:
         return 0.0
@@ -112,7 +112,7 @@ def coverage(human_baselines: Mapping[str, Mapping]) -> float:
     number reported in the paper alongside headline RHAE (currently
     129/183 = 0.70 on the 340-replay public-demo dataset).
 
-    Empty input or zero total returns 0.0 — avoids ZeroDivisionError on
+    Empty input or zero total returns 0.0 - avoids ZeroDivisionError on
     a sentinel-empty fixture.
     """
     n_covered = 0
@@ -126,13 +126,13 @@ def coverage(human_baselines: Mapping[str, Mapping]) -> float:
 
 
 class RHAEAggregator:
-    """Post-hoc RHAE aggregator: per-level AI action counts → wandb-key metrics.
+    """Post-hoc RHAE aggregator: per-level AI action counts -> wandb-key metrics.
 
     Per D2 the Phase-4 pipeline computes RHAE post-hoc from the
     ``eval/episode/*`` series ``embodied.run.train_eval`` already emits;
     this class is the pure-math step the post-hoc CLI calls once it has
     segmented an eval rollout into per-level AI action counts. No
-    scheduling, no in-loop hook semantics — the caller decides when to
+    scheduling, no in-loop hook semantics - the caller decides when to
     call.
 
     Contract (post D-A/D-B migration, this session):
@@ -153,11 +153,11 @@ class RHAEAggregator:
     Semantics:
 
     - AI completion of a level in [1, total_levels] but NOT in
-      ``baselines`` (uncovered under D-B): silently skipped — no
+      ``baselines`` (uncovered under D-B): silently skipped - no
       ``level_scores`` atom emitted, no contribution to the per-game
       numerator/denominator. The agent gets neither credit nor penalty.
     - AI completion of a level OUTSIDE [1, total_levels]: raises
-      ``ValueError`` (level-indexing bug upstream — surface).
+      ``ValueError`` (level-indexing bug upstream - surface).
     - Unknown ``game_id``: raises ``KeyError`` (typo or missing-data
       drift).
     - Zero-completion run on a game with covered levels: per_game=0.0,
@@ -225,7 +225,7 @@ class RHAEAggregator:
                     f"game_id {game_id!r}"
                 )
             if level_idx not in covered:
-                # D-B: AI cleared an uncovered level — no baseline,
+                # D-B: AI cleared an uncovered level - no baseline,
                 # silently skip (no credit, no penalty).
                 continue
             ls = level_score(

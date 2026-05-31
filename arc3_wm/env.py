@@ -3,10 +3,10 @@
 Milestone (1) of the Phase-1 rescoping (see docs/design-decisions.md):
 single game (default ``vc33``), OFFLINE mode, no replay loader, no RHAE.
 
-Observation: ``Box(0, 255, (64, 64, 3), uint8)`` — ``frame[-1]`` palette-decoded.
-Action:      ``Discrete(4102)`` — flat layout from ``arc3_wm.action_space``.
+Observation: ``Box(0, 255, (64, 64, 3), uint8)`` - ``frame[-1]`` palette-decoded.
+Action:      ``Discrete(4102)`` - flat layout from ``arc3_wm.action_space``.
 Reward:      ``levels_completed[t+1] - levels_completed[t]`` (D4).
-Episode end: terminated on ``state ∈ {WIN, GAME_OVER}``;
+Episode end: terminated on ``state in {WIN, GAME_OVER}``;
              truncated on ``max_steps`` timeout (default 1000, D9).
 
 Action masking is exposed via ``info["action_mask"]`` after every reset/step.

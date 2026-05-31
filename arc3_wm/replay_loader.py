@@ -5,22 +5,22 @@ See ``docs/replay-format.md`` for the JSONL schema and
 
 Per-step output schema (matches ``ARC3EmbodiedEnv._pack`` plus ``action``):
 
-    image:       np.uint8  (64, 64, 3)  — frame[-1] palette-decoded
-    action:      np.int32  ()           — flat index in [0, 4102)
-    reward:      np.float32 ()          — Δ levels_completed
+    image:       np.uint8  (64, 64, 3)  - frame[-1] palette-decoded
+    action:      np.int32  ()           - flat index in [0, 4102)
+    reward:      np.float32 ()          - delta levels_completed
     is_first:    np.bool_  ()
     is_last:     np.bool_  ()
     is_terminal: np.bool_  ()
 
 Action alignment is **convention (B)**: ``action[t] = flat(action_input on
-row t+1)`` — the action chosen *at* obs[t]. The last step of every
+row t+1)`` - the action chosen *at* obs[t]. The last step of every
 episode uses sentinel ``action = 0`` (masked by ``is_last`` downstream).
 
 Episode boundaries (verified by 39-file empirical scan, 122 transitions):
 - A row with ``action_input.id == 0`` (or ``"RESET"``) after line 0 ends
   the previous episode and starts a new one (the RESET row itself is the
-  first row of the new episode — its frame is the post-reset obs).
-- An episode ends at the **first** terminal-state row (state ∈ {WIN,
+  first row of the new episode - its frame is the post-reset obs).
+- An episode ends at the **first** terminal-state row (state in {WIN,
   GAME_OVER}). Subsequent rows while pending's last row is terminal are
   **post-terminal bookkeeping noise** that the engine emits between the
   player's death/win and the explicit RESET they hit several frames
@@ -29,16 +29,16 @@ Episode boundaries (verified by 39-file empirical scan, 122 transitions):
   count is exposed via the optional ``stats`` arg for observability.
 - Two symmetric tripwires guard the assumption boundaries:
   1. A ``levels_completed`` decrease while pending's last row is
-     ``NOT_FINISHED`` raises ``ReplayParseError`` — drops should only
+     ``NOT_FINISHED`` raises ``ReplayParseError`` - drops should only
      ever happen post-terminal.
   2. A ``NOT_FINISHED`` row that follows a terminal row with no
-     intervening explicit RESET raises ``ReplayParseError`` — the
-     39-file survey shows every terminal→non-terminal transition goes
+     intervening explicit RESET raises ``ReplayParseError`` - the
+     39-file survey shows every terminal->non-terminal transition goes
      through an explicit RESET, so anything else is unobserved engine
      behaviour worth surfacing for review.
 - EOF closes the current episode.
 - A file containing only a RESET row (+ optional summary) yields zero
-  episodes — no phantom 1-step episode.
+  episodes - no phantom 1-step episode.
 
 Errors:
 - ``ReplayParseError`` is raised for any schema deviation, with the
@@ -107,7 +107,7 @@ def _is_reset_id(raw_id: Any) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Action mapping — convention (B), accepts int or string ids (D5)
+# Action mapping - convention (B), accepts int or string ids (D5)
 # ---------------------------------------------------------------------------
 
 
@@ -122,7 +122,7 @@ def _resolve_game_action(
                 f"{path}:line {line_no}: unknown action_input.id name {raw_id!r}"
             ) from e
     if isinstance(raw_id, bool) or not isinstance(raw_id, (int, np.integer)):
-        # bool is a subclass of int in Python — reject explicitly so a
+        # bool is a subclass of int in Python - reject explicitly so a
         # rogue True/False doesn't silently map to ACTION1.
         raise ReplayParseError(
             f"{path}:line {line_no}: action_input.id must be int or string, "
@@ -141,7 +141,7 @@ def _flat_action_or_none(
 ) -> Optional[int]:
     """Map ``action_input`` to a flat index, or ``None`` if RESET.
 
-    RESET is not in the flat action space — callers substitute the
+    RESET is not in the flat action space - callers substitute the
     last-step sentinel (0) when this returns None.
     """
     raw_id = action_input.get("id")
@@ -261,7 +261,7 @@ def load_replay_file(
     """Yield one list-of-step-dicts per episode in ``path``.
 
     If ``stats`` is provided, the loader updates its
-    ``"noise_rows_discarded"`` counter as it goes — useful for spotting
+    ``"noise_rows_discarded"`` counter as it goes - useful for spotting
     files where the post-terminal noise block is unusually long.
     """
     path = Path(path)
@@ -287,7 +287,7 @@ def load_replay_file(
         if data.get("full_reset"):
             warnings.warn(
                 f"{path}: full_reset=True on line {line_no}; informational "
-                f"only — episode boundaries unaffected",
+                f"only - episode boundaries unaffected",
                 UserWarning,
                 stacklevel=2,
             )
@@ -299,9 +299,9 @@ def load_replay_file(
 
         # Post-terminal mode: the previous episode is already closed at
         # pending[-1] (a terminal row). Three legal next-row shapes:
-        # (a) explicit RESET — flush pending, this row starts the new ep.
-        # (b) another terminal row — post-terminal noise, discard.
-        # (c) NOT_FINISHED row without RESET — symmetric tripwire raise.
+        # (a) explicit RESET - flush pending, this row starts the new ep.
+        # (b) another terminal row - post-terminal noise, discard.
+        # (c) NOT_FINISHED row without RESET - symmetric tripwire raise.
         if pending and pending[-1][1].get("state") in TERMINAL_STATES:
             if is_explicit_reset:
                 ep = _build_episode(pending, path=path)
@@ -342,7 +342,7 @@ def load_replay_file(
         pending.append((line_no, data))
 
     # End-of-file flush. A lone RESET row at EOF (no actions taken) yields
-    # zero episodes — Q5b edge case.
+    # zero episodes - Q5b edge case.
     if pending:
         if len(pending) == 1:
             sole_ai = pending[0][1].get("action_input") or {}

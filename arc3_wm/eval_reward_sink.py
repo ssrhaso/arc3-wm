@@ -10,7 +10,7 @@ segment eval rollouts into per-level AI action counts.
 The chosen approach (per session sign-off) is option (ii) from the
 Step-5 stop-point: an env-side wrapper that buffers rewards in
 memory per episode and flushes one JSONL line on ``is_last``. The
-wrapper is applied to the EVAL env factory only — training rollouts
+wrapper is applied to the EVAL env factory only - training rollouts
 would balloon the file with policy-noise rewards that are not useful
 for RHAE.
 
@@ -23,7 +23,7 @@ where ``r0`` is the initial-obs reward (always 0 per DV3 convention;
 ``segment_episode_actions_per_level`` already skips it) and
 ``r1..rN`` are the post-action rewards.
 
-The wrapper duck-types ``embodied.core.wrappers.Wrapper`` — same
+The wrapper duck-types ``embodied.core.wrappers.Wrapper`` - same
 ``__init__(env)`` + attribute-forwarding contract. Avoiding the
 subclass keeps this module importable on the laptop without the
 embodied/JAX stack, so the unit tests run cleanly.

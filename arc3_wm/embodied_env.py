@@ -7,13 +7,13 @@ training loop (agent, replay, driver).
 
 Key translations vs. ``embodied/envs/from_gym.py``:
 
-- Gymnasium 5-tuple ``(obs, reward, terminated, truncated, info)`` →
+- Gymnasium 5-tuple ``(obs, reward, terminated, truncated, info)`` ->
   embodied step-dict with ``is_terminal = terminated`` (NOT on truncated)
   and ``is_last = terminated OR truncated``.
-- Single-array obs → ``{"image": ndarray, "log/action_mask": ndarray, ...}``.
+- Single-array obs -> ``{"image": ndarray, "log/action_mask": ndarray, ...}``.
   The ``log/`` prefix is a documented embodied convention for keys that
-  the agent should not consume — see ``embodied/core/base.py``.
-- Action space → ``{"action": Discrete(4102), "reset": bool}``, matching
+  the agent should not consume - see ``embodied/core/base.py``.
+- Action space -> ``{"action": Discrete(4102), "reset": bool}``, matching
   what ``FromGym`` produces.
 
 Action masking is exposed but **not enforced** (D11). The agent samples
@@ -36,8 +36,8 @@ from .env import OBS_HW, ARC3GymEnv
 # rest of embodied (Driver, Replay, wrappers) uses duck-typing on
 # obs_space / act_space / step / close. Subclassing would require
 # `from embodied.core.base import Env`, which triggers
-# `embodied/__init__.py` → `import portal` and the JAX-flavoured
-# transitive deps — not installable on the laptop. The real `embodied`
+# `embodied/__init__.py` -> `import portal` and the JAX-flavoured
+# transitive deps - not installable on the laptop. The real `embodied`
 # package on Vast.ai accepts duck-typed envs unchanged.
 
 OBS_KEY = "image"
@@ -58,7 +58,7 @@ class ARC3EmbodiedEnv:
             game_id=game_id, seed=seed, max_steps=max_steps, arcade=arcade
         )
         # `_done=True` forces the next step() call to reset, regardless of
-        # what `action['reset']` says — matches FromGym's bootstrap logic.
+        # what `action['reset']` says - matches FromGym's bootstrap logic.
         self._done = True
         self._info: dict[str, Any] = {}
 

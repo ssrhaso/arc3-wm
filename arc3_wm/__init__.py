@@ -1,14 +1,14 @@
-"""arc3_wm — a world-model RL substrate for ARC-AGI-3.
+"""arc3_wm - a world-model RL substrate for ARC-AGI-3.
 
 This package makes a single ARC-AGI-3 game usable as a standard RL
 environment and supplies the offline-data and metric plumbing for
 model-based RL on it. The two adapters are the durable contribution:
 
-- :class:`~arc3_wm.env.ARC3GymEnv` — a stock ``gymnasium.Env``
+- :class:`~arc3_wm.env.ARC3GymEnv` - a stock ``gymnasium.Env``
   (pure-Python, no JAX). Registered Gymnasium ids ``ARC3/<game>-v0``
   are available after ``import arc3_wm`` (see
   :mod:`arc3_wm.registration`).
-- :class:`~arc3_wm.embodied_env.ARC3EmbodiedEnv` — the same game behind
+- :class:`~arc3_wm.embodied_env.ARC3EmbodiedEnv` - the same game behind
   DreamerV3's ``embodied.Env`` interface. Exposed *lazily*: importing it
   pulls the JAX-side ``elements`` dependency, so it is resolved only on
   first attribute access to keep the laptop/Gymnasium path import-clean.
@@ -33,7 +33,7 @@ from .registration import PUBLIC_GAMES, register_envs
 
 __version__ = "0.1.0"
 
-# Register the Gymnasium ids on import — the standard convention for a
+# Register the Gymnasium ids on import - the standard convention for a
 # packaged gym environment (cf. how `ale_py` / `gymnasium.envs` self-register).
 # Idempotent and side-effect-free beyond the registry mutation.
 register_envs()
