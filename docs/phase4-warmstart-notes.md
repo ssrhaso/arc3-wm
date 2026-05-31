@@ -20,7 +20,7 @@ This is `dreamerv3.embodied.jax.agent.Agent.save()` output verbatim
 (see [embodied/jax/agent.py:340-353](../third_party/dreamerv3/embodied/jax/agent.py#L340-L353)).
 The pickle wrapper in
 [scripts/pretrain_wm.py:_save_checkpoint](../scripts/pretrain_wm.py#L256-L275)
-side-steps `elements.Checkpoint`'s `_cleanup` Windows bug — but the
+side-steps `elements.Checkpoint`'s `_cleanup` Windows bug - but the
 inner payload is the standard agent state, so `agent.load(data, ...)`
 on the Phase-4 side reads it directly.
 
@@ -28,19 +28,19 @@ on the Phase-4 side reads it directly.
 
 | Field | Phase-3 value | Phase-3 expected | Verdict |
 |---|---|---|---|
-| `updates`  | 192,000 | 6000 outer × `train_ratio=32` = 192,000 | ✓ |
-| `batches`  | 192,001 | ≈ `updates` (one batch ahead, see agent.py:368) | ✓ |
-| `actions`  | 0       | Phase 3 had no Driver / env policy | ✓ |
+| `updates`  | 192,000 | 6000 outer x `train_ratio=32` = 192,000 | [x] |
+| `batches`  | 192,001 | ~ `updates` (one batch ahead, see agent.py:368) | [x] |
+| `actions`  | 0       | Phase 3 had no Driver / env policy | [x] |
 
 No `2.2e8` garbage (would have indicated the save path was reading the
-YAML target instead of the live counter — wasn't).
+YAML target instead of the live counter - wasn't).
 
 **Phase-4 reset rule:** before calling `agent.load(state, regex=WM_REGEX)`,
 mutate `state['counters'] = {'updates': 0, 'batches': 0, 'actions': 0}`.
 Cleaner than post-load mutation through the lock-protected `n_updates.value`
 attributes.
 
-## Params — top-level prefix breakdown
+## Params - top-level prefix breakdown
 
 | Prefix | Keys | Param-elements | Notes |
 |---|---|---|---|
@@ -59,11 +59,11 @@ attributes.
 over that list, so `_ckpt_groups` never registered pol/val for save.
 
 This means: **even with `regex=None`, `agent.load()` cannot clobber a
-Phase-4 actor/critic** — the keys simply aren't in the loaded dict.
+Phase-4 actor/critic** - the keys simply aren't in the loaded dict.
 The regex is still load-bearing because of the `opt/` keys (see next
 section).
 
-## WM regex — committed value
+## WM regex - committed value
 
 ```python
 WM_REGEX = r'^(?:dyn|enc|dec|rew|con)/'
@@ -72,20 +72,20 @@ WM_REGEX = r'^(?:dyn|enc|dec|rew|con)/'
 Anchored at start (redundant with `re.match` but explicit). Matches
 exactly the 68 module-weight keys (9,898,179 params). Excludes:
 
-- all 140 `opt/...` keys → fresh optimizer state in Phase 4
+- all 140 `opt/...` keys -> fresh optimizer state in Phase 4
 - any future `pol/...` or `val/...` keys (defence in depth)
 
 ### Why exclude `opt/...`
 
 Loading Phase 3's `opt/state/...` would carry forward:
 
-- WM-side Adam first/second moments (mildly useful — but encodes the
+- WM-side Adam first/second moments (mildly useful - but encodes the
   cross-game offline data distribution, which differs from Phase 4's
   vc33-only online stream),
 - Step counter at 192,000 in `opt/state/1/0` and `opt/state/2/0`. Any
   LR-warmup or schedule keyed to optimizer step would think Phase 4
   is mid-training from step 0. Schedules in DreamerV3 default to
-  constant LR, so the impact is small in practice — but the cleaner
+  constant LR, so the impact is small in practice - but the cleaner
   claim is *fresh optimizer*.
 
 Paper claim this supports: "Phase-4 per-game agents are initialised
@@ -111,8 +111,8 @@ The `--init-from-ckpt` code path must fail loud on:
 1. `len(matched_keys) == 0` after applying `WM_REGEX` (signals a
    regex regression or a checkpoint format change).
 2. `len(matched_keys) != 68` (matched count drifts from the known
-   structure → silent partial load).
-3. Sum of matched-key param-elements ≠ `9_898_179`.
+   structure -> silent partial load).
+3. Sum of matched-key param-elements != `9_898_179`.
 4. `'counters' not in state` or missing any of `{updates, batches, actions}`
    (signals a structural change in `agent.save()`).
 
