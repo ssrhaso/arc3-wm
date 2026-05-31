@@ -5,7 +5,7 @@ All notable changes to `arc3-wm` are recorded here. Format follows
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This is research code pinned for reproducibility of a NeurIPS-2026
-workshop study — the version line tracks the *artifact* (the
+workshop study - the version line tracks the *artifact* (the
 Gymnasium / DreamerV3-`embodied` adapter and its harness), not a
 general-purpose library API.
 
@@ -44,11 +44,11 @@ general-purpose library API.
   opaque "make() returned None" `RuntimeError` that a typo previously
   produced downstream.
 
-## [0.1.0] — 2026-05-18
+## [0.1.0] - 2026-05-18
 
 First formalised release of the contribution artifact. The wrapper,
 action space, replay loader and RHAE metric were already implemented
-and tested through Phases 0–4; this release turns the package into a
+and tested through Phases 0-4; this release turns the package into a
 citable, installable contribution surface.
 
 ### Added
@@ -69,7 +69,7 @@ citable, installable contribution surface.
 
 ### Changed
 
-- `__version__` bumped `0.0.0` → `0.1.0` (Phase-0 scaffold string
+- `__version__` bumped `0.0.0` -> `0.1.0` (Phase-0 scaffold string
   retired). pyproject now single-sources the version from
   `arc3_wm.__version__` via setuptools dynamic metadata.
 
@@ -84,7 +84,7 @@ citable, installable contribution surface.
 ### Notes / deferred
 
 - **License is intentionally unset.** A license must be chosen before
-  public release — see [docs/contribution.md](docs/contribution.md).
+  public release - see [docs/contribution.md](docs/contribution.md).
 - BibTeX / citation block is added on paper submission.
 
 [Unreleased]: https://github.com/ssrhaso/ARC_AGI_3/compare/v0.1.0...HEAD

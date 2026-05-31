@@ -7,7 +7,7 @@ Eval-clear counts and eval scores are derived uniformly from the `eval_episodes.
 
 ## Paired table
 
-| game | seed | warm RHAE | cold RHAE | Δ RHAE | warm levels | cold levels | warm eval clears/n | cold eval clears/n | warm mean eval ep-len | cold mean eval ep-len |
+| game | seed | warm RHAE | cold RHAE | delta RHAE | warm levels | cold levels | warm eval clears/n | cold eval clears/n | warm mean eval ep-len | cold mean eval ep-len |
 |------|------|-----------|-----------|--------|-------------|-------------|--------------------|---------------------|------------------------|------------------------|
 | vc33 | 0 | 0.0548 | 0.0411 | -0.0137 | 1 | 1 | 4/23 | 2/21 | 50.5 | 51.4 |
 | vc33 | 1 | 0.0166 | 0.0182 | +0.0016 | 1 | 1 | 2/18 | 3/19 | 52.4 | 53.3 |
@@ -29,7 +29,7 @@ Eval-clear counts and eval scores are derived uniformly from the `eval_episodes.
 
 ## Deltas (cold - warm)
 
-| game-seed | Δ RHAE | Δ eval clears | Δ eval ep-count |
+| game-seed | delta RHAE | delta eval clears | delta eval ep-count |
 |-----------|--------|---------------|------------------|
 | vc33-s0 | -0.0137 | -2 | -2 |
 | vc33-s1 | +0.0016 | +1 | +1 |

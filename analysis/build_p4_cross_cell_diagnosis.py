@@ -102,7 +102,7 @@ def main() -> None:
 
     lines: list[str] = []
     P = lines.append
-    P("# Phase-4 cross-cell diagnosis — WM fits, controller fails (6 pilot warm cells)")
+    P("# Phase-4 cross-cell diagnosis - WM fits, controller fails (6 pilot warm cells)")
     P("")
     P("Read-only extension of `analysis/p4_vc33_dryrun_diagnosis.md` (single cell)")
     P("to all **6 Phase-4-proper pilot warm cells** {vc33, sb26, cd82} x {s0, s1},")
@@ -116,7 +116,7 @@ def main() -> None:
       "`train/rand/action` at end of run (1.0 = fully random). `train clears` "
       "and `eval clears` from the rewards-stream aggregation.")
     P("")
-    P("| Run | img first→last (drop) | img min | dyn first→last | rand_last "
+    P("| Run | img first->last (drop) | img min | dyn first->last | rand_last "
       "| train clears | eval clears | RHAE |")
     P("|---|---|---|---|---|---|---|---|")
     rhae_map = {  # from benchmark_table.md (canonical post-hoc RHAE)
@@ -129,9 +129,9 @@ def main() -> None:
         ec = f'{a["eval_clears_ge1"]}/{a["eval_n"]}'
         tc = f'{a["train_clears_ge1"]}/{a["train_n_episodes"]}'
         if wm:
-            P(f'| {short} | {wm["image_first"]:.1f}→{wm["image_last"]:.3f} '
+            P(f'| {short} | {wm["image_first"]:.1f}->{wm["image_last"]:.3f} '
               f'({wm["image_drop_pct"]:.1f}%) | {wm["image_min"]:.3f} '
-              f'| {wm["dyn_first"]:.2f}→{wm["dyn_last"]:.2f} '
+              f'| {wm["dyn_first"]:.2f}->{wm["dyn_last"]:.2f} '
               f'| {wm["rand_last"]:.3f} | {tc} | {ec} | {rhae_map[rid]:.4f} |')
         else:
             P(f'| {short} | (no loss lines parsed) | - | - | - '
@@ -150,30 +150,30 @@ def main() -> None:
       f"**{sum(1 for _, wm, _ in rows if wm and wm['image_drop_pct'] > 90)}/6** "
       f"cells (all of them). The world model converges regardless of game.")
     P(f"- **Controller fails on the zero games:** sb26 and cd82 have "
-      f"**0 eval clears across all 4 cells** despite the WM converging — "
+      f"**0 eval clears across all 4 cells** despite the WM converging - "
       f"the WM-fits/controller-fails split is not a vc33 artifact, it is the "
       f"signature on the gate-failure games too.")
     P(f"- **Exploration never finishes:** `train/rand/action` ends well above "
       f"0 on every cell (range "
-      f"{min(wm['rand_last'] for _, wm, _ in rows if wm):.3f}–"
+      f"{min(wm['rand_last'] for _, wm, _ in rows if wm):.3f}-"
       f"{max(wm['rand_last'] for _, wm, _ in rows if wm):.3f}); the "
-      f"explore→exploit schedule does not complete within the 500k budget on "
+      f"explore->exploit schedule does not complete within the 500k budget on "
       f"any pilot cell, not just vc33.")
     P(f"- **vc33 is the only cell with any clears**, and they are bursty "
-      f"(see per-bin counts in `p4_aggregation.json`) — consistent with the "
+      f"(see per-bin counts in `p4_aggregation.json`) - consistent with the "
       f"single-cell forensic, now shown to generalise.")
     P("")
     P("**Conclusion:** across all 6 pilot warm cells the world model "
-      "reconstructs and predicts (image loss → <1, >90% drop) while the "
-      "controller clears ≈0 levels. The report's claim — *the signature "
-      "reproduces across cells* — is now evidenced, not asserted, for the "
+      "reconstructs and predicts (image loss -> <1, >90% drop) while the "
+      "controller clears ~0 levels. The report's claim - *the signature "
+      "reproduces across cells* - is now evidenced, not asserted, for the "
       "pilot warm arm including both gate-failure games.")
     P("")
     P("## Scope / honesty")
     P("")
     P("- Covers the **6 pilot warm cells** only (loss curves present locally).")
     P("- tn36/ls20/lf52 and the entire cold arm are RHAE=0 "
-      "(`analysis/benchmark_table.md`) — controller-fails confirmed there too, "
+      "(`analysis/benchmark_table.md`) - controller-fails confirmed there too, "
       "but their per-cell WM-loss curves are B2-only and the WM-fits half is "
       "NOT independently re-derived here. Stated as a limitation.")
     P("- Loss series are ordinal DV3 report windows (no per-line env-step in "

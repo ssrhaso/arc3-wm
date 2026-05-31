@@ -122,7 +122,7 @@ def eval_fields_from_rewards(eval_path):
 
     For each episode, ``score = sum(rewards) = total levels cleared in that
     episode`` (the rewards stream is +1 per level cleared per arc3_wm/env.py).
-    This is the canonical source — ``scores.jsonl`` ``eval/episode/score`` events
+    This is the canonical source - ``scores.jsonl`` ``eval/episode/score`` events
     were observed to be unreliable across the from-scratch (cold) runs on
     2026-05-14 (yielded 0 across all eval episodes while the rewards-derived
     RHAE was non-zero). Using rewards uniformly keeps both arms comparable.
@@ -303,7 +303,7 @@ def main(argv=None):
                     ax.scatter([p[0] for p in nz], [p[1] for p in nz],
                                color=color, s=18, alpha=0.7, zorder=3)
         ax.set_title(game)
-        ax.set_xlabel("env-step (×1000)")
+        ax.set_xlabel("env-step (x1000)")
         ax.set_xlim(0, TOTAL_STEPS / 1000)
         ax.grid(True, alpha=0.3)
         ax.legend(loc="upper right", fontsize=7, framealpha=0.9)
@@ -325,7 +325,7 @@ def main(argv=None):
     print("=== 6. Paired markdown ===")
     COMPARE_MD.parent.mkdir(parents=True, exist_ok=True)
     L = []
-    L.append("# Phase 4: from-scratch (cold) vs pretrained (warm) — paired comparison")
+    L.append("# Phase 4: from-scratch (cold) vs pretrained (warm) - paired comparison")
     L.append("")
     L.append("Single A100 SXM4 40GB, 3 games x 2 seeds x 500k env-steps, "
              "stock DV3 `--configs size12m arc3 --script train_eval`.")
@@ -334,7 +334,7 @@ def main(argv=None):
     L.append("")
     L.append("## Paired table")
     L.append("")
-    L.append("| game | seed | warm RHAE | cold RHAE | Δ RHAE | warm levels | cold levels | "
+    L.append("| game | seed | warm RHAE | cold RHAE | delta RHAE | warm levels | cold levels | "
              "warm eval clears/n | cold eval clears/n | warm mean eval ep-len | cold mean eval ep-len |")
     L.append("|------|------|-----------|-----------|--------|-------------|-------------|"
              "--------------------|---------------------|------------------------|------------------------|")
@@ -351,7 +351,7 @@ def main(argv=None):
                 f"{c['eval_clears_ge1']}/{c['eval_n']} | {wl:.1f} | {cl:.1f} |"
             )
     L.append("")
-    L.append("## Train-time clears (count of episodes that cleared ≥1 level during train)")
+    L.append("## Train-time clears (count of episodes that cleared >=1 level during train)")
     L.append("")
     L.append("| game | seed | warm train clears/n | cold train clears/n |")
     L.append("|------|------|---------------------|---------------------|")
@@ -364,7 +364,7 @@ def main(argv=None):
     L.append("")
     L.append("## Deltas (cold - warm)")
     L.append("")
-    L.append("| game-seed | Δ RHAE | Δ eval clears | Δ eval ep-count |")
+    L.append("| game-seed | delta RHAE | delta eval clears | delta eval ep-count |")
     L.append("|-----------|--------|---------------|------------------|")
     for k, v in deltas.items():
         L.append(f"| {k} | {v['rhae_delta']:+.4f} | {v['clears_delta']:+d} | {v['ep_count_delta']:+d} |")
