@@ -1,4 +1,4 @@
-"""Phase 3 pretrain smoke — Vast-only.
+"""Phase 3 pretrain smoke - Vast-only.
 
 Gates step 5b. Validates that the WM-only path actually trains: a real
 ``WMOnlyAgent`` (subclass of dreamerv3.agent.Agent) on a tiny synthetic
@@ -18,7 +18,7 @@ What this script intentionally does NOT do:
   fabricated step dicts so JAX compilation dominates wall-clock and
   curves stabilise within ~minutes. The full-buffer run is the actual
   Phase-3 pretrain (scripts/pretrain_wm.py main).
-- Wire in the RHAE held-out hook. That's step 5b — the gate this
+- Wire in the RHAE held-out hook. That's step 5b - the gate this
   smoke informs.
 - Save anything outside ``--logdir/scope/*.jsonl`` (and the
   per-step-cadence checkpoints under ``--logdir/ckpt/``). The smoke
@@ -65,7 +65,7 @@ N_SYNTHETIC_TRANSITIONS = 2000
 """Just past the warmup gate. The pretrain loop guards on
 ``len(replay) >= batch_size * batch_length`` (1024 with size12m
 defaults), and embodied's Replay counts sample-able batch_length
-windows rather than raw steps — so an undersized buffer reports
+windows rather than raw steps - so an undersized buffer reports
 len()==0 and the loop breaks before any wm_train fires. 2000 gives
 ~30 windows' worth, still small enough that JAX compilation
 dominates wall-clock."""
@@ -90,7 +90,7 @@ def build_argparser() -> argparse.ArgumentParser:
 def _fabricate_buffer(replay, n_transitions: int, batch_length: int) -> int:
     """Lay down ``n_transitions`` synthetic step dicts in ``replay``.
 
-    The buffer schema mirrors what arc3_wm.replay_loader emits — the
+    The buffer schema mirrors what arc3_wm.replay_loader emits - the
     real loader is faster to bypass for the smoke, since the structural
     correctness of replay loading is already covered by
     ``tests/test_replay_loader.py``.
@@ -120,7 +120,7 @@ def _fabricate_buffer(replay, n_transitions: int, batch_length: int) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> None:
     args = build_argparser().parse_args(argv)
 
-    # Lazy heavy imports — laptop-importable for argparse-only checks.
+    # Lazy heavy imports - laptop-importable for argparse-only checks.
     import elements
     import embodied
 
@@ -132,13 +132,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # smoke actually terminates.
     parsed_args, leftover = P.parse_args([
         "--logdir", args.logdir,
-        # Smoke doesn't read replays — point at a non-existent path the
+        # Smoke doesn't read replays - point at a non-existent path the
         # populate_buffer code path never runs against.
         "--replays-root", "/dev/null",
         "--seed", str(args.seed),
         "--run.steps", str(args.steps),
         # Force checkpoint cadence to fire near end of run, not every
-        # 30 min — the smoke is < 30 min total.
+        # 30 min - the smoke is < 30 min total.
         "--run.save_every", "60",
         "--run.log_every", "5",
     ])
@@ -157,7 +157,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     n = _fabricate_buffer(replay, N_SYNTHETIC_TRANSITIONS, config.batch_length)
     print(f"Pre-populated buffer: {n} transitions, len(replay)={len(replay)}")
 
-    # The real WMOnlyAgent — subclass of dreamerv3.agent.Agent.
+    # The real WMOnlyAgent - subclass of dreamerv3.agent.Agent.
     agent = P.make_wm_only_agent(config)
     print("WMOnlyAgent constructed; entering pretrain_wm_loop.")
 
@@ -175,11 +175,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         replay_context=config.replay_context,
     )
 
-    # RHAE held-out hook (G2) — smoke uses the holdout=None sentinel so
+    # RHAE held-out hook (G2) - smoke uses the holdout=None sentinel so
     # we verify schedule + rhae/level_up_prob key on the real WMOnlyAgent
     # without needing a shape-correct held-out batch. Real value flow
     # lands before Run B. Cadence picked so 1500 outer-loop steps emit
-    # 15 entries (steps 0, 100, ..., 1400) — matches Run A criterion (c).
+    # 15 entries (steps 0, 100, ..., 1400) - matches Run A criterion (c).
     hook = P.RHAEHeldOutHook(holdout=None, every_n_steps=100)
     print(f"RHAE hook: holdout=None sentinel, every_n_steps=100 "
           f"(expected emissions in {args.steps} steps: "

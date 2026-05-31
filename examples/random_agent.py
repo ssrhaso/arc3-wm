@@ -1,7 +1,7 @@
 """Plug-and-play demo: a random agent on ARC-AGI-3 via the Gymnasium seam.
 
 This is the minimal proof that ARC-AGI-3 is a standard `gymnasium.Env`
-through `arc3_wm` — no JAX, no DreamerV3, no GPU, ~10 lines of agent.
+through `arc3_wm` - no JAX, no DreamerV3, no GPU, ~10 lines of agent.
 Anything that drives a Gym env drives this.
 
 Prerequisites (one-time, see docs/using-the-wrapper.md):
@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         # non-OFFLINE mode and uncached environment_files/<game>/.
         print(f"Setup error: {e}", file=sys.stderr)
         print(
-            "See docs/using-the-wrapper.md § Prerequisites "
+            "See docs/using-the-wrapper.md Section Prerequisites "
             "(cache_env_files.py + .env).",
             file=sys.stderr,
         )

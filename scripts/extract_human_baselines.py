@@ -14,11 +14,11 @@ files under ``data/replays/{game_id}/``. The fixture is consumed by
 Per Decision A (this session), ``total_levels`` is read from the
 JSONL ``win_levels`` field (sourced from ``arc_agi.FrameData.win_levels``
 per ``arc3_wm/env.py:148``; documented at ``docs/replay-format.md``).
-It is per-game-constant — the extractor asserts every row of every
+It is per-game-constant - the extractor asserts every row of every
 session for a game agrees on ``win_levels`` and raises loudly on
 mismatch (cheap insurance against replay/build drift).
 
-Per Decision B (this session, mirrors Notion "RHAE — reference >
+Per Decision B (this session, mirrors Notion "RHAE - reference >
 Coverage threshold"), the ``baselines`` map only contains levels with
 ``n >= min_completers`` (default 2). Levels with a single completer are
 statistically indefensible as a median and are silently dropped from
@@ -38,7 +38,7 @@ Output fixture shape (per Decision A)::
 
 Per D5 (prior session) this reuses ``arc3_wm.replay_loader.load_replay_file``
 for cn04-safe episode segmentation. Per D1 the upper-median rule is
-``sorted(values)[len(values) // 2]`` 0-indexed — methodology.md's
+``sorted(values)[len(values) // 2]`` 0-indexed - methodology.md's
 "upper of two middle entries". Per-session aggregation: each
 ``.recording.jsonl`` contributes one entry per level it cleared, the
 MIN across the session's episodes (best attempt). Each session
@@ -66,8 +66,8 @@ def upper_median(values: List[int]) -> int:
     """methodology.md / D1: ``sorted(values)[len(values) // 2]`` 0-indexed.
 
     For odd n this is the true middle entry; for even n it's the upper
-    of the two middle entries (e.g. n=2 → larger; n=10 → index 5).
-    For n=1 the rule degenerates to the sole value. For n=0 raises —
+    of the two middle entries (e.g. n=2 -> larger; n=10 -> index 5).
+    For n=1 the rule degenerates to the sole value. For n=0 raises -
     no median is defined.
     """
     if not values:
@@ -78,7 +78,7 @@ def upper_median(values: List[int]) -> int:
 def count_actions_per_level(
     episode: List[Mapping[str, Any]],
 ) -> dict[int, int]:
-    """Per-episode 1-indexed-level → action-count for COMPLETED levels.
+    """Per-episode 1-indexed-level -> action-count for COMPLETED levels.
 
     Method: walk the episode's step-dict list and maintain the cumulative
     reward (which equals ``levels_completed`` at the time of obs[i],
@@ -86,11 +86,11 @@ def count_actions_per_level(
     levels_completed[i-1]`` and ``cum_reward`` resets to 0 with the
     first step). The player's CURRENT level at step ``i`` is
     ``cum_reward + 1``. The action at the sentinel last step
-    (``is_last=True``) is a loader-padding placeholder — not a real
-    action — so it must NOT contribute to any level's count.
+    (``is_last=True``) is a loader-padding placeholder - not a real
+    action - so it must NOT contribute to any level's count.
 
     After the walk, ``cum_reward`` equals the total number of levels
-    cleared in this episode. Only levels with index ≤ that count are
+    cleared in this episode. Only levels with index <= that count are
     "completed" and appear in the output; partial counts for the level
     the player died on are filtered out.
     """
@@ -141,7 +141,7 @@ def read_win_levels(path: Path) -> int:
 
     Raises if no row carries a non-zero ``win_levels`` (empty/malformed
     file) or if non-zero rows disagree (engine recorded inconsistent
-    game state — surface, don't guess).
+    game state - surface, don't guess).
     """
     path = Path(path)
     seen: set[int] = set()
@@ -184,7 +184,7 @@ def extract_baselines(
     (sorted by full path). For each file:
 
     1. Read ``win_levels`` from the JSONL; assert per-game-constant
-       across all sessions of the same game (raises on mismatch — cheap
+       across all sessions of the same game (raises on mismatch - cheap
        insurance against replay/build drift).
     2. Parse episodes via ``load_replay_file``; collapse to per-level
        action counts via ``extract_per_session_baselines``.
@@ -305,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     n_levels_total = sum(v["total_levels"] for v in baselines.values())
     print(
-        f"Wrote {len(baselines)} games to {args.out} — "
+        f"Wrote {len(baselines)} games to {args.out} - "
         f"{n_covered_total}/{n_levels_total} covered levels "
         f"({n_covered_total / max(1, n_levels_total):.0%} RHAE coverage)"
     )

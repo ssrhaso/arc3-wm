@@ -203,7 +203,7 @@ def reconstruction_panel():
 
     cv = Image.new("RGB", (10, 10)); cd = ImageDraw.Draw(cv)
     caption = ("Top row: real game frames. Bottom row: the world model's predictions of them, made "
-               "open-loop — the model is not shown the real frames, it generates them from its own "
+               "open-loop - the model is not shown the real frames, it generates them from its own "
                "internal state. They match, which is evidence the model has learned vc33's dynamics.")
     cap_lines = _wrap(cd, caption, f_cap, lab_w + pw)
     cap_h = len(cap_lines) * 27 + 16
@@ -212,7 +212,7 @@ def reconstruction_panel():
     CH = margin + title_h + ph + cap_h + margin
     canvas = Image.new("RGB", (CW, CH), BG)
     d = ImageDraw.Draw(canvas)
-    title = "What the world model “sees”: open-loop prediction on vc33"
+    title = "What the world model "sees": open-loop prediction on vc33"
     for i, ln in enumerate(_wrap(d, title, f_title, CW - 2 * margin)):
         _text_centered(d, CW / 2, margin + i * 40, ln, f_title, INK)
 
@@ -263,13 +263,13 @@ def schematic():
     ax.text(6, 6.05, "The world model (DreamerV3) used in this project", ha="center",
             fontsize=15, fontweight="bold", color="#18181c")
 
-    box(0.3, 3.7, 1.9, 1.2, "Game frame\n(64×64 grid)", "#ffffff", gray, fs=11)
+    box(0.3, 3.7, 1.9, 1.2, "Game frame\n(64x64 grid)", "#ffffff", gray, fs=11)
     box(2.8, 3.7, 1.7, 1.2, "Encoder\n(CNN)", "#eaf4ff", blue, fs=11)
     box(5.1, 3.4, 2.3, 1.8, "Latent state\n$z_t$\n(compressed\nmemory)", "#eaffe6", green, fs=12)
     # prediction heads
-    box(8.2, 5.0, 3.4, 0.95, "Decoder → predicted next frame", "#fff7e8", amber, fs=11)
-    box(8.2, 3.85, 3.4, 0.95, "Reward head → will I score?", "#fff7e8", amber, fs=11)
-    box(8.2, 2.7, 3.4, 0.95, "Continue head → game over?", "#fff7e8", amber, fs=11)
+    box(8.2, 5.0, 3.4, 0.95, "Decoder -> predicted next frame", "#fff7e8", amber, fs=11)
+    box(8.2, 3.85, 3.4, 0.95, "Reward head -> will I score?", "#fff7e8", amber, fs=11)
+    box(8.2, 2.7, 3.4, 0.95, "Continue head -> game over?", "#fff7e8", amber, fs=11)
 
     arrow(2.2, 4.3, 2.8, 4.3)
     arrow(4.5, 4.3, 5.1, 4.3)
@@ -322,18 +322,18 @@ def task_and_rollouts():
     # Panel 1 is the genuine first observation of vc33 level 1 (verified pixel-
     # identical to env.reset() and to the model's own frame 0). Panel 2 is the
     # level-1 solved/goal state (the level-up happens on the next replay row).
-    # Panel 3 is a real frame from the trained model's play — level 2, i.e. it
+    # Panel 3 is a real frame from the trained model's play - level 2, i.e. it
     # cleared level 1 (verified by matching the human level dictionary).
     vw = gif_frames(VC33_POLICY)        # trained policy -> level 2 (cleared level 1)
     level_ladder(
         [
-            (upscale(_hframe(rows, 0), 7), "Level 1 — start"),
-            (upscale(_hframe(rows, 6), 7), "Level 1 — solved"),
-            (upscale(vw[469], 7), "Level 2 — reached by our model"),
+            (upscale(_hframe(rows, 0), 7), "Level 1 - start"),
+            (upscale(_hframe(rows, 6), 7), "Level 1 - solved"),
+            (upscale(vw[469], 7), "Level 2 - reached by our model"),
         ],
         "Our model clears level 1 of vc33",
         "Level 1 starts (left) and is solved by reaching its goal (centre); that advances the player "
-        "to level 2 (right). Our trained model does this — it clears level 1 and reaches level 2 "
+        "to level 2 (right). Our trained model does this - it clears level 1 and reaches level 2 "
         "(the right panel is a real frame from its own play). Confirmed in evaluation: it cleared "
         "level 1 in 4 of 23 episodes (RHAE > 0). It then plateaus at level 2.",
         "fig4_solved_vc33.png",
@@ -347,7 +347,7 @@ def task_and_rollouts():
         "A task our model does NOT solve (sb26)",
         "Start", "After the agent acts",
         "sb26 asks the player to fill the slots to match the target tiles (top row). Our agent does "
-        "act — it places a couple of tiles (right) — but never completes the puzzle correctly: it "
+        "act - it places a couple of tiles (right) - but never completes the puzzle correctly: it "
         "scored 0 in all 24 evaluation episodes. This is the typical failure: plausible moves, no "
         "solution.",
         "fig5_notsolved_sb26.png",
@@ -367,7 +367,7 @@ def activity_timeline():
     dv, dl = diffs(VC33_POLICY), diffs(LF52_POLICY)
     fig, (a1, a2) = plt.subplots(2, 1, figsize=(11, 5.2), dpi=150, sharex=False)
     a1.plot(dv, color="#4FCC30", lw=1.3)
-    a1.set_title("vc33  —  our model engages with the game", fontsize=13, fontweight="bold", loc="left")
+    a1.set_title("vc33  -  our model engages with the game", fontsize=13, fontweight="bold", loc="left")
     a1.set_ylabel("grid change\nper step")
     spikes = [i for i in range(len(dv)) if dv[i] > 4]
     a1.scatter(spikes, dv[spikes], color="#F93C31", zorder=5, s=28)
@@ -376,10 +376,10 @@ def activity_timeline():
                 fontsize=10, color="#F93C31",
                 arrowprops=dict(arrowstyle="->", color="#F93C31"))
     a2.plot(dl, color="#1E93FF", lw=1.3)
-    a2.set_title("lf52  —  our model is inert", fontsize=13, fontweight="bold", loc="left")
+    a2.set_title("lf52  -  our model is inert", fontsize=13, fontweight="bold", loc="left")
     a2.set_ylabel("grid change\nper step")
     a2.set_xlabel("step within one rollout")
-    a2.annotate("the grid barely changes — the agent never gets anywhere",
+    a2.annotate("the grid barely changes - the agent never gets anywhere",
                 xy=(len(dl) * 0.5, dl.max()), xytext=(len(dl) * 0.22, dv.max() * 0.55),
                 fontsize=10, color="#1E93FF",
                 arrowprops=dict(arrowstyle="->", color="#1E93FF"))
@@ -407,11 +407,11 @@ def export_raw():
     sb = gif_frames(next((PULL / "p4-sb26-s0-warm-98de390/media/videos/epstats").glob("*.gif")))
 
     items = {
-        # fig4 — 3-step progression: L1 start -> L1 solved -> L2 (model)
+        # fig4 - 3-step progression: L1 start -> L1 solved -> L2 (model)
         "fig4_left_vc33_level1_start.png": upscale(_hframe(rows, 0), 8),
         "fig4_mid_vc33_level1_solved.png": upscale(_hframe(rows, 6), 8),
         "fig4_right_vc33_trained_level2.png": upscale(vw[469], 8),
-        # fig5 — not solved by our model (sb26)
+        # fig5 - not solved by our model (sb26)
         "fig5_left_sb26_start.png": upscale(sb[0], 8),
         "fig5_right_sb26_after.png": upscale(sb[-1], 8),
     }
@@ -419,7 +419,7 @@ def export_raw():
         img.save(raw / name)
         print("wrote RAW/", name, img.size)
 
-    # fig2 — clean truth-vs-prediction grid (borders + error row removed), no labels.
+    # fig2 - clean truth-vs-prediction grid (borders + error row removed), no labels.
     _clean_openloop_grid(gif_frames(VC33_OPENL)[28]).save(
         raw / "fig2_wm_reconstruction_panel.png")
     print("wrote RAW/ fig2_wm_reconstruction_panel.png")

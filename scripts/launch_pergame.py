@@ -141,7 +141,7 @@ def load_merged_configs() -> dict:
 
     if "defaults" not in base:
         raise RuntimeError(
-            f"{DREAMERV3_CONFIG_PATH} missing 'defaults' block — dreamerv3 changed?"
+            f"{DREAMERV3_CONFIG_PATH} missing 'defaults' block - dreamerv3 changed?"
         )
 
     # Inject per-suite defaults into the dreamerv3 'defaults' block.
@@ -204,7 +204,7 @@ def _download_to_cache(url: str, cache_dir: Path) -> Path:
     Shells out to ``b2 file download`` for b2:// URLs (auth via the
     ``b2`` CLI's configured account) and ``curl`` for http(s)://. The
     target filename is the URL's basename; existing files are reused
-    (idempotent — re-running the launcher doesn't re-download).
+    (idempotent - re-running the launcher doesn't re-download).
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     name = url.rsplit("/", 1)[-1] or "ckpt.pkl"
@@ -213,7 +213,7 @@ def _download_to_cache(url: str, cache_dir: Path) -> Path:
         return target
 
     if url.startswith("b2://"):
-        # b2://bucket/key... → b2 file download b2://bucket/key... <target>
+        # b2://bucket/key... -> b2 file download b2://bucket/key... <target>
         cmd = ["b2", "file", "download", url, str(target)]
     else:
         cmd = ["curl", "-fSL", url, "-o", str(target)]
@@ -259,7 +259,7 @@ def seed_wm_from_ckpt(agent: Any, ckpt_path: Path) -> dict[str, Any]:
 
     Steps:
 
-    1. ``pickle.load(open(ckpt_path, 'rb'))`` — yields ``{'params': ..., 'counters': ...}``.
+    1. ``pickle.load(open(ckpt_path, 'rb'))`` - yields ``{'params': ..., 'counters': ...}``.
     2. Validate top-level shape (raises if either key missing).
     3. Mutate ``state['counters']`` to all-zero (Phase-4 starts fresh).
     4. Validate the WM regex matches exactly ``WM_KEY_COUNT`` keys and
@@ -322,7 +322,7 @@ def seed_wm_from_ckpt(agent: Any, ckpt_path: Path) -> dict[str, Any]:
 
     agent.load(state, regex=WM_REGEX)
 
-    # Live-agent counter assertion — verifies agent.load() actually
+    # Live-agent counter assertion - verifies agent.load() actually
     # applied the reset (defends against an agent.load() refactor that
     # silently re-derives counters from elsewhere). Reads through the
     # real Counter objects' .value attribute; tests must set these to
@@ -392,7 +392,7 @@ def make_agent(config):
     import embodied
 
     env = make_env(config, 0)
-    notlog = lambda k: not k.startswith("log/")  # noqa: E731 — matches dreamerv3 style
+    notlog = lambda k: not k.startswith("log/")  # noqa: E731 - matches dreamerv3 style
     obs_space = {k: v for k, v in env.obs_space.items() if notlog(k)}
     act_space = {k: v for k, v in env.act_space.items() if k != "reset"}
     env.close()
@@ -454,7 +454,7 @@ def vast_only_isinstance_check(env) -> None:
     """
     try:
         from embodied.core.base import Env as _EmbodiedEnv
-    except Exception:  # noqa: BLE001 — laptop import path is intentionally tolerant
+    except Exception:  # noqa: BLE001 - laptop import path is intentionally tolerant
         return
     has_iface = hasattr(env, "obs_space") and hasattr(env, "act_space") and hasattr(env, "step")
     assert isinstance(env, _EmbodiedEnv) or has_iface, (
@@ -542,7 +542,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         # Wrap the eval env factory with EvalRewardSink so each eval
         # episode's reward stream lands in {logdir}/eval_episodes.jsonl
         # for scripts/compute_rhae.py to consume post-hoc. Training
-        # rollouts use the unwrapped factory — wrapping them would
+        # rollouts use the unwrapped factory - wrapping them would
         # record policy-noise rewards (no RHAE signal) and balloon the
         # file. Append mode survives preemption-resume; compute_rhae's
         # MIN-across-episodes aggregation tolerates duplicated entries.

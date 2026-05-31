@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 4 proper launch harness — 3 games x 2 seeds x 500k env-steps, stock DV3.
+# Phase 4 proper launch harness - 3 games x 2 seeds x 500k env-steps, stock DV3.
 # Sequential on one A100. NO HP deviation from the dry-run (configs size12m arc3,
 # train_ratio=32). Pinned to analysis sha d9ed09e (H2-aware run plan).
 #
@@ -10,7 +10,7 @@
 #
 # Soft-fail policy: RHAE=0 / no levels cleared is a valid scientific outcome and
 # does NOT stop the harness. Hard-fail (non-zero exit, NaN, OOM, CUDA error,
-# Arcade crash) DOES stop the harness — see CLAUDE.md Risks-4.
+# Arcade crash) DOES stop the harness - see CLAUDE.md Risks-4.
 
 set -eo pipefail
 
@@ -80,7 +80,7 @@ run_one() {
   fi
   # Surgical fail detection. The old coarse `grep -i NaN` false-positives on
   # the benign startup `replay/replay_ratio nan` (pre-first-update) and aborts
-  # a clean run — aligned to the from-scratch harness's detector.
+  # a clean run - aligned to the from-scratch harness's detector.
   if grep -qE "train/loss/[A-Za-z]+ nan" "${stdout_log}"; then
     echo "FATAL: ${run_name} train loss went NaN. Stopping harness."
     grep -nE "train/loss/[A-Za-z]+ nan" "${stdout_log}" | head -10
@@ -125,7 +125,7 @@ for tool in python b2 tar; do
   command -v "${tool}" >/dev/null 2>&1 || { echo "FATAL: ${tool} not on PATH"; exit 1; }
 done
 [[ -f "${BASELINES}" ]] || { echo "FATAL: ${BASELINES} missing"; exit 1; }
-[[ -f scripts/launch_pergame.py ]] || { echo "FATAL: scripts/launch_pergame.py missing — wrong cwd?"; exit 1; }
+[[ -f scripts/launch_pergame.py ]] || { echo "FATAL: scripts/launch_pergame.py missing - wrong cwd?"; exit 1; }
 
 for game in "${GAMES[@]}"; do
   for seed in "${SEEDS[@]}"; do

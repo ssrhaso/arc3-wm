@@ -15,7 +15,7 @@ import sys
 
 os.environ["OPERATION_MODE"] = "normal"
 
-# Import only after env override — arc_agi.base.load_dotenv runs at import time
+# Import only after env override - arc_agi.base.load_dotenv runs at import time
 # but with override=False, so our os.environ takes precedence over .env.
 import arc_agi  # noqa: E402
 

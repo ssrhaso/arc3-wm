@@ -1,7 +1,7 @@
 """Plug-and-play demo: drive ARC-AGI-3 through the *registered* gym id.
 
 This is the "formalised gym env" proof: no direct class import, no
-`arc3_wm` symbol referenced in the agent at all — just the standard
+`arc3_wm` symbol referenced in the agent at all - just the standard
 `gymnasium.make("ARC3/<game>-v0")` entry point that `import arc3_wm`
 registers. Anything that resolves a Gymnasium id (sb3, cleanrl, your
 own loop) reaches ARC-AGI-3 this way.
@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         import numpy as np
 
         # The import that performs registration. No other arc3_wm symbol
-        # is used below — the registered id is the whole integration point.
+        # is used below - the registered id is the whole integration point.
         import arc3_wm
         from arc3_wm.registration import env_id
     except ImportError as e:
@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as e:  # arc3_wm raises clear RuntimeErrors for setup misses
         print(f"Setup error: {e}", file=sys.stderr)
         print(
-            "See docs/using-the-wrapper.md § Prerequisites "
+            "See docs/using-the-wrapper.md Section Prerequisites "
             "(cache_env_files.py + .env).",
             file=sys.stderr,
         )

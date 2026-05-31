@@ -12,7 +12,7 @@
 *.md    text eol=lf
 *.sh    text eol=lf
 
-# Binary artifacts — never normalise, never line-diff.
+# Binary artifacts - never normalise, never line-diff.
 *.tar.gz binary
 *.png    binary
 *.jpg    binary

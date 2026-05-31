@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 4 EXPANSION warm-arm launch harness — 3 ADDITIONAL games x 2 seeds x 500k
+# Phase 4 EXPANSION warm-arm launch harness - 3 ADDITIONAL games x 2 seeds x 500k
 # env-steps, stock DV3, warm-started from the Phase-3 WM. Byte-faithful copy of
 # scripts/launch_phase4_proper.sh; the ONLY differences are:
 #   - GAMES is the expansion trio (tn36 ls20 lf52), not the pilot
@@ -16,7 +16,7 @@
 #
 # Soft-fail policy: RHAE=0 / no levels cleared is a valid scientific outcome and
 # does NOT stop the harness. Hard-fail (non-zero exit, NaN, OOM, CUDA error,
-# Arcade crash) DOES stop the harness — see CLAUDE.md Risks-4.
+# Arcade crash) DOES stop the harness - see CLAUDE.md Risks-4.
 
 set -eo pipefail
 
@@ -92,7 +92,7 @@ run_one() {
   fi
   # Surgical fail detection (was a coarse `grep -i NaN`, which false-positives
   # on the benign startup `replay/replay_ratio nan` before the first training
-  # update — that killed p4-tn36-s0-warm after a clean 500k run). Flag only:
+  # update - that killed p4-tn36-s0-warm after a clean 500k run). Flag only:
   #   (a) train losses going NaN in any logged window
   #   (b) explicit error tokens (Traceback, OOM, CUDA error, Arcade crash)
   if grep -qE "train/loss/[A-Za-z]+ nan" "${stdout_log}"; then
@@ -139,7 +139,7 @@ for tool in python b2 tar; do
   command -v "${tool}" >/dev/null 2>&1 || { echo "FATAL: ${tool} not on PATH"; exit 1; }
 done
 [[ -f "${BASELINES}" ]] || { echo "FATAL: ${BASELINES} missing"; exit 1; }
-[[ -f scripts/launch_pergame.py ]] || { echo "FATAL: scripts/launch_pergame.py missing — wrong cwd?"; exit 1; }
+[[ -f scripts/launch_pergame.py ]] || { echo "FATAL: scripts/launch_pergame.py missing - wrong cwd?"; exit 1; }
 
 for game in "${GAMES[@]}"; do
   for seed in "${SEEDS[@]}"; do

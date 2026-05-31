@@ -7,7 +7,7 @@ Validates that:
   - get_scorecard() returns a populated EnvironmentScorecard with per-level
     actions/baselines.
 
-No render_mode — exercises the high-FPS path. Exits non-zero on any failure.
+No render_mode - exercises the high-FPS path. Exits non-zero on any failure.
 
 Usage:
     .venv/Scripts/python.exe scripts/random_agent_smoke.py

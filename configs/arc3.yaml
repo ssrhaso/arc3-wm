@@ -19,24 +19,24 @@ arc3:
 # script name. The actual loop is scripts.pretrain_wm.pretrain_wm_loop.
 pretrain:
   script: pretrain_wm
-  task: arc3_pretrain  # logical-only — no env is constructed during pretrain
+  task: arc3_pretrain  # logical-only - no env is constructed during pretrain
   # Offline WM-only pretraining has no actor, so the enc/dyn/dec entry keys
   # that replay_context > 0 expects in every batch are never written into
   # the buffer. Set to 0 so ext_space drops those keys and chunks start
-  # cold via is_first. See docs/design-decisions.md §D14.
+  # cold via is_first. See docs/design-decisions.md Section D14.
   replay_context: 0
   run:
     # Wall-clock-bounded; targets ~5h on H100 at size12m's ~12k FPS
-    # ≈ ~220M training steps. The buffer is ~180k transitions so this
-    # is many epochs — by design (DreamerV3 trains to convergence on
+    # ~ ~220M training steps. The buffer is ~180k transitions so this
+    # is many epochs - by design (DreamerV3 trains to convergence on
     # the buffer, not by epoch count).
     steps: 2.2e8
     log_every: 120
     report_every: 300
-    save_every: 1800   # 30 min — Phase-3 gate row 5
+    save_every: 1800   # 30 min - Phase-3 gate row 5
 
 # Note: no Crafter "sanity" block. Use the dreamerv3-shipped 'crafter' block
 # (train_ratio=512, envs=1, task=crafter_reward) and override --run.steps on
 # the CLI for short runs. An earlier crafter_sanity block here overrode
-# train_ratio=32, which silently breaks the Hafner-tuned Crafter regime —
+# train_ratio=32, which silently breaks the Hafner-tuned Crafter regime -
 # removed to avoid that footgun.

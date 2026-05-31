@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 4 EXPANSION from-scratch (cold-arm) launch harness — 3 ADDITIONAL games
+# Phase 4 EXPANSION from-scratch (cold-arm) launch harness - 3 ADDITIONAL games
 # x 2 seeds x 500k env-steps, stock DV3, NO warm-start. Byte-faithful copy of
 # scripts/launch_phase4_fromscratch.sh; the ONLY differences are:
 #   - GAMES is the expansion trio (tn36 ls20 lf52), not the pilot
@@ -16,7 +16,7 @@
 #
 # Soft-fail policy: RHAE=0 / no levels cleared is a valid scientific outcome and
 # does NOT stop the harness. Hard-fail (non-zero exit, NaN, OOM, CUDA error,
-# Arcade crash) DOES stop the harness — see CLAUDE.md Risks-4.
+# Arcade crash) DOES stop the harness - see CLAUDE.md Risks-4.
 
 set -eo pipefail
 
@@ -136,7 +136,7 @@ for tool in python b2 tar git; do
   command -v "${tool}" >/dev/null 2>&1 || { echo "FATAL: ${tool} not on PATH"; exit 1; }
 done
 [[ -f "${BASELINES}" ]] || { echo "FATAL: ${BASELINES} missing"; exit 1; }
-[[ -f scripts/launch_pergame.py ]] || { echo "FATAL: scripts/launch_pergame.py missing — wrong cwd?"; exit 1; }
+[[ -f scripts/launch_pergame.py ]] || { echo "FATAL: scripts/launch_pergame.py missing - wrong cwd?"; exit 1; }
 
 for game in "${GAMES[@]}"; do
   for seed in "${SEEDS[@]}"; do

@@ -5,7 +5,7 @@ run via the canonical ``scripts/compute_rhae.py`` helpers, and emits a
 paired warm-vs-cold table over the 6 benchmark games.
 
 RHAE is **independently level-weighted per game** (each game's score is
-a 1-indexed-level-weighted mean — see ``arc3_wm.rhae.game_score``) and
+a 1-indexed-level-weighted mean - see ``arc3_wm.rhae.game_score``) and
 then combined across games by an unweighted mean
 (``arc3_wm.rhae.total_score``). Global human-baseline coverage
 (``arc3_wm.rhae.coverage``) is reported alongside, per the D-A/D-B
@@ -145,15 +145,15 @@ def build_table(runs: list[dict]) -> dict:
 
 
 def _fmt(x: Optional[float]) -> str:
-    return "—" if x is None else f"{x:.4f}"
+    return "-" if x is None else f"{x:.4f}"
 
 
 def render_md(table: dict, cov: float, step: Optional[int]) -> str:
     step_s = f" @ {step:,} env steps" if step else ""
     lines = [
-        f"# ARC-AGI-3 world-model benchmark — RHAE{step_s}",
+        f"# ARC-AGI-3 world-model benchmark - RHAE{step_s}",
         "",
-        "Stock DreamerV3 (`size12m`), 6 public games × 2 seeds, paired "
+        "Stock DreamerV3 (`size12m`), 6 public games x 2 seeds, paired "
         "cold (from-scratch) vs warm (cross-game WM-pretrained).",
         "",
         f"Human-baseline coverage (D-A/D-B): **{cov:.2%}**. RHAE is "
@@ -186,8 +186,8 @@ def render_md(table: dict, cov: float, step: Optional[int]) -> str:
         f"| {cc['n_scored_games']}/{cc['n_games']} games scored "
         f"| {cw['n_scored_games']}/{cw['n_games']} games scored |",
         "",
-        "_— = no scored seed yet (run pending or no level cleared). "
-        "Paired cold-vs-warm Δ is the cross-game-pretraining test._",
+        "_- = no scored seed yet (run pending or no level cleared). "
+        "Paired cold-vs-warm delta is the cross-game-pretraining test._",
         "",
     ]
     return "\n".join(lines)
@@ -229,7 +229,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print(f"wrote {args.out_md}")
     print()
     # Echo the table. The .md file is UTF-8; a non-UTF-8 console (e.g.
-    # Windows cp1252) can't encode Δ/— — degrade the echo, never crash.
+    # Windows cp1252) can't encode delta/- - degrade the echo, never crash.
     enc = sys.stdout.encoding or "utf-8"
     sys.stdout.write(md.encode(enc, errors="replace").decode(enc) + "\n")
     return 0

@@ -1,9 +1,9 @@
-"""scripts/pretrain_wm.py — Phase 3 cross-game WM pretraining.
+"""scripts/pretrain_wm.py - Phase 3 cross-game WM pretraining.
 
 Sibling of ``scripts/launch_pergame.py``. The launcher trains
 end-to-end on a single arc3_<game> task; this script pretrains the
 World Model only, on a buffer pre-populated with all 340 human
-replays. The actor and critic stay at their initial weights — they're
+replays. The actor and critic stay at their initial weights - they're
 trained per-game in Phase 4 starting from this WM checkpoint.
 
 Phase-3 contract (see ``docs/phase-checklists.md``):
@@ -12,14 +12,14 @@ Phase-3 contract (see ``docs/phase-checklists.md``):
   tiny synthetic buffer; Vast runs the full set).
 - WM-only updates enforced by ``WMOnlyAgent`` overriding
   ``Agent.loss`` + ``Agent.train`` and rebuilding ``self.opt`` over
-  [dyn, enc, dec, rew, con] only — pol/val never see grads. The
+  [dyn, enc, dec, rew, con] only - pol/val never see grads. The
   pretrain loop calls the inherited ``agent.train`` (which now
   IS the WM-only path).
 - All four WM losses (recon, dyn, rew, con) trend down over an epoch.
-- Checkpoint cadence ≥30 min; resume from preemption verified.
+- Checkpoint cadence >=30 min; resume from preemption verified.
 - RHAE held-out hook spikes near actual level-up boundaries.
 
-Public surface — see ``tests/test_pretrain_wm.py`` for the binding
+Public surface - see ``tests/test_pretrain_wm.py`` for the binding
 contract on each entry point. Heavy DV3 / JAX deps stay lazy (laptop
 importability matches ``scripts/launch_pergame.py``).
 """
@@ -41,12 +41,12 @@ ARC3_CONFIG_PATH = _REPO_ROOT / "configs" / "arc3.yaml"
 DREAMERV3_CONFIG_PATH = _DV3 / "dreamerv3" / "configs.yaml"
 
 DEFAULT_CONFIGS_LADDER = ("size12m", "arc3", "pretrain")
-"""Layered on top of dreamerv3's ``defaults`` block. Order matters —
+"""Layered on top of dreamerv3's ``defaults`` block. Order matters -
 ``pretrain`` is rightmost so its overrides win."""
 
 
 _STUB_MSG = (
-    "scripts.pretrain_wm: stub awaiting impl — see "
+    "scripts.pretrain_wm: stub awaiting impl - see "
     "tests/test_pretrain_wm.py for the contract"
 )
 
@@ -92,7 +92,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> tuple[argparse.Namespace
 
 
 # ----------------------------------------------------------------------
-# Config resolution — mirrors scripts/launch_pergame.py
+# Config resolution - mirrors scripts/launch_pergame.py
 # ----------------------------------------------------------------------
 
 
@@ -101,7 +101,7 @@ def load_merged_configs() -> dict:
 
     The arc3.yaml file defines the ``arc3`` and ``pretrain`` blocks;
     block-name collisions with dreamerv3 raise. This function does NOT
-    inject env-suite defaults — pretrain has no env, so the launcher's
+    inject env-suite defaults - pretrain has no env, so the launcher's
     ``env.arc3`` injection is unnecessary here.
     """
     import ruamel.yaml as yaml
@@ -112,7 +112,7 @@ def load_merged_configs() -> dict:
 
     if "defaults" not in base:
         raise RuntimeError(
-            f"{DREAMERV3_CONFIG_PATH} missing 'defaults' block — dreamerv3 changed?"
+            f"{DREAMERV3_CONFIG_PATH} missing 'defaults' block - dreamerv3 changed?"
         )
 
     merged = dict(base)
@@ -178,10 +178,10 @@ def populate_buffer_from_replays(
 
     ``stats`` is updated in place (if provided):
 
-    - ``per_game_counts``: ``dict[str, int]`` — transitions added per
+    - ``per_game_counts``: ``dict[str, int]`` - transitions added per
       ``game_id`` (parent folder name). Phase-3 gate row 1 expects
       this distribution to be roughly even.
-    - ``noise_rows_discarded``: int — threaded through from the loader's
+    - ``noise_rows_discarded``: int - threaded through from the loader's
       post-terminal-noise rule (Phase 1.7).
 
     Each replay-loader episode is added to the buffer as a single
@@ -215,7 +215,7 @@ def make_wm_only_agent(config):
     Phase 3 has no env; obs / act spaces are derived from the
     ``arc3_wm.embodied_env`` contract that the replay loader writes
     against. Mirrors the filtering pattern in ``dreamerv3.main.make_agent``
-    (exclude the ``reset`` action key — pretrain has no driver).
+    (exclude the ``reset`` action key - pretrain has no driver).
     """
     import elements
     import numpy as np
@@ -257,11 +257,11 @@ def _save_checkpoint(ckpt_dir: Path, agent: Any) -> None:
     """Atomic-rename pickle save of ``agent.save()`` under ``ckpt_dir``.
 
     Side-stepping ``elements.Checkpoint`` because its ``_cleanup`` step
-    interacts badly with ``elements.Path.name`` on Windows — that
+    interacts badly with ``elements.Path.name`` on Windows - that
     attribute returns the full path instead of the basename, so the
     "exclude `latest` from cleanup candidates" filter fails and the
     just-created timestamp folder gets deleted on every save. This
-    helper keeps the same contract (agent.save() → bytes → disk) but
+    helper keeps the same contract (agent.save() -> bytes -> disk) but
     uses stdlib pickle + pathlib + os.replace for atomicity.
     """
     import pickle
@@ -292,7 +292,7 @@ def _load_checkpoint_if_exists(ckpt_dir: Path, agent: Any) -> bool:
 
 
 def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
-    """Custom run loop — sibling of ``embodied.run.train``, WM-only.
+    """Custom run loop - sibling of ``embodied.run.train``, WM-only.
 
     Phase-3 contract (verified by tests/test_pretrain_wm.py):
 
@@ -301,7 +301,7 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
       than add a parallel ``wm_train``), this IS the WM-only path:
       pol/val are not in ``self.modules``, no imagination runs, no
       slow-critic update fires.
-    - Never invokes ``agent.policy`` — no env, no Driver, no rollouts.
+    - Never invokes ``agent.policy`` - no env, no Driver, no rollouts.
     - The single rebuilt ``self.opt`` (over [dyn, enc, dec, rew, con])
       is the only optimizer. Pol/val params still exist on the model
       but receive no gradients.
@@ -312,7 +312,7 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
       ``hook(step=step, agent=agent)`` once per outer-loop iteration;
       when it returns a non-None metrics dict, it's forwarded to
       ``logger.add(metrics, prefix="train")``. The hook decides cadence
-      via its own ``every_n_steps`` — the loop is dumb.
+      via its own ``every_n_steps`` - the loop is dumb.
 
     The loop is intentionally simple: each iteration does
     ``int(args.train_ratio)`` ``train`` updates and bumps an integer
@@ -331,7 +331,7 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
     should_log = elements.when.Clock(args.log_every)
     should_save = elements.when.Clock(args.save_every)
 
-    # Buffer warm-up gate — should be a no-op on a pre-populated buffer.
+    # Buffer warm-up gate - should be a no-op on a pre-populated buffer.
     min_buffer = max(1, args.batch_size * args.batch_length)
 
     carry = agent.init_train(args.batch_size)
@@ -342,7 +342,7 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
     if not _load_checkpoint_if_exists(ckpt_dir, agent):
         _save_checkpoint(ckpt_dir, agent)
 
-    # Stream — mirror dreamerv3.main.make_stream exactly. Consec injects
+    # Stream - mirror dreamerv3.main.make_stream exactly. Consec injects
     # the `consec` extra into every batch and slices buffer chunks of
     # size (consec*length + replay_context) into `consec` sub-chunks.
     # agent.stream() then wraps with internal preprocessing (Prefetch on
@@ -377,18 +377,18 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
             batch = next(stream)
             carry, _outs, last_metrics = agent.train(carry, batch)
 
-        # RHAE held-out hook — fires every iteration; hook decides
+        # RHAE held-out hook - fires every iteration; hook decides
         # emission cadence (returns None off-schedule). Logged under
         # the same `prefix="train"` surface as the WM-loss dict.
         if hook is not None:
             try:
                 hook_metrics = hook(step=step, agent=agent)
-            except Exception:  # noqa: BLE001 — mock-friendly
+            except Exception:  # noqa: BLE001 - mock-friendly
                 hook_metrics = None
             if hook_metrics is not None:
                 try:
                     logger.add(hook_metrics, prefix="train")
-                except Exception:  # noqa: BLE001 — mock-friendly
+                except Exception:  # noqa: BLE001 - mock-friendly
                     pass
 
         step += 1
@@ -403,12 +403,12 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
             for k, v in last_metrics.items():
                 try:
                     scalars[k] = float(v)
-                except Exception:  # noqa: BLE001 — non-scalar values are skipped
+                except Exception:  # noqa: BLE001 - non-scalar values are skipped
                     pass
             print(f"[step {step}] n={len(last_metrics)} scalars={scalars}", flush=True)
             try:
                 logger.add(last_metrics, prefix="train")
-            except Exception as e:  # noqa: BLE001 — surface, don't silently swallow
+            except Exception as e:  # noqa: BLE001 - surface, don't silently swallow
                 # Tests still pass because RecordingAgent.last_metrics is a real
                 # dict of floats and the MagicMock logger.add never raises;
                 # production sees the error printed clearly if it ever does.
@@ -418,13 +418,13 @@ def pretrain_wm_loop(*, agent, replay, logger, args, hook=None) -> None:
                     flush=True,
                 )
 
-    # Final checkpoint — guarantees a usable artifact even if save_every
+    # Final checkpoint - guarantees a usable artifact even if save_every
     # never fired during a short run.
     _save_checkpoint(ckpt_dir, agent)
 
 
 class RHAEHeldOutHook:
-    """Periodic held-out-replay hook — Phase-3 gate row 7.
+    """Periodic held-out-replay hook - Phase-3 gate row 7.
 
     Fires on step 0 and every ``every_n_steps`` thereafter; returns a
     metrics dict keyed under ``rhae/*`` for the pretrain logger. On
@@ -441,7 +441,7 @@ class RHAEHeldOutHook:
     on schedule and emits ``rhae/level_up_prob`` (as a placeholder
     ``0.0``), but does NOT call ``agent.report``. This lets the smoke
     (Run A criterion c) verify schedule + key contract on the real
-    ``WMOnlyAgent`` without needing a shape-correct held-out batch —
+    ``WMOnlyAgent`` without needing a shape-correct held-out batch -
     real value flow lands as a follow-up before Run B.
 
     The agent interface is duck-typed: tests pass ``mock.MagicMock`` and
@@ -467,7 +467,7 @@ class RHAEHeldOutHook:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    """Phase-3 entry point — full cross-game WM pretrain on all 340 replays.
+    """Phase-3 entry point - full cross-game WM pretrain on all 340 replays.
 
     Mirrors ``scripts/pretrain_wm_smoke.py::main()`` but with two
     deliberate differences:
@@ -484,14 +484,14 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     """
     import elements
 
-    # Lazy heavy imports — laptop-importable for argparse / orchestration tests.
+    # Lazy heavy imports - laptop-importable for argparse / orchestration tests.
     from dreamerv3.main import make_logger, make_replay
 
     args, leftover = parse_args(argv)
     config = build_config(args, leftover)
 
-    # Ensure JSONL output is on (runbook §B.4 greps assume metrics.jsonl).
-    # Wandb auto-add when WANDB_PROJECT is set — mirrors launch_pergame.py.
+    # Ensure JSONL output is on (runbook Section B.4 greps assume metrics.jsonl).
+    # Wandb auto-add when WANDB_PROJECT is set - mirrors launch_pergame.py.
     import os as _os
     wanted = list(config.logger.outputs)
     if "jsonl" not in wanted:
@@ -544,7 +544,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     # RHAE held-out hook (G2). holdout=None placeholder until shape-correct
     # held-out scoring lands; cadence aligned to the report_every clock
-    # (300 in the pretrain YAML → ~every 5 min of training).
+    # (300 in the pretrain YAML -> ~every 5 min of training).
     hook = RHAEHeldOutHook(holdout=None, every_n_steps=int(config.run.report_every))
 
     pretrain_wm_loop(

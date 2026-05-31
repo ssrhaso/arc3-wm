@@ -2,7 +2,7 @@
 
 Reads a JSONL of per-eval-episode reward streams, segments each episode
 by level via the cumulative-reward signal from ``arc3_wm/env.py:113``
-(``r = Δ levels_completed``), takes MIN action count per level across
+(``r = delta levels_completed``), takes MIN action count per level across
 eval episodes (matching ``extract_human_baselines.extract_per_session_baselines``
 so agent and human are scored under the same "best attempt" framing),
 and feeds the result to ``arc3_wm.rhae.RHAEAggregator`` against
@@ -55,13 +55,13 @@ from arc3_wm.rhae import RHAEAggregator  # noqa: E402
 def segment_episode_actions_per_level(
     rewards: List[float],
 ) -> dict[int, int]:
-    """Single eval episode's reward stream → ``{1-indexed_level: action_count}``
+    """Single eval episode's reward stream -> ``{1-indexed_level: action_count}``
     for CLEARED levels only.
 
     DV3 convention (see ``embodied/run/train_eval.py:48-51``):
     ``rewards[0]`` is the reward at the initial-obs step (always 0; no
     action has been taken yet). ``rewards[1..N-1]`` are post-action
-    rewards. ``r ∈ {0, +1}`` per ``arc3_wm/env.py:113``; +1 fires at the
+    rewards. ``r in {0, +1}`` per ``arc3_wm/env.py:113``; +1 fires at the
     post-level-up obs.
 
     Algorithm: walk ``rewards[1:]`` with a running ``cum_reward``
@@ -80,7 +80,7 @@ def segment_episode_actions_per_level(
         if r_int < 0:
             raise ValueError(
                 f"non-binary or negative reward in stream: {r!r} "
-                f"(expected r ∈ {{0, +1}} per arc3_wm/env.py:113)"
+                f"(expected r in {{0, +1}} per arc3_wm/env.py:113)"
             )
         level = cum_reward + 1
         counts[level] = counts.get(level, 0) + 1
@@ -92,7 +92,7 @@ def segment_episode_actions_per_level(
 def aggregate_eval_episodes(
     episodes_rewards: Iterable[List[float]],
 ) -> dict[int, int]:
-    """Multiple eval episodes for one game → MIN action count per cleared
+    """Multiple eval episodes for one game -> MIN action count per cleared
     level. A level cleared by at least one episode contributes its
     minimum action count; levels no episode cleared are absent.
     """
@@ -112,7 +112,7 @@ def compute_rhae(
     game_id: str,
     baselines: Mapping[str, Mapping],
 ) -> dict:
-    """End-to-end: episodes + game_id + baselines → three-key metrics dict.
+    """End-to-end: episodes + game_id + baselines -> three-key metrics dict.
 
     ``baselines`` is the D-A/D-B fixture shape: per-game
     ``{"total_levels": int, "baselines": {level_idx: int}}``. Level keys
@@ -130,7 +130,7 @@ def load_episodes_from_jsonl(path: Path) -> List[List[float]]:
     """Parse a JSONL where each non-blank line is ``{"rewards": [...]}``.
 
     Missing file raises ``FileNotFoundError`` (the CLI surfaces verbatim).
-    A row without a ``rewards`` key raises ``ValueError`` — malformed
+    A row without a ``rewards`` key raises ``ValueError`` - malformed
     eval log, surface rather than silently emit an empty episode.
     """
     path = Path(path)
@@ -182,7 +182,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Phase-4 post-hoc RHAE: episodes JSONL + per-game baselines "
-            "→ eval/rhae/* metrics + one-line summary."
+            "-> eval/rhae/* metrics + one-line summary."
         )
     )
     parser.add_argument(

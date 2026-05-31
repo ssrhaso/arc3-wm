@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# scripts/stage_env_files.sh — bundle local arc_agi environment_files
+# scripts/stage_env_files.sh - bundle local arc_agi environment_files
 # into a tarball and (optionally) upload to B2.
 #
 # Pattern mirrors the Phase-3 replay tarball staging: the laptop owns
@@ -8,7 +8,7 @@
 # every Vast/5070 instance pulls via curl (read-only) rather than
 # running `gdown` or any per-instance arc_agi download.
 #
-# Background — arc_agi.Arcade resolves env_files from the *current
+# Background - arc_agi.Arcade resolves env_files from the *current
 # working directory* (`arc.environments_dir == 'environment_files'`),
 # not from inside the wheel. A clean Vast install of arc_agi has no
 # cached env_files, so `Arcade.make('vc33')` fails. The Phase-3
@@ -41,7 +41,7 @@ cmd="${1:-help}"
 case "$cmd" in
   bundle)
     # Bundle the local environment_files/ into a gzipped tarball next
-    # to the script's working directory. Idempotent — overwrites.
+    # to the script's working directory. Idempotent - overwrites.
     if [ ! -d environment_files ]; then
       echo "error: ./environment_files/ not found in $(pwd); run from repo root." >&2
       exit 1
