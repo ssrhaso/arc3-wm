@@ -20,7 +20,7 @@ import sys
 import time
 
 import arc_agi
-from arcengine import GameAction, GameState
+from arcengine import GameState
 
 GAME_ID = "vc33"
 N_EPISODES = 10
