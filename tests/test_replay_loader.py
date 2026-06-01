@@ -22,7 +22,6 @@ Locked-in choices (see chat log around this file's creation):
 from __future__ import annotations
 
 import json
-import warnings
 from pathlib import Path
 from typing import Any, Optional
 

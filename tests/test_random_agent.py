@@ -16,7 +16,6 @@ import time
 import numpy as np
 import pytest
 
-from arc3_wm.action_space import N_ACTIONS
 from arc3_wm.env import ARC3GymEnv
 import arc_agi
 
