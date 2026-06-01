@@ -26,7 +26,7 @@ from typing import Any, Optional
 
 import gymnasium as gym
 import numpy as np
-from arcengine import GameAction, GameState
+from arcengine import GameState
 
 import arc_agi
 
