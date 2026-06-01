@@ -16,9 +16,6 @@ shape errors early.
 """
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 import pytest
 
 # Skip the entire module on hosts where the DreamerV3 deps aren't installable.

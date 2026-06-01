@@ -8,9 +8,6 @@ Exercises the parts of the launcher that don't need JAX:
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
 # Ensure the launcher's path mutation runs before we import other things.
