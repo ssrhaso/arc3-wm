@@ -212,7 +212,7 @@ def reconstruction_panel():
     CH = margin + title_h + ph + cap_h + margin
     canvas = Image.new("RGB", (CW, CH), BG)
     d = ImageDraw.Draw(canvas)
-    title = "What the world model "sees": open-loop prediction on vc33"
+    title = 'What the world model "sees": open-loop prediction on vc33'
     for i, ln in enumerate(_wrap(d, title, f_title, CW - 2 * margin)):
         _text_centered(d, CW / 2, margin + i * 40, ln, f_title, INK)
 
