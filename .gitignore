@@ -64,6 +64,7 @@ docs/phase4-dryrun-*.md
 docs/phase4-smoke.md
 docs/phase4-smoke-evidence.md
 docs/eval-pipeline-investigation.md
+docs/smoke-evidence.md
 
 # --- Internal coauthor handoff (kept on disk, never published) ---
 docs/progress-report-soumya.*
