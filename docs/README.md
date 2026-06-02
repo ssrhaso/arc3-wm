@@ -16,5 +16,4 @@ Documentation for the `arc3-wm` substrate and the world-model study.
 
 ## Paper
 - `contribution.md` - workshop-paper claims->evidence skeleton.
-- `progress-report-soumya.{tex,pdf}` - current progress report.
 - `arc-agi-3/` - fetched upstream ARC-AGI-3 reference docs.

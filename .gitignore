@@ -65,6 +65,9 @@ docs/phase4-smoke.md
 docs/phase4-smoke-evidence.md
 docs/eval-pipeline-investigation.md
 
+# --- Internal coauthor handoff (kept on disk, never published) ---
+docs/progress-report-soumya.*
+
 # --- One-off investigation scripts (kept on disk, never published) ---
 scripts/inspect_*.py
 scripts/survey_*.py
