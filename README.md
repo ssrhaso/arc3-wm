@@ -160,6 +160,8 @@ arc3_wm/        the package (env, embodied_env, action_space, replay_loader, rha
 examples/       runnable, laptop-only demos of the standard interface
 scripts/        env-file cache, per-game launcher, RHAE + benchmark builders
 docs/           integration guide, contribution skeleton, compute runbook
+analysis/       evidence artifacts backing the paper's result tables
+figures/        diagnosis figures backing the analysis docs
 tests/          property + integration tests (the spec)
 ```
 

@@ -13,6 +13,9 @@ general-purpose library API.
 
 ### Added
 
+- **MIT license.** `LICENSE` added (MIT, (c) 2026 Hasaan Ahmad),
+  resolving the "license intentionally unset" item deferred in 0.1.0;
+  the repo is now safe to make public.
 - **`rgb_array` rendering.** `ARC3GymEnv` now accepts `render_mode` and
   implements `render()`, returning the most recent observation as an
   `(H, W, 3)` uint8 array. This completes the Gymnasium render contract,
