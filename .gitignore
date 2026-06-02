@@ -41,8 +41,10 @@ Thumbs.db
 # --- Third-party reference clones (huge, fetch fresh) ---
 third_party/
 
-# --- Spec doc (kept out of git per pre-existing .GITIGNORE; flagged for review) ---
+# --- Session spec doc (gitignored by design) ---
 CLAUDE.md
+
+# --- Local scratch workspace (kept on disk, never published) ---
 scratch/
 
 # --- Generated benchmark outputs (rebuilt by scripts/build_benchmark_table.py) ---
