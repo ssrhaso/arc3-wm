@@ -28,7 +28,7 @@ keywords:
   - gymnasium
   - benchmark
 license: MIT
-version: 0.1.0
-date-released: "2026-05-18"
+version: 0.2.0
+date-released: "2026-06-03"
 # A preferred-citation block (the workshop paper) will be added on
 # submission; until then, cite the software metadata above.

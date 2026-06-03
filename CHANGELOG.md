@@ -11,6 +11,8 @@ general-purpose library API.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-03
+
 ### Added
 
 - **MIT license.** `LICENSE` added (MIT, (c) 2026 Hasaan Ahmad),
@@ -90,5 +92,6 @@ citable, installable contribution surface.
   public release - see [docs/contribution.md](docs/contribution.md).
 - BibTeX / citation block is added on paper submission.
 
-[Unreleased]: https://github.com/ssrhaso/ARC_AGI_3/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ssrhaso/ARC_AGI_3/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ssrhaso/ARC_AGI_3/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ssrhaso/ARC_AGI_3/releases/tag/v0.1.0

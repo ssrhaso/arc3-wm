@@ -31,7 +31,7 @@ from .action_space import (
 from .env import ARC3GymEnv
 from .registration import PUBLIC_GAMES, register_envs
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # Register the Gymnasium ids on import - the standard convention for a
 # packaged gym environment (cf. how `ale_py` / `gymnasium.envs` self-register).

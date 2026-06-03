@@ -7,7 +7,7 @@ so it answers "is my arc3_wm install wired up correctly?" without needing
 cached games or the JAX side.
 
     $ python -m arc3_wm
-    arc3_wm 0.1.0
+    arc3_wm 0.2.0
     flat action space: 4102 actions
     25 registered Gymnasium ids:
       ARC3/ar25-v0
