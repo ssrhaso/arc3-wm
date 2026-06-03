@@ -12,7 +12,7 @@
 | Image | `pytorch/pytorch:2.4.0-cuda12.4-cudnn9-devel` | dreamerv3 pins `jax[cuda12]==0.4.33` (CUDA 12.x) |
 | Disk | >= 80 GB persistent volume | dreamerv3+JAX ~5GB, logdir buffer cap ~5GB, crafter+arc-agi < 1GB, no replays/env_files staging needed (see below) |
 | nvidia-smi | works out of the box on PyTorch+CUDA Vast images | confirmed via `pip install`-only path |
-| SSH key | Haso's public key uploaded at provisioning time | - |
+| SSH key | your public key uploaded at provisioning time | - |
 | Spot bid | competitive at ~$1.80/h H100 | - |
 
 **Replays + env_files: NOT staged via B2 for this run.** B2 is a Phase-3+

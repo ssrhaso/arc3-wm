@@ -20,7 +20,7 @@
 #   # Bundle the local environment_files dir into a tarball.
 #   ./scripts/stage_env_files.sh bundle
 #
-#   # Upload (Haso only; CLAUDE.md restricts B2 uploads to the user).
+#   # Upload (author-only; requires write credentials for the bucket).
 #   ./scripts/stage_env_files.sh upload v1
 #
 #   # On Vast: pull + extract.
