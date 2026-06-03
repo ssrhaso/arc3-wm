@@ -44,7 +44,11 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/ssrhaso/ARC_AGI_3"
 Repository = "https://github.com/ssrhaso/ARC_AGI_3"
+Documentation = "https://github.com/ssrhaso/ARC_AGI_3/tree/main/docs"
+Changelog = "https://github.com/ssrhaso/ARC_AGI_3/blob/main/CHANGELOG.md"
+Issues = "https://github.com/ssrhaso/ARC_AGI_3/issues"
 "ARC-AGI-3" = "https://arcprize.org/tasks"
 
 [tool.setuptools.dynamic]
