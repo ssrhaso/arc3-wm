@@ -67,8 +67,8 @@ mask = info["action_mask"]                       # length-4102 bool; arc3_wm.log
 ```
 
 Or via the registered Gymnasium id: `import arc3_wm` self-registers
-`ARC3/<game>-v0` for all 25 public games, so any tooling that resolves
-a gym id reaches ARC-AGI-3 with no `arc3_wm` symbol in the loop:
+`ARC3/<game>-v0` for all 25 public games, so any gym-id tooling reaches
+ARC-AGI-3 with no `arc3_wm` symbol in the loop:
 
 ```python
 import gymnasium as gym
@@ -138,13 +138,12 @@ three outcomes.
 
 ## Scope and non-goals
 
-This is pinned research code, not a framework:
+Pinned research code, not a framework:
 
 - No custom encoder, no DreamerV3 fork, no second world-model backend,
-  no intrinsic-motivation/reward-shaping; all are explicit non-goals
-  (follow-up work). The wrapper is intentionally *not* generalized for
-  speculative future use; it exposes standard interfaces and stops
-  there.
+  no intrinsic-motivation or reward-shaping; all are explicit non-goals
+  (follow-up work). The wrapper exposes standard interfaces and stops
+  there; it is not generalized for speculative future use.
 - Dependencies are version-pinned for reproducibility of the reported
   numbers, not for breadth.
 
@@ -162,27 +161,28 @@ tests/          property + integration tests (the spec)
 
 ## Development
 
-Install the dev extras and run the test suite (the tests are the spec):
+Install the dev extras and run the suite (the tests are the spec):
 
 ```bash
 pip install -e ".[dev]"
-pytest                      # full suite
+pytest                                 # full suite
 pytest tests/test_action_space.py -q   # a single module
-pytest -n auto              # parallel (pytest-xdist)
+pytest -n auto                         # parallel (pytest-xdist)
 ```
 
 The pure-Python and Gymnasium tests run on a laptop with no GPU and no
-JAX. A handful of `embodied`/DreamerV3 tests skip automatically when the
+JAX; a few `embodied`/DreamerV3 tests skip automatically when the
 JAX-side `elements` dependency is absent. Env tests read cached OFFLINE
-game files from `environment_files/`; run `python scripts/cache_env_files.py`
-once (needs `ARC_API_KEY`) if they are missing.
+game files from `environment_files/`; run
+`python scripts/cache_env_files.py` once (needs `ARC_API_KEY`) if they
+are missing.
 
 ## Citation
 
 If you use this software, cite it via the metadata in
-[CITATION.cff](CITATION.cff) (GitHub's "Cite this repository" button reads
-it). The workshop-paper BibTeX is added on submission; see
-[docs/contribution.md](docs/contribution.md) for the paper skeleton.
+[CITATION.cff](CITATION.cff) (GitHub's "Cite this repository" button
+reads it). The workshop-paper BibTeX is added on submission; see
+[docs/contribution.md](docs/contribution.md).
 
 ## License
 
