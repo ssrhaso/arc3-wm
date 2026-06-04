@@ -2,7 +2,17 @@
 data/*
 !data/human_baselines.json
 checkpoints/
-results/
+# Ignore run outputs under results/ EXCEPT the small random-policy RHAE
+# summary (a paper input). The descend-friendly results/*<...>/* form is
+# required: a bare `results/` would block git from descending, making the
+# negations below dead. The bulk per-episode eval_episodes.jsonl under
+# results/random-eval/<game>-<arm>/ stays ignored.
+results/*
+!results/random-eval/
+results/random-eval/*
+!results/random-eval/vc33/
+results/random-eval/vc33/*
+!results/random-eval/vc33/random_rhae_summary.json
 ~/logdir/
 logdir/
 
