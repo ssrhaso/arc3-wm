@@ -94,7 +94,7 @@ of durability:
    ever non-zero, and there the warm-minus-cold delta disagrees in sign
    across the two seeds, i.e. lies within seed variance. Cross-game
    pretraining yields no measurable benefit.
-3. **A mechanistic diagnosis.** The world model *fits* (image
+3. **A mechanistic diagnosis.** The world model fits (image
    reconstruction and dynamics losses collapse to their floors) while
    RHAE stays near zero, and the failure localises to the policy side.
    On 5 of the 6 games the actor never commits: policy entropy stays
@@ -105,36 +105,36 @@ of durability:
    tighter than vc33's (image loss 0.06 vs. 0.16), yet vc33 is the only
    game whose controller ever clears a level.
 
-The RHAE benchmark reports each game **independently level-weighted**
-and then combined (see [`arc3_wm/rhae.py`](arc3_wm/rhae.py) and
+The RHAE benchmark reports each game independently level-weighted and
+then combined (see [`arc3_wm/rhae.py`](arc3_wm/rhae.py) and
 [scripts/build_benchmark_table.py](scripts/build_benchmark_table.py)).
 
 ## Status and next steps
 
-The substrate (contribution 1) is complete, tested, and reusable
-independent of any result. The controlled negative result and its
-diagnosis (contributions 2 and 3) are established across the full
-6-game paired sweep. Three steps remain, each with a pre-specified
-criterion that would confirm or relocate the diagnosis:
+The substrate (contribution 1) is complete, tested, and reusable. The
+negative result and its diagnosis (contributions 2 and 3) are
+established across the full 6-game paired sweep. Three steps remain,
+each with a pre-specified criterion that would confirm or relocate the
+diagnosis:
 
 1. **Representational probing.** Linear decoders on the frozen RSSM
-   latents for task-relevant variables (level identity, level-transition
+   latents for task-relevant variables (level identity, transition
    events, object configuration), against a label-permuted control.
-   Above-control accuracy confirms the world model encodes the structure
+   Above-control accuracy confirms the world model encodes structure
    the controller fails to exploit; a null result relocates the
-   bottleneck from control back to representation learning.
+   bottleneck back to representation learning.
 2. **Generative-rollout fidelity.** Per-step latent- and pixel-space
    divergence between imagined and ground-truth trajectories over the
    actor's planning horizon. (FVD is ill-posed here: its I3D backbone is
    trained on natural video, not 64x64 abstract grids.)
 3. **Controller-side intervention.** A bounded ablation that raises the
    imagination-to-environment training ratio and steepens the
-   entropy-annealing schedule with the world model held fixed, isolating
-   whether additional policy-improvement compute alone closes the gap.
+   entropy-annealing schedule with the world model held fixed, to
+   isolate whether more policy-improvement compute alone closes the gap.
 
 Steps 1 and 2 are compute-light and run on a frozen model; step 3 is a
-single bounded retraining sweep. The substrate contribution stands
-independent of all three outcomes.
+single bounded retraining sweep. The substrate stands independent of all
+three outcomes.
 
 ## Scope and non-goals
 
