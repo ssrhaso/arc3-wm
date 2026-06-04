@@ -1,31 +1,27 @@
-# arc3-wm - a world-model RL substrate for ARC-AGI-3
+# arc3-wm: a world-model RL substrate for ARC-AGI-3
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Tests](https://img.shields.io/badge/tests-pytest-informational)
 
-*DreamerV3 fits the world but cannot yet act in it.*
-
-`arc3-wm` is a small, dependency-light Python package that makes
-[ARC-AGI-3](https://arcprize.org/tasks) usable as a standard
-reinforcement-learning environment, plus the offline-data and metric
-plumbing needed to train and evaluate **model-based RL (MBRL) / world
-models** on it.
+`arc3-wm` makes [ARC-AGI-3](https://arcprize.org/tasks) usable as a
+standard reinforcement-learning environment, and adds the offline-data
+and metric plumbing needed to train and evaluate model-based RL (MBRL)
+on it.
 
 It is the substrate behind a NeurIPS-2026-workshop study, the first
-model-based RL entry on ARC-AGI-3. The study's finding is a *diagnosed
-negative result* (see [Contribution](#contribution)): stock DreamerV3
-provably fits these environments yet cannot act in them under a stock
-controller at a realistic budget. The **wrapper and harness are the
-durable artifact** and the reason this repo is public. The
-[ARC-AGI Living Survey](https://arxiv.org/abs/2603.13372) (around 80
-papers) finds only 3 reporting any ARC-AGI-3 result, none world-model
-based, and names world-model induction as the required next step; there
-was no Gymnasium-compatible entry point either. This provides one.
+model-based RL entry on ARC-AGI-3. The study's result is a diagnosed
+negative one (see [Contribution](#contribution)): stock DreamerV3 fits
+these environments yet cannot act in them under a stock controller at a
+realistic budget. The wrapper and harness are the durable artifact and
+the reason this repo is public. The
+[ARC-AGI Living Survey](https://arxiv.org/abs/2603.13372) finds only 3
+of around 80 papers reporting an ARC-AGI-3 result, none world-model
+based, and names world-model induction as the next step; there was no
+Gymnasium-compatible entry point either. This provides one.
 
 > **Status:** research code, pinned for reproducibility, not a
-> general-purpose library. It does one thing (ARC-AGI-3 -> standard RL
-> interfaces) and does it cleanly. See [Scope](#scope-and-non-goals).
+> general-purpose library. See [Scope](#scope-and-non-goals).
 
 ## What you get
 
@@ -37,11 +33,10 @@ was no Gymnasium-compatible entry point either. This provides one.
 | **Offline replay loader**      | `arc3_wm.replay_loader`                | The 340-replay human-demonstration JSONL dataset -> transition tuples for a world-model buffer.                                                                                                                                                                                                                                                                                       |
 | **RHAE metric**                | `arc3_wm.rhae`                         | Post-hoc Relative Human Action Efficiency, the benchmark metric. Per level `s_i = min((human/ai)^2, 1.15)`; per game the level-index-weighted mean over all levels, including uncompleted ones; the total averages games equally. Baselines are the upper-median of first-time-player action counts, dropping levels with fewer than 2 completers (70.5% coverage, 129/183 levels). |
 
-The two interfaces are the contribution: **anything that speaks
-Gymnasium or DreamerV3-`embodied` plugs in with no `arc3_wm` changes.**
-There is deliberately no custom abstraction layer; the standard
-interface *is* the integration point. See
-[docs/using-the-wrapper.md](docs/using-the-wrapper.md).
+The two interfaces are the contribution: anything that speaks Gymnasium
+or DreamerV3-`embodied` plugs in with no `arc3_wm` changes. The standard
+interface is the integration point; there is no custom abstraction
+layer. See [docs/using-the-wrapper.md](docs/using-the-wrapper.md).
 
 ## Install
 
