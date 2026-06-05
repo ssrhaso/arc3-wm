@@ -4,7 +4,7 @@ Operational scripts behind the ARC-AGI-3 world-model study. Run each
 from the repository root.
 
 ## Data & environment setup
-- `cache_env_files.py` - download OFFLINE game files into `environment_files/` (needs `ARC_API_KEY`); required before OFFLINE `make()` succeeds.
+- `cache_env_files.py` - download OFFLINE game files into `environment_files/` (needs `ARC_API_KEY`); required before OFFLINE `make()` succeeds. Caches the Phase-4 set by default; pass game ids or `--all` for the full 25.
 - `stage_env_files.sh` - stage cached env files onto a remote training machine.
 - `fetch_docs.py` - fetch the ARC-AGI-3 reference docs into `docs/arc-agi-3/`.
 - `extract_human_baselines.py` - build `data/human_baselines.json` (per-game/per-level upper-median action counts) from the 340 human replays.

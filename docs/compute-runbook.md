@@ -161,7 +161,7 @@ bucket; substitute the bucket name end-to-end.
 > `vc33`/`tu93`/`cd82` only - sufficient for Phase 4 tonight's smoke
 > and the 3-game pilot. The full-25-game bundle bumps to `v2` and is a
 > prereq for the Phase 5 sweep (see Phase 0 follow-up: rerun
-> `scripts/cache_env_files.py` for all 25 games before tarballing).
+> `scripts/cache_env_files.py --all` before tarballing).
 
 #### Laptop -> bucket (one-time per artifact)
 
@@ -179,8 +179,8 @@ b2 file upload arc3-wm-data replays.tar.gz replays.tar.gz
 # scripts/stage_env_files.sh; see that script for the canonical pattern.
 ./scripts/stage_env_files.sh bundle               # writes environment_files-pilot.tar.gz
 ./scripts/stage_env_files.sh upload v1            # uploads to env-files/v1/...
-# (Full-25-game bundle: rerun scripts/cache_env_files.py first, then
-#  upload as v2 with a renamed tarball.)
+# (Full-25-game bundle: rerun scripts/cache_env_files.py --all first,
+#  then upload as v2 with a renamed tarball.)
 
 # Capture the public download URLs once and persist them. Each URL is
 # stable as long as the bucket stays public-read.
