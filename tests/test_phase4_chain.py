@@ -152,8 +152,8 @@ def test_seed_wm_from_real_phase3_ckpt():
 def test_env_files_cached(game_id):
     """environment_files/<game_id>/ must be cached locally.
 
-    If this fails, add game_id to scripts/cache_env_files.py's GAMES
-    list and run it (requires ARC_API_KEY + NORMAL mode briefly).
+    If this fails, run `python scripts/cache_env_files.py <game_id>`
+    (requires ARC_API_KEY + NORMAL mode briefly).
     """
     assert (_ENV_FILES / game_id).is_dir(), (
         f"environment_files/{game_id}/ not cached"
