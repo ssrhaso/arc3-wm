@@ -6,7 +6,7 @@ Composed figures used in the world-model study. Regenerate any of them with
 | File | Shows |
 |---|---|
 | `fig1_what_is_a_world_model.png` | Schematic of the DreamerV3 world model: frame -> encoder -> latent state -> decoder / reward / continue heads, with the action feeding the latent forward and the actor+critic trained inside imagined rollouts. |
-| `fig2_wm_reconstruction.png` | A real result from the vc33 run. Top row = the true game; bottom row = the world model's open-loop prediction (predicted from its own latent state, not shown the real frames). They match — evidence the model learned vc33's dynamics. Pulled from W&B (`report/openloop/image`). |
+| `fig2_wm_reconstruction.png` | A real result from the vc33 run. Top row = the true game; bottom row = the world model's open-loop prediction (predicted from its own latent state, not shown the real frames). They match, evidence the model learned vc33's dynamics. Pulled from W&B (`report/openloop/image`). |
 | `fig4_solved_vc33.png` | A game the model **solves** (vc33), as a 3-step progression: Level 1 start -> Level 1 solved -> Level 2 (reached by the model). |
 | `fig5_notsolved_sb26.png` | A game the model does **not** solve (sb26, a colour-matching puzzle): start -> after the agent acts. It places a couple of tiles but never completes the puzzle. |
 
@@ -16,15 +16,15 @@ The annotation-free source panels (`RAW/`, 8x nearest-neighbour upscaled,
 
 ## How fig 4 was verified (and a caveat)
 
-- **Left ("Level 1 - start")** is the genuine first observation of vc33 level 1 —
-  verified **pixel-identical** to `env.reset()`, to the human replay's row 0, and
+- **Left ("Level 1 - start")** is the genuine first observation of vc33 level 1.
+  Verified **pixel-identical** to `env.reset()`, to the human replay's row 0, and
   to the trained model's own frame 0.
 - **Centre ("Level 1 - solved")** is the level-1 goal configuration (human replay
   row 6; the level-up to level 2 happens on the next row).
 - **Right ("Level 2 - reached by the model")** is a real frame from the trained
   policy's rollout. Confirmed level 2 (not level 1) by matching every rollout
   frame to the human level dictionary: vc33 rollouts are 100% level 1 up to
-  ~step 226k and 100% level 2 from ~step 271k — i.e. the model learns to clear
+  ~step 226k and 100% level 2 from ~step 271k, i.e. the model learns to clear
   level 1. No single rollout captured the level-1 -> solved transition, which is
   why the centre comes from the replay rather than the model.
 
@@ -42,7 +42,7 @@ Caveats worth knowing for the paper:
 - **vc33 is the only solved game.** Phase-4 proper + expansion: vc33 is the sole
   RHAE > 0 result; sb26/lf52/cd82/tn36/ls20 scored 0 across every eval episode.
   sb26 was chosen for the not-solved figure because the agent visibly acts
-  (places tiles) but never solves it — the typical failure.
+  (places tiles) but never solves it, the typical failure.
 
 ## Provenance / reproducibility
 
