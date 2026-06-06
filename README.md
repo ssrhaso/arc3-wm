@@ -175,6 +175,10 @@ pytest tests/test_action_space.py -q   # a single module
 pytest -n auto                         # parallel (pytest-xdist)
 ```
 
+The common commands above are also available as `make` targets
+(`make dev`, `make test`, `make test-fast`, `make check`); run `make help`
+for the full list.
+
 The pure-Python and Gymnasium tests run on a laptop with no GPU and no
 JAX; a few `embodied`/DreamerV3 tests skip automatically when the
 JAX-side `elements` dependency is absent. Env tests read cached OFFLINE

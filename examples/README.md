@@ -18,10 +18,11 @@ python examples/gym_make.py --game vc33 --episodes 3
 python examples/gym_make.py --list
 ```
 
-First time only: `pip install -e .`, export `ARC_API_KEY`, run
-`python scripts/cache_env_files.py`, and create a `.env`
-(`OPERATION_MODE=offline`, `ENVIRONMENTS_DIR=environment_files`). See
-[../docs/using-the-wrapper.md](../docs/using-the-wrapper.md).
+First time only: `pip install -e .`, then run `arc3-wm` (no network, no
+game files) to confirm the install is wired up. After that export
+`ARC_API_KEY`, run `python scripts/cache_env_files.py`, and create a
+`.env` (`OPERATION_MODE=offline`, `ENVIRONMENTS_DIR=environment_files`).
+See [../docs/using-the-wrapper.md](../docs/using-the-wrapper.md).
 
 For the DreamerV3 / world-model training path (not a laptop example),
 see `scripts/launch_pergame.py` and
