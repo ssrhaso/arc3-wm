@@ -1,6 +1,7 @@
 # --- Project artifacts (sacred but not committed) ---
 data/*
 !data/human_baselines.json
+!data/README.md
 checkpoints/
 # Ignore run outputs under results/ EXCEPT the small random-policy RHAE
 # summary (a paper input). The descend-friendly results/*<...>/* form is

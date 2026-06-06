@@ -155,14 +155,18 @@ Pinned research code, not a framework:
 ## Repository map
 
 ```
-arc3_wm/        the package (env, embodied_env, action_space, replay_loader, rhae)
+arc3_wm/        the package (env, embodied_env, action_space, replay_loader, rhae, palette, registration)
 examples/       runnable, laptop-only demos of the standard interface
 scripts/        env-file cache, per-game launcher, RHAE + benchmark builders
+configs/        DreamerV3 config blocks for the training path
+data/           the tracked RHAE baseline fixture (replays are gitignored)
 docs/           integration guide, contribution skeleton, compute runbook
 analysis/       evidence artifacts backing the paper's result tables
 figures/        diagnosis figures backing the analysis docs
 tests/          property + integration tests (the spec)
 ```
+
+Most of these directories carry their own `README.md` with a fuller index.
 
 ## Development
 
