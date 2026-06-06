@@ -18,3 +18,9 @@ Documentation for the `arc3-wm` substrate and the world-model study.
 - `contribution.md` - workshop-paper claims->evidence skeleton.
 - `figures/soumya/` - composed paper figures and their provenance notes.
 - `arc-agi-3/` - fetched upstream ARC-AGI-3 reference docs.
+
+## See also
+Setup and data are documented next to the files they describe:
+[`../configs/README.md`](../configs/README.md) (training config blocks),
+[`../data/README.md`](../data/README.md) (the RHAE baseline fixture), and
+[`../tests/README.md`](../tests/README.md) (the test suite).

@@ -18,8 +18,15 @@ general-purpose library API.
   (`arc3_wm/__main__.py`) is runnable as `arc3-wm`, equivalent to
   `python -m arc3_wm`.
 - **`Makefile`.** Convenience targets (`install`, `dev`, `cache`,
-  `check`, `test`, `test-fast`, `smoke`, `clean`) wrapping the commands
-  already documented in the README.
+  `cache-all`, `check`, `test`, `test-fast`, `smoke`, `gym-smoke`,
+  `clean`) wrapping the commands already documented in the README;
+  bare `make` prints the target list.
+
+### Documentation
+
+- **Per-directory READMEs.** Added `tests/`, `configs/`, and `data/`
+  READMEs, rounded out the repository map, and cross-linked the setup
+  docs from the docs index.
 
 ## [0.2.0] - 2026-06-03
 
