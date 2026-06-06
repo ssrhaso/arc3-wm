@@ -11,6 +11,7 @@
 *.cff   text eol=lf
 *.md    text eol=lf
 *.sh    text eol=lf
+Makefile text eol=lf
 
 # Binary artifacts - never normalise, never line-diff.
 *.tar.gz binary
