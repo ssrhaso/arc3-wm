@@ -16,7 +16,13 @@ from the repository root.
 
 ## Metric & results
 - `compute_rhae.py` - post-hoc RHAE from an eval-episode reward-stream JSONL plus the baseline fixture.
+- `eval_random_rhae.py` - logged random-policy offline RHAE eval on a single game (the zero-skill reference point).
 - `build_benchmark_table.py` - assemble the paired cold/warm 6-game RHAE table into `analysis/benchmark_table.{md,json}`.
+
+## Diagnostics & figures
+- `make_soumya_figures.py` - rebuild the composed paper figures under `docs/figures/soumya/`.
+- `diag_uniform_random_baseline.py` - uniform-4102 random-policy baseline on vc33 over many episodes.
+- `diag_cd82_wrapper_probe.py` - classify cd82 episode terminations under a random policy (Phase-4 follow-up).
 
 ## Smoke checks
 - `random_agent_smoke.py` - random-agent episodes on vc33 (OFFLINE, high-FPS path).
