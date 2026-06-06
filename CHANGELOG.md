@@ -11,6 +11,16 @@ general-purpose library API.
 
 ## [Unreleased]
 
+### Added
+
+- **`arc3-wm` console entry point.** `pyproject.toml` registers a
+  `console_scripts` entry so the no-network install sanity check
+  (`arc3_wm/__main__.py`) is runnable as `arc3-wm`, equivalent to
+  `python -m arc3_wm`.
+- **`Makefile`.** Convenience targets (`install`, `dev`, `cache`,
+  `check`, `test`, `test-fast`, `smoke`, `clean`) wrapping the commands
+  already documented in the README.
+
 ## [0.2.0] - 2026-06-03
 
 ### Added

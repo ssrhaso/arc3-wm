@@ -36,6 +36,11 @@ dependencies = [
     "python-dotenv",
 ]
 
+[project.scripts]
+# `arc3-wm` runs the no-network install sanity check (see arc3_wm/__main__.py),
+# equivalent to `python -m arc3_wm`.
+arc3-wm = "arc3_wm.__main__:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",

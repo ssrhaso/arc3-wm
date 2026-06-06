@@ -42,9 +42,13 @@ layer. See [docs/using-the-wrapper.md](docs/using-the-wrapper.md).
 
 ```bash
 pip install -e .                   # the wrapper + Gymnasium path (no JAX)
+arc3-wm                            # sanity check: prints version + registered ids (no network)
 python scripts/cache_env_files.py  # one-time: cache OFFLINE game files (needs ARC_API_KEY)
                                    # caches the Phase-4 set; pass game ids or --all for others
 ```
+
+The `arc3-wm` command (equivalently `python -m arc3_wm`) needs no game
+files or network and confirms the install is wired up correctly.
 
 For the DreamerV3 training path additionally clone the pinned reference
 impl and install its deps; see
