@@ -52,7 +52,9 @@ files or network and confirms the install is wired up correctly.
 
 For the DreamerV3 training path additionally clone the pinned reference
 impl and install its deps; see
-[docs/vast-quickstart.md](docs/vast-quickstart.md).
+[docs/vast-quickstart.md](docs/vast-quickstart.md). The entry points are
+[scripts/launch_pergame.py](scripts/launch_pergame.py) and the config
+blocks in [configs/](configs/).
 
 ## 60-second quickstart (Gymnasium, laptop, no GPU)
 
