@@ -2,7 +2,9 @@
 # exact commands documented in README.md; nothing here is required to use
 # the package. Run from the repository root: `make <target>`.
 
-.PHONY: help install dev cache check test test-fast smoke clean
+.DEFAULT_GOAL := help
+
+.PHONY: help install dev cache cache-all check test test-fast smoke gym-smoke clean
 
 help:  ## List the available targets.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -17,6 +19,9 @@ dev:  ## Editable install with the dev extras (pytest, xdist, gdown).
 cache:  ## Cache the Phase-4 OFFLINE game files (needs ARC_API_KEY).
 	python scripts/cache_env_files.py
 
+cache-all:  ## Cache OFFLINE game files for all 25 games (needs ARC_API_KEY).
+	python scripts/cache_env_files.py --all
+
 check:  ## One-command install sanity check (no network, no game files).
 	python -m arc3_wm
 
@@ -28,6 +33,9 @@ test-fast:  ## Run the suite in parallel (needs pytest-xdist).
 
 smoke:  ## Random agent on vc33 for 3 episodes (needs cached env files).
 	python examples/random_agent.py --game vc33 --episodes 3
+
+gym-smoke:  ## Same, via the registered gym.make("ARC3/vc33-v0") id.
+	python examples/gym_make.py --game vc33 --episodes 3
 
 clean:  ## Remove Python caches and build artifacts.
 	python -c "import shutil, pathlib; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
