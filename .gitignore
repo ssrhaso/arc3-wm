@@ -48,6 +48,10 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+*~
+*.swp
+*.swo
+*.bak
 
 # --- Third-party reference clones (huge, fetch fresh) ---
 third_party/
