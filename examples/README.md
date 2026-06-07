@@ -18,6 +18,9 @@ python examples/gym_make.py --game vc33 --episodes 3
 python examples/gym_make.py --list
 ```
 
+The first and third of these are also available as `make smoke` and
+`make gym-smoke`.
+
 First time only: `pip install -e .`, then run `arc3-wm` (no network, no
 game files) to confirm the install is wired up. After that export
 `ARC_API_KEY`, run `python scripts/cache_env_files.py`, and create a
