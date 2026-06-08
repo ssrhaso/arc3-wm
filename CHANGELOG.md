@@ -28,6 +28,14 @@ general-purpose library API.
   READMEs, rounded out the repository map, and cross-linked the setup
   docs from the docs index.
 
+### Changed
+
+- **Cross-platform whitespace policy.** Added `.gitattributes`
+  (LF in the repo, native on checkout) and a matching `.editorconfig`,
+  forced LF on the `Makefile` so it stays usable on a Windows checkout,
+  and extended `.gitignore` to cover editor swap and backup files. Keeps
+  a Windows working tree from churning CRLF into every diff.
+
 ## [0.2.0] - 2026-06-03
 
 ### Added
