@@ -39,5 +39,5 @@ gym-smoke:  ## Same, via the registered gym.make("ARC3/vc33-v0") id.
 
 clean:  ## Remove Python caches and build artifacts.
 	python -c "import shutil, pathlib; [shutil.rmtree(p, ignore_errors=True) for p in pathlib.Path('.').rglob('__pycache__')]"
-	python -c "import shutil; shutil.rmtree('.pytest_cache', ignore_errors=True)"
+	python -c "import shutil; [shutil.rmtree(p, ignore_errors=True) for p in ('.pytest_cache', '.ruff_cache', '.mypy_cache', 'build', 'dist')]"
 	python -c "import shutil, glob; [shutil.rmtree(p, ignore_errors=True) for p in glob.glob('*.egg-info')]"
