@@ -182,8 +182,8 @@ pytest -n auto                         # parallel (pytest-xdist)
 ```
 
 The common commands above are also available as `make` targets
-(`make dev`, `make test`, `make test-fast`, `make check`); run `make help`
-for the full list.
+(`make dev`, `make test`, `make test-fast`, `make check`, `make smoke`,
+`make gym-smoke`, `make clean`); run `make help` for the full list.
 
 The pure-Python and Gymnasium tests run on a laptop with no GPU and no
 JAX; a few `embodied`/DreamerV3 tests skip automatically when the
