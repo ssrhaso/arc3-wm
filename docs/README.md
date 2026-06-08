@@ -23,4 +23,6 @@ Documentation for the `arc3-wm` substrate and the world-model study.
 Setup and data are documented next to the files they describe:
 [`../configs/README.md`](../configs/README.md) (training config blocks),
 [`../data/README.md`](../data/README.md) (the RHAE baseline fixture), and
-[`../tests/README.md`](../tests/README.md) (the test suite).
+[`../tests/README.md`](../tests/README.md) (the test suite). The root
+[`../Makefile`](../Makefile) (`make help`) wraps the common laptop
+commands as task-runner targets.
