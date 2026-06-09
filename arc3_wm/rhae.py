@@ -16,15 +16,15 @@ Spec: ``docs/arc-agi-3/methodology.md``. Formula:
     game_score  = sum(level_score_i * i, completed) / sum(i, scoreable levels)
     total_score = mean(game_scores)
 
-Per D-B (n>=2 coverage threshold, this session), only levels with a
-defensible upper-median baseline (>= 2 completer sessions) are scoreable
+Per D-B (n>=2 coverage threshold), only levels with a defensible
+upper-median baseline (>= 2 completer sessions) are scoreable
 - uncovered levels are excluded from BOTH the per-game numerator and
 denominator. The "failing the final scored level caps the game score"
 property is preserved for covered levels: their weight stays in the
 denominator while their numerator term goes to zero.
 
-Per D-A (this session), per-game ``total_levels`` is the engine's
-``win_levels`` field (the full level count, INCLUDING uncovered ones).
+Per D-A, per-game ``total_levels`` is the engine's ``win_levels`` field
+(the full level count, INCLUDING uncovered ones).
 It bounds the valid level-index range; the per-game denominator uses
 only the covered subset.
 
@@ -135,7 +135,7 @@ class RHAEAggregator:
     scheduling, no in-loop hook semantics - the caller decides when to
     call.
 
-    Contract (post D-A/D-B migration, this session):
+    Contract (post D-A/D-B migration):
 
     - ``human_baselines``: per-game entry ``{"total_levels": int,
       "baselines": {level_idx (int or str): action_count}}``. Level keys
