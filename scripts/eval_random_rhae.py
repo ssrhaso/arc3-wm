@@ -51,7 +51,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 
