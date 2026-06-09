@@ -1,18 +1,13 @@
 """Eval-env wrapper that records per-step rewards to a JSONL sink.
 
-Per the Phase-4 dry-run hand-off (2026-05-12), DV3's eval logfn pops
-the per-step rewards stack before adding to epstats
-(``third_party/dreamerv3/embodied/run/train_eval.py:67``), so the
-stream is NOT preserved in ``scope/metrics.jsonl`` or wandb. Our
-post-hoc RHAE CLI (``scripts/compute_rhae.py``) needs that stream to
-segment eval rollouts into per-level AI action counts.
-
-The chosen approach (per session sign-off) is option (ii) from the
-Step-5 stop-point: an env-side wrapper that buffers rewards in
-memory per episode and flushes one JSONL line on ``is_last``. The
-wrapper is applied to the EVAL env factory only - training rollouts
-would balloon the file with policy-noise rewards that are not useful
-for RHAE.
+DV3's eval logfn pops the per-step rewards stack before adding to
+epstats (``third_party/dreamerv3/embodied/run/train_eval.py:67``), so the
+stream is not preserved in ``scope/metrics.jsonl`` or wandb. The post-hoc
+RHAE CLI (``scripts/compute_rhae.py``) needs it to segment eval rollouts
+into per-level AI action counts. This wrapper buffers rewards in memory
+per episode and flushes one JSONL line on ``is_last``. Apply it to the
+eval env factory only; training rollouts would balloon the file with
+policy-noise rewards that are not useful for RHAE.
 
 Output format (one episode per line, matches
 ``scripts.compute_rhae.load_episodes_from_jsonl``)::
@@ -20,20 +15,19 @@ Output format (one episode per line, matches
     {"rewards": [r0, r1, r2, ...]}
 
 where ``r0`` is the initial-obs reward (always 0 per DV3 convention;
-``segment_episode_actions_per_level`` already skips it) and
-``r1..rN`` are the post-action rewards.
+``segment_episode_actions_per_level`` already skips it) and ``r1..rN``
+are the post-action rewards.
 
-The wrapper duck-types ``embodied.core.wrappers.Wrapper`` - same
-``__init__(env)`` + attribute-forwarding contract. Avoiding the
-subclass keeps this module importable on the laptop without the
-embodied/JAX stack, so the unit tests run cleanly.
+The wrapper duck-types ``embodied.core.wrappers.Wrapper`` (same
+``__init__(env)`` + attribute-forwarding contract). Avoiding the subclass
+keeps this module importable on the laptop without the embodied/JAX
+stack, so the unit tests run cleanly.
 
-Concurrency: in append mode, single-line writes are line-atomic on
-POSIX and large enough for our line sizes (~10 KB max) on Windows in
-practice. Phase 4 uses ``eval_envs=1`` so there is one wrapper
-instance and no contention. If parallel eval envs are ever turned on,
-either (a) give each worker its own sink path, or (b) add an explicit
-file lock around ``_flush``.
+Concurrency: in append mode, single-line writes are line-atomic on POSIX
+and small enough (~10 KB max) to be so on Windows in practice. Phase 4
+uses ``eval_envs=1``, so there is one wrapper instance and no contention.
+For parallel eval envs, either give each worker its own sink path or add
+an explicit file lock around ``_flush``.
 """
 from __future__ import annotations
 
