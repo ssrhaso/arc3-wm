@@ -259,3 +259,118 @@ world model's fit nor pretraining transfers into control"*, it is fully backed b
 **ship it, no re-run.** If you want to keep the explicit *masking-would-help* claim or the
 *board-never-changes* claim in Table 3 / Fig 2c, run the **masked ls20/lf52 re-run with an
 action-stream + pixel-diff logger** — that is the only way those two atoms enter evidence.
+
+---
+
+# 2026-06-09 — W&B follow-up: do the three gap atoms live in W&B as artifacts?
+
+The B2 audit above flagged three atoms absent from the B2 jsonl snapshot: (a) raw action
+stream / action-type histogram, (b) board/pixel-change signal, (c) explicit termination flags.
+A refreshed W&B key was supplied to check whether W&B holds them as artifacts/media that never
+landed in B2. Read-only; reproduce with `analysis/ls20_lf52_wandb_probe.py`.
+
+## Step 0 — the sweep IS in W&B (it was a wrong-account problem, not a sync problem)
+
+`hasofocus-university-of-the-west-of-england/arc3-wm-sprint` — **24 runs, all `finished`.** The
+first audit failed because the cached `~/_netrc` key belonged to a **different account**
+(`haso-university-of-the-west-of-england`, default entity, sees `nnet` only and **0 projects**
+under `hasofocus-*`). Under the new *hasofocus* key, `api.default_entity =
+hasofocus-university-of-the-west-of-england` and the project resolves. Not under `haso`,
+`hasofocus`, or `haso-university-of-the-west-of-england` (all 0 projects).
+
+The 8 ls20/lf52 run ids (entity/project as above):
+
+| run | id | run | id |
+|-----|----|----|----|
+| warm ls20 s0 | `2329m1sj` | cold ls20 s0 | `xkqetscm` |
+| warm ls20 s1 | `lwncvl0i` | cold ls20 s1 | `h5s5q7lt` |
+| warm lf52 s0 | `ttjocji0` | cold lf52 s0 | `dqqb8jtm` |
+| warm lf52 s1 | `hr6y701f` | cold lf52 s1 | `1mnwbryd` |
+
+## Step 1 — inventory of one ls20 run (`2329m1sj` = B2 `warm_ls20_s0`)
+
+- **History: 70 columns; summary: 71 keys.** The *scalar* set is identical to B2's
+  `metrics.jsonl` (61 keys). The only keys W&B has beyond B2 are **media / strings**:
+  `epstats/policy_image`, `eval/openloop/image`, `report/openloop/image` (rendered GIFs),
+  plus `eval/params/summary`, `report/params/summary`, `usage/nvsmi/output`, `timer` (strings).
+- **The only `*action*` columns are `train/ent/action` and `train/rand/action`** — the same two
+  scalars B2 already had. **No raw action stream, no action histogram, no `wandb.Table`.**
+- **Logged artifacts: 1** — `run-2329m1sj-history:v0` (type `wandb-history`, the standard scalar
+  history table; no action/pixel payload). `used_artifacts`: 0.
+- **Files: 53.** `config.yaml`, `output.log`, `requirements.txt`, `wandb-metadata.json`,
+  `wandb-summary.json`, and **47 board GIFs**: 36 `media/videos/epstats/policy_image_*.gif`
+  (real game board during policy rollouts) + 11 `media/videos/{eval,report}/openloop/image_*.gif`
+  (WM open-loop imagination panels). **All 8 runs** carry these (ls20: 36 policy / 11 openloop;
+  lf52: 72–73 policy / 13 openloop) and **none carry an action artifact** (verified per-run).
+
+## Step 2 — gap-closing extraction (W&B-only data; PIL frame analysis of the GIFs)
+
+### (a) Action distribution — NOT in W&B either
+
+No action stream / histogram / table exists in any of the 8 runs (`action_artifact=False` for
+all). The measured valid-set hit fraction **cannot be counted** from W&B; the ~1024:1 dilution
+stays an *expectation*. **Indirect** corroboration from the board media (not a direct count):
+- **ls20:** 17 of the 36 logged `policy_image` GIFs are **byte-identical single static frames**
+  (same content hash `c07a3ae2…`, T=1) — i.e. in ~47% of logging windows the captured board never
+  moved at all. Consistent with board-moving (directional) actions being rare.
+- **lf52:** policy GIFs run long (T=65→520) and show a **near-constant ~1-cell change every step**
+  (the white cursor relocating — consistent with ACTION6 click-spam dominating the uniform draw)
+  with only sparse larger changes (29–258 cells). Again: lots of cursor motion, little board change.
+
+These are *qualitatively consistent* with the dilution story but do **not** substitute for an
+action-type count. **Verdict: still needs a re-run** for a measured action distribution.
+
+### (b) Board / pixel change — RESOLVED by media; it REFUTES the literal "board never changes"
+
+No numeric pixel-diff scalar exists, **but the policy-rollout and open-loop GIFs (absent from B2)
+let us answer the binary question directly.** PIL `ImageSequence` over the 64×64 frames:
+
+| evidence (run `2329m1sj` unless noted) | finding |
+|---|---|
+| `policy_image_16016` (ls20), 3 frames | board **changes**: an orange/blue block translates 1 cell; **52/4096 (1.27%) pixels** change per step; cursor + walls + progress bar static |
+| `policy_image_450992` (ls20, late), 2 frames | same 1-cell block move (1.27%) — behaviour unchanged at 451k steps |
+| `policy_image_0_c07a3ae2…` ×17 (ls20) | **byte-identical static board** — episodes where no board-moving action ever landed |
+| `eval/openloop/image_*` (ls20), 33 frames, 196×408 | 3-row panel (ground-truth / WM reconstruction / error); ground-truth board barely moves; WM reconstructs the static layout |
+| lf52 `policy_image_*` | ~1 cell/step (cursor) + sparse 29–258-cell bursts (real board changes) |
+
+**Visual confirmation:** ls20 is a sliding-piece puzzle — a fixed white "+" cursor and a movable
+orange/blue block inside grey walls, with a yellow progress bar. Directional actions slide the
+block by one cell; everything else is static; no level-up ever occurs (reward ≡ 0, §2b/§2f).
+
+So **"the board never changes" is FALSE as literally stated** — the board *does* change (a piece
+slides on ls20; the cursor moves and the board occasionally changes on lf52), just **rarely**,
+because board-moving actions are ~0.1% of the uniform draw and progress never completes. The
+*defensible* reworded claim — *"the policy issues a board-changing action on a vanishing fraction
+of steps; ~half of ls20 rollout windows are fully static and no level-up ever occurs"* — **is now
+supported from logged media.** A quantified per-step Δpixel **time-series** is still not a logged
+scalar (would need a re-run) but is **not required** to answer the binary claim. **Verdict:
+now-supported-from-logs (binary); the media contradicts the strong wording — reword it.**
+
+### (c) Termination-reason flag — NOT in W&B either
+
+No `terminated` / `truncated` / termination-reason key in summary or history; only `episode/length`
+(already in B2). lf52's exact-64 *eval* endings remain **inferred from constant eval episode
+length**, not a logged flag. **Verdict: still needs a re-run** (or env-wrapper code inspection;
+from logs alone it is absent).
+
+### Cross-check (W&B vs B2, one run) — exact agreement
+
+`2329m1sj` vs B2 `warm_ls20_s0`: `train/ent/action` 8.31912–8.31923 ≈ ln(4102) ✓;
+`episode/score` 0/502 ✓; `train/rew` 1.8e-11–6.9e-4 ✓. **One nuance:** W&B raw
+`train/rand/action` is **0.999987–1.0** (not exactly 1.0); B2's "1.0000" was 4-dp rounding. No
+substantive mismatch — the policy is uniform to within <2e-5 of the maximum.
+
+## Decision surfaced for Haso — per atom, did W&B close the gap?
+
+| atom | in W&B? | verdict |
+|------|---------|---------|
+| **(a) action distribution / histogram** | **No** (no stream, no histogram, no table — all 8 runs) | **STILL NEEDS A RE-RUN** for a measured valid-set fraction. Board media only corroborate the dilution indirectly. |
+| **(b) board / pixel change** | **Partly — board GIFs, no scalar** | **NOW SUPPORTED FROM LOGS (binary).** Media show the board *does* change but rarely → the literal "board never changes" is **refuted**; reword to "changes are rare / no level-up." A quantified Δpixel curve would still need a re-run but isn't needed for the claim. |
+| **(c) termination-reason flag** | **No** | **STILL NEEDS A RE-RUN** (or wrapper code inspection). lf52's 64-step ending stays inferred from length. |
+
+**Bottom line:** W&B added the board *videos* (which B2 lacked) and they are decisive for atom
+(b) — but they also show the strong "board never changes" wording is wrong and should be softened.
+W&B did **not** contain the action-level or termination-reason data, so atoms (a) and (c) still
+require the masked re-run (with an action-stream logger + explicit termination flags) if the paper
+wants to make the measured-dilution or termination claims rather than the
+random-policy/no-reward/board-rarely-changes claims that existing logs already support.
