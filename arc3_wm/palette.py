@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import numpy as np
 
+__all__ = ["PALETTE_RGB", "PALETTE_SIZE", "decode_frame"]
+
 # RGB triplets for palette indices 0..15. Values mirror arc_agi.rendering.COLOR_MAP
 # at arc-agi==0.9.8 (alpha channel dropped). Pinned by tests/test_palette.py.
 PALETTE_RGB: np.ndarray = np.array(
