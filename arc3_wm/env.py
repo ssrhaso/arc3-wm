@@ -43,7 +43,12 @@ TERMINAL_STATES = frozenset({GameState.WIN, GameState.GAME_OVER})
 class ARC3GymEnv(gym.Env):
     """Single-game Gymnasium env over ``arc_agi.Arcade`` in OFFLINE mode."""
 
-    metadata = {"render_modes": ["rgb_array"]}
+    # ``render_fps`` is playback-only metadata read by video utilities such
+    # as ``gymnasium.wrappers.RecordVideo`` (it has no effect on stepping,
+    # training, or eval). ARC-AGI-3 is turn-based with no native frame rate,
+    # so this is a watchable default for rendered rollouts, not a simulation
+    # parameter.
+    metadata = {"render_modes": ["rgb_array"], "render_fps": 10}
 
     def __init__(
         self,

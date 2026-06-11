@@ -106,6 +106,16 @@ def test_invalid_action_raises(env):
         env.step(-1)
 
 
+def test_metadata_declares_render_fps():
+    """Gymnasium video tooling (RecordVideo) reads metadata['render_fps'].
+
+    Class-level metadata, so no cached env files are needed to check it.
+    """
+    fps = ARC3GymEnv.metadata.get("render_fps")
+    assert isinstance(fps, int) and fps > 0
+    assert "rgb_array" in ARC3GymEnv.metadata["render_modes"]
+
+
 def test_render_mode_none_returns_none():
     """Default (no render_mode) follows the Gymnasium contract: render() -> None."""
     e = ARC3GymEnv(game_id="vc33", seed=0, max_steps=10)
