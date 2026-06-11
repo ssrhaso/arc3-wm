@@ -21,15 +21,34 @@ general-purpose library API.
   `cache-all`, `check`, `test`, `test-fast`, `smoke`, `gym-smoke`,
   `clean`) wrapping the commands already documented in the README;
   bare `make` prints the target list.
+- **`render_fps` env metadata.** `ARC3GymEnv.metadata` now declares
+  `render_fps`, which `gymnasium.wrappers.RecordVideo` reads to time
+  rendered rollouts; the `rgb_array` render path already existed.
+  Playback-only metadata, no effect on stepping, training, or eval.
+  Test in `tests/test_wrapper_spec.py`.
 
 ### Documentation
 
 - **Per-directory READMEs.** Added `tests/`, `configs/`, and `data/`
   READMEs, rounded out the repository map, and cross-linked the setup
   docs from the docs index.
+- **`compute_rhae` docstring.** Replaced a drifted line-number reference
+  to the reward signal with the symbol (`ARC3GymEnv.step`) and updated
+  the reward-stream note to describe `EvalRewardSink` (the implemented
+  per-episode reward sink wired into `launch_pergame.py`) instead of the
+  pre-implementation "would need a custom sink".
 
 ### Changed
 
+- **Explicit `__all__` on every public submodule.** `action_space`,
+  `palette`, `rhae`, `replay_loader`, `registration`, `env`, and
+  `eval_reward_sink` each declare an `__all__`, pinning their public
+  surface for `import *` and doc tooling. A parametrized drift guard in
+  `tests/test_package_api.py` asserts every listed name resolves and no
+  private name is exported.
+- **`logit_bias` dtype annotation.** The `dtype` parameter is typed as
+  `numpy.typing.DTypeLike` (was `type`), matching its documented use with
+  dtype objects and string codes; pinned by a float64 test.
 - **Cross-platform whitespace policy.** Added `.gitattributes`
   (LF in the repo, native on checkout) and a matching `.editorconfig`,
   forced LF on the `Makefile` so it stays usable on a Windows checkout,
