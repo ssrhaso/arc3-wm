@@ -25,6 +25,19 @@ ACTION6_COUNT = GRID * GRID  # 4096
 ACTION7_INDEX = ACTION6_BASE + ACTION6_COUNT  # 4101
 N_ACTIONS = ACTION7_INDEX + 1  # 4102
 
+__all__ = [
+    "GRID",
+    "ACTION6_BASE",
+    "ACTION6_COUNT",
+    "ACTION7_INDEX",
+    "N_ACTIONS",
+    "flat_to_arc",
+    "describe_action",
+    "arc_to_flat",
+    "build_mask",
+    "logit_bias",
+]
+
 
 def flat_to_arc(idx: int) -> Tuple[GameAction, Optional[dict]]:
     """Decode a flat index to ``(GameAction, data_or_None)``.
