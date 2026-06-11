@@ -34,6 +34,8 @@ from . import action_space as A
 from .palette import decode_frame
 from .registration import PUBLIC_GAMES
 
+__all__ = ["ARC3GymEnv"]
+
 OBS_HW = 64
 TERMINAL_STATES = frozenset({GameState.WIN, GameState.GAME_OVER})
 

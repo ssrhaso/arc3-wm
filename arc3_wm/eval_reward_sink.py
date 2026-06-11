@@ -35,6 +35,8 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+__all__ = ["EvalRewardSink"]
+
 
 class EvalRewardSink:
     """Wraps an embodied.Env to record per-step rewards to a JSONL sink.
