@@ -1,7 +1,7 @@
 """Phase-4 post-hoc RHAE CLI.
 
 Reads a JSONL of per-eval-episode reward streams, segments each episode
-by level via the cumulative-reward signal from ``arc3_wm/env.py:113``
+by level via the cumulative-reward signal from ``ARC3GymEnv.step``
 (``r = delta levels_completed``), takes MIN action count per level across
 eval episodes (matching ``extract_human_baselines.extract_per_session_baselines``
 so agent and human are scored under the same "best attempt" framing),
@@ -26,14 +26,13 @@ Usage::
         --baselines data/human_baselines.json \\
         --step 500000
 
-Known gap: DV3's eval logfn pops the per-step rewards stack before
-adding to epstats (see
-``third_party/dreamerv3/embodied/run/train_eval.py:67``), so the stack
-is NOT in ``eval/episode/rewards`` on wandb today. This CLI takes a
-local JSONL input; populating that file from a run is a separate
-concern (the launcher would need a small custom sink, or the rewards
-stack needs to be preserved through to epstats). The CLI's primary
-testable interface is the file mode.
+Reward-stream source: DV3's eval logfn pops the per-step rewards stack
+before adding to epstats, so the stack is NOT in ``eval/episode/rewards``
+on wandb. The episodes JSONL this CLI consumes is produced by
+``arc3_wm.eval_reward_sink.EvalRewardSink``, the eval-env wrapper wired
+into ``scripts/launch_pergame.py`` (D-C): it buffers per-step rewards and
+flushes one ``{"rewards": [...]}`` line per episode. The CLI's primary
+testable interface is that file mode.
 """
 from __future__ import annotations
 
