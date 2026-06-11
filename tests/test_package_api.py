@@ -19,6 +19,19 @@ import sys
 
 import pytest
 
+# Laptop-importable submodules that declare their own ``__all__``. The
+# JAX-only ``embodied_env`` is excluded: importing it needs the
+# DreamerV3/``elements`` stack that the laptop path does not install.
+_PUBLIC_SUBMODULES = [
+    "arc3_wm.action_space",
+    "arc3_wm.palette",
+    "arc3_wm.rhae",
+    "arc3_wm.replay_loader",
+    "arc3_wm.registration",
+    "arc3_wm.env",
+    "arc3_wm.eval_reward_sink",
+]
+
 
 def test_version_is_real():
     import arc3_wm
@@ -48,6 +61,26 @@ def test_all_is_exhaustive_and_resolvable():
     assert hasattr(arc3_wm, "__all__")
     for name in arc3_wm.__all__:
         assert hasattr(arc3_wm, name), f"__all__ lists {name!r} but it does not resolve"
+
+
+@pytest.mark.parametrize("module_name", _PUBLIC_SUBMODULES)
+def test_submodule_all_resolves(module_name):
+    """Each public submodule declares an ``__all__`` whose names all resolve.
+
+    Guards drift: a renamed/removed public function that is still listed in
+    a module's ``__all__`` (or a leading-underscore helper accidentally
+    exported) trips here rather than surfacing as a broken ``import *``.
+    """
+    module = importlib.import_module(module_name)
+    assert hasattr(module, "__all__"), f"{module_name} declares no __all__"
+    assert module.__all__, f"{module_name}.__all__ is empty"
+    for name in module.__all__:
+        assert hasattr(module, name), (
+            f"{module_name}.__all__ lists {name!r} but it does not resolve"
+        )
+        assert not name.startswith("_"), (
+            f"{module_name}.__all__ exports private name {name!r}"
+        )
 
 
 def test_embodied_env_not_imported_eagerly():
