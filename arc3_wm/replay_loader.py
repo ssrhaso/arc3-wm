@@ -59,6 +59,8 @@ from arcengine import GameAction
 from .action_space import arc_to_flat
 from .palette import decode_frame
 
+__all__ = ["ReplayParseError", "load_replay_file", "load_replays_directory"]
+
 OBS_HW = 64
 RESET_ID_INT = 0
 RESET_ID_STR = "RESET"

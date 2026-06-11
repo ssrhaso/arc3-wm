@@ -26,6 +26,8 @@ from that fixture, so registration works in a fresh clone with no data.
 """
 from __future__ import annotations
 
+__all__ = ["PUBLIC_GAMES", "ENV_ID_FMT", "env_id", "register_envs"]
+
 # The 25 public-demo ARC-AGI-3 games (sorted). Stable, documented set.
 PUBLIC_GAMES: tuple[str, ...] = (
     "ar25", "bp35", "cd82", "cn04", "dc22",
