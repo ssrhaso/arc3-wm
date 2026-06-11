@@ -42,6 +42,15 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping, Optional
 
+__all__ = [
+    "LEVEL_SCORE_CAP",
+    "level_score",
+    "game_score",
+    "total_score",
+    "coverage",
+    "RHAEAggregator",
+]
+
 LEVEL_SCORE_CAP = 1.15
 
 
