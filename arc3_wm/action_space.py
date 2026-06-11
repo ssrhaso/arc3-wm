@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Iterable, Optional, Tuple
 
 import numpy as np
+import numpy.typing as npt
 from arcengine import GameAction
 
 GRID = 64
@@ -117,7 +118,7 @@ def build_mask(available_actions: Iterable[int]) -> np.ndarray:
     return mask
 
 
-def logit_bias(mask: np.ndarray, dtype: type = np.float32) -> np.ndarray:
+def logit_bias(mask: np.ndarray, dtype: npt.DTypeLike = np.float32) -> np.ndarray:
     """Additive bias for actor logits: ``0.0`` where allowed, ``-inf`` where masked.
 
     This is the canonical realisation of the masking step CLAUDE.md

@@ -155,6 +155,16 @@ def test_logit_bias_rejects_wrong_shape():
         logit_bias(np.zeros(10, dtype=bool))
 
 
+def test_logit_bias_honours_requested_dtype():
+    # The dtype argument controls the output precision (a float64 actor
+    # head wants a float64 bias). -inf is representable in either width.
+    mask = build_mask([1, 2, 3, 4])
+    bias = logit_bias(mask, dtype=np.float64)
+    assert bias.dtype == np.float64
+    assert np.array_equal(bias == 0.0, mask)
+    assert np.isneginf(bias[~mask]).all()
+
+
 def test_describe_action_parameterless():
     assert describe_action(0) == "ACTION1"
     assert describe_action(4) == "ACTION5"
