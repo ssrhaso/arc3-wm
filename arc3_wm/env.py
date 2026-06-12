@@ -139,7 +139,9 @@ class ARC3GymEnv(gym.Env):
         return self._obs(fd), self._info(fd)
 
     def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict]:
-        if not isinstance(action, (int, np.integer)):
+        # bool is a subclass of int, so guard it explicitly - otherwise
+        # ``step(True)`` would silently map to flat index 1 (ACTION2).
+        if isinstance(action, bool) or not isinstance(action, (int, np.integer)):
             raise TypeError(f"action must be int, got {type(action).__name__}")
         action = int(action)
         arc_action, data = A.flat_to_arc(action)

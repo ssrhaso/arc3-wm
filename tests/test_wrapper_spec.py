@@ -106,6 +106,14 @@ def test_invalid_action_raises(env):
         env.step(-1)
 
 
+def test_bool_action_rejected(env):
+    """bool is a subclass of int, so ``step(True)`` must not silently map to
+    flat index 1 (ACTION2) - it should raise like any other non-int."""
+    env.reset()
+    with pytest.raises(TypeError):
+        env.step(True)
+
+
 def test_metadata_declares_render_fps():
     """Gymnasium video tooling (RecordVideo) reads metadata['render_fps'].
 
