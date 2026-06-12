@@ -53,10 +53,14 @@ def decode_frame(layer: np.ndarray) -> np.ndarray:
     arr = np.asarray(layer)
     if arr.ndim != 2:
         raise ValueError(f"expected (H, W) layer, got shape {arr.shape}")
-    # Cast to a small unsigned dtype before indexing to avoid negative
-    # int8 wrap-around (values are documented in [0, 15] anyway).
+    # Cast to the platform integer type for unambiguous fancy-indexing.
+    # intp is signed, so a negative int8 value stays negative and is caught
+    # by the range check below rather than wrapping (values are documented
+    # in [0, 15] anyway).
     idx = arr.astype(np.intp, copy=False)
-    if idx.min() < 0 or idx.max() >= PALETTE_SIZE:
+    # An empty layer is trivially in range; skip the reduction (np.min over a
+    # zero-size array raises) and return an empty (0, 0, 3) result.
+    if idx.size and (idx.min() < 0 or idx.max() >= PALETTE_SIZE):
         raise ValueError(
             f"palette index out of range [0, {PALETTE_SIZE - 1}]: "
             f"min={idx.min()} max={idx.max()}"

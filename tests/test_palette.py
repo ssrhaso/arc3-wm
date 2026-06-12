@@ -72,6 +72,14 @@ def test_decode_frame_rejects_wrong_ndim():
         decode_frame(bad)
 
 
+def test_decode_frame_empty_layer():
+    """A zero-size (H, W) layer is in range and decodes to an empty image,
+    rather than crashing on numpy's empty-reduction error."""
+    rgb = decode_frame(np.zeros((0, 0), dtype=np.int8))
+    assert rgb.shape == (0, 0, 3)
+    assert rgb.dtype == np.uint8
+
+
 def test_decode_frame_handles_int8_negative_safely():
     # int8 with values clipped to [0, 15]; we should not wrap.
     layer = np.array([[0, 15], [15, 0]], dtype=np.int8)
