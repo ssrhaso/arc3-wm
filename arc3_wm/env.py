@@ -72,6 +72,11 @@ class ARC3GymEnv(gym.Env):
                 f"unknown game_id {game_id!r}; expected one of the 25 public "
                 f"ARC-AGI-3 games (see arc3_wm.PUBLIC_GAMES), e.g. 'vc33'."
             )
+        if max_steps < 1:
+            # A non-positive budget truncates every episode after a single
+            # step - almost certainly a misconfiguration. Caught here (before
+            # the heavy Arcade construction) so it surfaces with a clear message.
+            raise ValueError(f"max_steps must be >= 1; got {max_steps}")
         # The arc_agi.Arcade is heavy (creates a scorecard, scans environment_files),
         # so allow callers to share one across vector envs / multi-game runs.
         self._arcade = arcade if arcade is not None else arc_agi.Arcade()
