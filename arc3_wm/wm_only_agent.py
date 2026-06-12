@@ -54,6 +54,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+__all__ = ["WMOnlyAgent"]
+
 # third_party/dreamerv3 path - used only on first WMOnlyAgent access.
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DV3 = _REPO_ROOT / "third_party" / "dreamerv3"

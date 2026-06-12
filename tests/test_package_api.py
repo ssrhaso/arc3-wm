@@ -30,6 +30,7 @@ _PUBLIC_SUBMODULES = [
     "arc3_wm.registration",
     "arc3_wm.env",
     "arc3_wm.eval_reward_sink",
+    "arc3_wm.wm_only_agent",
 ]
 
 
