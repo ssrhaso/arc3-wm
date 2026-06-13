@@ -114,6 +114,14 @@ def test_bool_action_rejected(env):
         env.step(True)
 
 
+@pytest.mark.parametrize("bad", [0, -1])
+def test_nonpositive_max_steps_rejected(bad):
+    """A non-positive ``max_steps`` would truncate every episode after one
+    step; the constructor must reject it (before Arcade construction)."""
+    with pytest.raises(ValueError, match="max_steps"):
+        ARC3GymEnv(game_id="vc33", max_steps=bad)
+
+
 def test_metadata_declares_render_fps():
     """Gymnasium video tooling (RecordVideo) reads metadata['render_fps'].
 

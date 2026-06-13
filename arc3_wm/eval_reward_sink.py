@@ -12,11 +12,23 @@ policy-noise rewards that are not useful for RHAE.
 Output format (one episode per line, matches
 ``scripts.compute_rhae.load_episodes_from_jsonl``)::
 
-    {"rewards": [r0, r1, r2, ...]}
+    {"rewards": [r0, r1, r2, ...], "terminal_state": "GAME_OVER"}
 
 where ``r0`` is the initial-obs reward (always 0 per DV3 convention;
 ``segment_episode_actions_per_level`` already skips it) and ``r1..rN``
 are the post-action rewards.
+
+``terminal_state`` is the inner env's terminal ``fd.state`` name -
+``"WIN"`` / ``"GAME_OVER"`` for a ``terminated`` episode, ``"NOT_FINISHED"``
+for a ``truncated`` one - read from ``info["state"]`` (written by
+``ARC3GymEnv._info`` at ``arc3_wm/env.py:214`` and re-exposed by
+``ARC3EmbodiedEnv.info``). It records the terminal cause directly so
+future eval runs no longer have to infer GAME_OVER-vs-WIN from
+``reward == 0``. The key is **omitted** when the inner env exposes no
+``info["state"]`` (a non-ARC env or a bare test double), so the record
+degrades to the legacy ``{"rewards": [...]}`` shape. The format is
+backward-compatible either way: ``compute_rhae`` keys only on
+``"rewards"`` and ``ai_actions = len(rewards) - 1`` is unchanged.
 
 The wrapper duck-types ``embodied.core.wrappers.Wrapper`` (same
 ``__init__(env)`` + attribute-forwarding contract). Avoiding the subclass
@@ -85,11 +97,36 @@ class EvalRewardSink:
             self._rewards = []
         self._rewards.append(float(obs["reward"]))
         if obs.get("is_last"):
-            self._flush()
+            self._flush(self._read_terminal_state())
         return obs
 
-    def _flush(self) -> None:
-        line = json.dumps({"rewards": self._rewards})
+    def _read_terminal_state(self) -> str | None:
+        """Best-effort read of the inner env's terminal ``fd.state`` name.
+
+        ``ARC3GymEnv._info`` writes ``info["state"] = fd.state.name``
+        (``arc3_wm/env.py:214``) and ``ARC3EmbodiedEnv`` re-exposes it via
+        its ``.info`` property; the read traverses any embodied wrappers
+        (``UnifyDtypes`` / ``CheckSpaces``) through their ``__getattr__``.
+        At ``is_last`` the inner env's ``.info`` still reflects the
+        terminal step - embodied's auto-reset only fires on the *next*
+        step - so this is the true terminal cause.
+
+        Every failure mode degrades to ``None`` (no ``.info``, no
+        ``"state"`` key, a non-Mapping ``.info``): logging must never
+        break an eval run, and ``None`` makes ``_flush`` emit the legacy
+        ``{"rewards": [...]}`` shape.
+        """
+        try:
+            state = self.env.info.get("state")
+        except (AttributeError, ValueError, TypeError):
+            return None
+        return str(state) if state is not None else None
+
+    def _flush(self, terminal_state: str | None = None) -> None:
+        record: dict[str, Any] = {"rewards": self._rewards}
+        if terminal_state is not None:
+            record["terminal_state"] = terminal_state
+        line = json.dumps(record)
         with self._sink_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
         self._rewards = []

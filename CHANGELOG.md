@@ -13,6 +13,19 @@ general-purpose library API.
 
 ### Added
 
+- **`terminal_state` in the eval reward sink.** `EvalRewardSink` now
+  appends the inner env's terminal `fd.state` name to each episode
+  record: `{"rewards": [...], "terminal_state": "GAME_OVER"}`. It is read
+  best-effort from `info["state"]` (written by `ARC3GymEnv._info`,
+  re-exposed by `ARC3EmbodiedEnv.info`) at `is_last`, recording the
+  terminal cause - `WIN` / `GAME_OVER` for a `terminated` episode,
+  `NOT_FINISHED` for a `truncated` one - directly, so future eval runs no
+  longer infer it from `reward == 0`. Backward-compatible: the key is
+  omitted when no `info["state"]` is exposed, `compute_rhae` keys only on
+  `rewards`, and `ai_actions = len(rewards) - 1` is unchanged. Logging
+  is best-effort - any read failure degrades to the legacy shape rather
+  than breaking the run. Tests in `tests/test_eval_reward_sink.py`.
+  (Logging-only; existing run artifacts are not re-generated.)
 - **`arc3-wm` console entry point.** `pyproject.toml` registers a
   `console_scripts` entry so the no-network install sanity check
   (`arc3_wm/__main__.py`) is runnable as `arc3-wm`, equivalent to
