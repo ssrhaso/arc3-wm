@@ -336,3 +336,57 @@ def test_terminal_state_records_truncation_as_not_finished(tmp_path: Path):
         "rewards": [0.0, 0.0, 0.0],
         "terminal_state": "NOT_FINISHED",
     }
+
+
+# ---------------------------------------------------------------------------
+# Backward compatibility - legacy {"rewards": [...]} records and readers
+# ---------------------------------------------------------------------------
+
+
+def test_env_without_info_writes_legacy_shape(tmp_path: Path):
+    """An inner env that exposes no ``info["state"]`` (a bare DummyEnv, or
+    any non-ARC env) degrades to exactly the legacy record - no
+    ``terminal_state`` key - so logging never breaks and old readers keep
+    working."""
+    sink = tmp_path / "eval_episodes.jsonl"
+    env = DummyEnv(_episode([0, 1, 1]))  # DummyEnv has no .info attribute
+    w = EvalRewardSink(env, sink_path=sink)
+    for _ in range(3):
+        w.step({"action": 0, "reset": False})
+    record = json.loads(sink.read_text(encoding="utf-8").splitlines()[0])
+    assert record == {"rewards": [0.0, 1.0, 1.0]}
+    assert "terminal_state" not in record
+
+
+def test_info_without_state_key_writes_legacy_shape(tmp_path: Path):
+    """An ``info`` dict that lacks ``"state"`` also degrades to the legacy
+    shape rather than writing ``terminal_state: null``."""
+    sink = tmp_path / "eval_episodes.jsonl"
+    env = DummyEnvWithInfo(_episode([0, 1]), info={"guid": "abc"})
+    w = EvalRewardSink(env, sink_path=sink)
+    for _ in range(2):
+        w.step({"action": 0, "reset": False})
+    record = json.loads(sink.read_text(encoding="utf-8").splitlines()[0])
+    assert record == {"rewards": [0.0, 1.0]}
+    assert "terminal_state" not in record
+
+
+def test_compute_rhae_loader_ignores_terminal_state_key(tmp_path: Path):
+    """``compute_rhae.load_episodes_from_jsonl`` keys only on ``"rewards"``,
+    so a file mixing new-style (with ``terminal_state``) and legacy lines
+    loads identically - the new key is transparent and
+    ``ai_actions = len(rewards) - 1`` is unaffected."""
+    from scripts.compute_rhae import load_episodes_from_jsonl
+
+    sink = tmp_path / "eval_episodes.jsonl"
+    # one new-style line (carries terminal_state)...
+    env = DummyEnvWithInfo(_episode([0, 0, 1]), info={"state": "GAME_OVER"})
+    w = EvalRewardSink(env, sink_path=sink)
+    for _ in range(3):
+        w.step({"action": 0, "reset": False})
+    # ...then a hand-written pre-feature legacy line in the same file.
+    with sink.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"rewards": [0.0, 1.0]}) + "\n")
+
+    loaded = load_episodes_from_jsonl(sink)
+    assert loaded == [[0.0, 0.0, 1.0], [0.0, 1.0]]
