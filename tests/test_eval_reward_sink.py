@@ -53,6 +53,20 @@ class DummyEnv:
         return True
 
 
+class DummyEnvWithInfo(DummyEnv):
+    """``DummyEnv`` that also exposes an ``info`` dict, mimicking
+    ``ARC3EmbodiedEnv.info`` (which carries ``info["state"] =
+    fd.state.name``). ``EvalRewardSink._read_terminal_state`` reads
+    ``self.env.info.get("state")`` at ``is_last`` to record the terminal
+    cause. The info is fixed for the scripted episode - the wrapper only
+    reads it at the terminal step, so a constant value is representative
+    of what the real env reports there."""
+
+    def __init__(self, transitions, info):
+        super().__init__(transitions)
+        self.info = dict(info)
+
+
 def _episode(rewards, *, length=None):
     """Build a list of obs dicts that mimic a DV3 episode of given rewards.
 
@@ -270,3 +284,55 @@ def test_output_round_trips_through_compute_rhae_loader(tmp_path: Path):
         w.step({"action": 0, "reset": False})
     loaded = load_episodes_from_jsonl(sink)
     assert loaded == [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0]]
+
+
+# ---------------------------------------------------------------------------
+# terminal_state capture (info["state"]) - the terminal cause, recorded directly
+# ---------------------------------------------------------------------------
+
+
+def test_terminal_state_written_when_env_exposes_info(tmp_path: Path):
+    """When the inner env exposes ``info["state"]`` (as ARC3EmbodiedEnv
+    does), the flushed record carries it as ``terminal_state`` alongside
+    the unchanged ``rewards`` stream."""
+    sink = tmp_path / "eval_episodes.jsonl"
+    env = DummyEnvWithInfo(_episode([0, 0, 1]), info={"state": "GAME_OVER"})
+    w = EvalRewardSink(env, sink_path=sink)
+    for _ in range(3):
+        w.step({"action": 0, "reset": False})
+    lines = sink.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == {
+        "rewards": [0.0, 0.0, 1.0],
+        "terminal_state": "GAME_OVER",
+    }
+
+
+def test_terminal_state_records_win(tmp_path: Path):
+    """A solved game reports ``WIN`` - recorded verbatim."""
+    sink = tmp_path / "eval_episodes.jsonl"
+    env = DummyEnvWithInfo(_episode([0, 1, 1]), info={"state": "WIN"})
+    w = EvalRewardSink(env, sink_path=sink)
+    for _ in range(3):
+        w.step({"action": 0, "reset": False})
+    assert json.loads(sink.read_text(encoding="utf-8").splitlines()[0]) == {
+        "rewards": [0.0, 1.0, 1.0],
+        "terminal_state": "WIN",
+    }
+
+
+def test_terminal_state_records_truncation_as_not_finished(tmp_path: Path):
+    """A truncated episode (the wrapper sets ``truncated`` while
+    ``fd.state`` stays ``NOT_FINISHED``) is recorded as ``NOT_FINISHED`` -
+    the field distinguishes a real engine termination from a horizon
+    truncation, which is exactly the distinction the post-hoc analysis
+    previously had to infer."""
+    sink = tmp_path / "eval_episodes.jsonl"
+    env = DummyEnvWithInfo(_episode([0, 0, 0]), info={"state": "NOT_FINISHED"})
+    w = EvalRewardSink(env, sink_path=sink)
+    for _ in range(3):
+        w.step({"action": 0, "reset": False})
+    assert json.loads(sink.read_text(encoding="utf-8").splitlines()[0]) == {
+        "rewards": [0.0, 0.0, 0.0],
+        "terminal_state": "NOT_FINISHED",
+    }
