@@ -13,6 +13,28 @@ general-purpose library API.
 
 ### Added
 
+- **Tracked Fig-3b episode-length table.**
+  `analysis/lf52_episode_lengths.csv` (generator
+  `analysis/lf52_episode_lengths.py`) is committed so Fig 3b is
+  reproducible without the gitignored `scratch/curves` pipeline. One row
+  per episode in a single RHAE `action_count` unit: lf52 human replays
+  (canonical `arc3_wm.replay_loader` segmentation, cross-checked for
+  WIN/GAME_OVER/NOT_FINISHED labels) plus the 105 lf52 agent eval episodes
+  (all `action_count == 64`, zero variance). Carries an embedded two-way
+  summary (including / excluding phantom 1-row segments): human n=48
+  median 67 / n=45 median 77. Read-only - no env runs, no `.tex` touched.
+
+### Changed
+
+- **`analysis/lf52_termination.md` reconciled with the canonical CSV.**
+  The lf52 length row and the "15 of 49 episodes" claim were per-session-
+  file counts (gitignored `scratch/make_lf52_csvs.py`) presented as a
+  per-episode distribution; replaced with the canonical per-episode
+  numbers from `analysis/lf52_episode_lengths.csv` and annotated with the
+  prior method so nothing in the doc contradicts the tracked table.
+
+### Added
+
 - **`terminal_state` in the eval reward sink.** `EvalRewardSink` now
   appends the inner env's terminal `fd.state` name to each episode
   record: `{"rewards": [...], "terminal_state": "GAME_OVER"}`. It is read
