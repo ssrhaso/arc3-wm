@@ -48,13 +48,25 @@ The same wrapper produces wildly different episode lengths per game, and lf52's 
 
 | game | human-replay episode length (min / med / mean / max) | terminal states seen | win_levels |
 |------|------------------------------------------------------|----------------------|-----------|
-| **lf52** | **1 / 67 / 230 / 1605** | WIN (humans solve it) | 10 |
-| vc33 | 1 / 101 / 126 / 502 | WIN + GAME_OVER | 7 |
-| cd82 | 1 / 47 / 60 / 241 | WIN + GAME_OVER | 6 |
+| **lf52** † | **0 / 67 / 234 / 1604 actions** (1 / 68 / 235 / 1605 rows) | WIN | 10 |
+| vc33 ‡ | 1 / 101 / 126 / 502 | WIN + GAME_OVER | 7 |
+| cd82 ‡ | 1 / 47 / 60 / 241 | WIN + GAME_OVER | 6 |
 
-15 of 49 lf52 human episodes exceed 200 steps; the longest is 1605. **No fixed 64-step horizon
-exists in the game** — if it did, no human episode could exceed 64. (`max(win_levels)=10` confirms
-lf52 has 10 levels, so a single episode can legitimately span many level-budgets.)
+† **lf52 recomputed canonically per-episode** via `arc3_wm.replay_loader.load_replay_file`
+(`analysis/lf52_episode_lengths.csv`, generator `analysis/lf52_episode_lengths.py`): **n = 48
+episodes** (11 session-files), RHAE `action_count` (`len(episode)-1`) min/median/mean/max =
+**0 / 67 / 234 / 1604** (equivalently 1 / 68 / 235 / 1605 in step-rows). Of those 48, **4 reach
+WIN, 0 GAME_OVER, 44 NOT_FINISHED**; 3 are phantom 1-row/0-action segments (excluding them: n = 45,
+median 77). The earlier figure here — *"1 / 67 / 230 / 1605 over 49 episodes"* — came from the
+gitignored `scratch/make_lf52_csvs.py` → `curves/` pipeline, which tallies lengths **per
+session-file** and used a non-canonical 49-segment split (mean 230 = 11261 rows / 49); it is
+superseded by the CSV. ‡ vc33/cd82 rows are the same legacy per-file estimates, **not** recomputed
+under the canonical loader; treat as illustrative only.
+
+**15 of the 48 canonical lf52 episodes exceed 200 actions; the longest is 1604 actions (1605
+step-rows).** **No fixed 64-step horizon exists in the game** — if it did, no human episode could
+exceed 64. (`max(win_levels)=10` confirms lf52 has 10 levels, so a single episode can legitimately
+span many level-budgets.)
 
 ## What the logs SHOW about the agent's 64
 
