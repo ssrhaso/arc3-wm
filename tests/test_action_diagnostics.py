@@ -24,6 +24,8 @@ import json
 
 import pytest
 
+from pathlib import Path
+
 from arc3_wm.action_diagnostics import (
     LF52_BUDGET,
     SOURCE_ABSENT,
@@ -34,12 +36,26 @@ from arc3_wm.action_diagnostics import (
     ActionRow,
     BudgetModel,
     TaskActionProfile,
+    available_actions_from_replays,
     build_task_action_profile,
+    from_env,
+    from_replays,
     load_action_log_jsonl,
     resolve_budget_model,
     usage_counts_from_action_indices,
 )
 from arc3_wm.action_space import ACTION6_BASE, ACTION7_INDEX, N_ACTIONS
+
+_REPO = Path(__file__).resolve().parents[1]
+
+
+def _game_cached(game: str) -> bool:
+    return (_REPO / "environment_files" / game).is_dir()
+
+
+def _has_replays(game: str) -> bool:
+    d = _REPO / "data" / "replays" / game
+    return d.is_dir() and any(d.glob("*.recording.jsonl"))
 
 # --- fixtures -------------------------------------------------------------
 
@@ -429,6 +445,76 @@ def test_budget_cost_is_type_property_not_validity():
     ls20 = build_task_action_profile("ls20", LS20, budget_model=LF52_BUDGET)
     assert ls20.rows[ACTION7_INDEX].valid_on_task is False
     assert ls20.rows[ACTION7_INDEX].budget_cost == 20
+
+
+# --- validity sources: live engine + replays ------------------------------
+
+
+@pytest.mark.parametrize(
+    "game,n_valid",
+    [("vc33", 4096), ("sb26", 4098), ("cd82", 4101), ("lf52", 4101)],
+)
+def test_from_env_matches_audited_n_valid(game, n_valid):
+    if not _game_cached(game):
+        pytest.skip(f"environment_files/{game} not cached")
+    prof = from_env(game)
+    assert prof.task_id == game
+    assert prof.n_valid == n_valid
+
+
+def test_from_env_lf52_uses_lf52_budget_automatically():
+    if not _game_cached("lf52"):
+        pytest.skip("environment_files/lf52 not cached")
+    prof = from_env("lf52")
+    by_type = {r.action_type: r.budget_cost for r in prof.rows}
+    assert by_type["ACTION7"] == 20 and by_type["ACTION5"] == 0
+
+
+def test_available_actions_from_replays_ls20():
+    if not _has_replays("ls20"):
+        pytest.skip("ls20 replays absent")
+    # ls20 is directional-only and NOT cached as environment_files -> replays
+    # are the only validity source. Ground truth: {1,2,3,4}.
+    assert available_actions_from_replays("ls20") == [1, 2, 3, 4]
+
+
+def test_from_replays_ls20_fig3_numbers():
+    if not _has_replays("ls20"):
+        pytest.skip("ls20 replays absent")
+    prof = from_replays("ls20")
+    assert prof.n_valid == 4  # Fig-3 panel A: 4/4102
+    assert round(prof.dilution_ratio) == 1026  # ~1025:1
+
+
+def test_from_replays_lf52_matches_audit():
+    if not _has_replays("lf52"):
+        pytest.skip("lf52 replays absent")
+    # lf52 -> {1,2,3,4,6,7}: 4 directional + 4096 click + 1 undo = 4101.
+    assert available_actions_from_replays("lf52") == [1, 2, 3, 4, 6, 7]
+    assert from_replays("lf52").n_valid == 4101
+
+
+def test_from_replays_missing_game_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        available_actions_from_replays("zz99", replays_dir=tmp_path)
+
+
+def test_env_and_replays_agree_where_both_exist():
+    # Cross-check: the live engine and the replay union must be byte-identical
+    # for a cached game (vc33), validating replays as a source for uncached ones.
+    if not (_game_cached("vc33") and _has_replays("vc33")):
+        pytest.skip("vc33 env files or replays absent")
+    live = {r.action_index for r in from_env("vc33").rows if r.valid_on_task}
+    repl = {r.action_index for r in from_replays("vc33").rows if r.valid_on_task}
+    assert live == repl
+
+
+def test_package_reexports_action_profile_helpers():
+    import arc3_wm
+
+    assert arc3_wm.action_profile_from_env is from_env
+    assert arc3_wm.action_profile_from_replays is from_replays
+    assert arc3_wm.build_task_action_profile is build_task_action_profile
 
 
 # --- ActionRow direct construction is well-formed -------------------------

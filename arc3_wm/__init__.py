@@ -20,6 +20,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from .action_diagnostics import (
+    TaskActionProfile,
+    build_task_action_profile,
+    from_env as action_profile_from_env,
+    from_replays as action_profile_from_replays,
+)
 from .action_space import (
     N_ACTIONS,
     arc_to_flat,
@@ -47,6 +53,10 @@ __all__ = [
     "build_mask",
     "describe_action",
     "logit_bias",
+    "TaskActionProfile",
+    "build_task_action_profile",
+    "action_profile_from_env",
+    "action_profile_from_replays",
     "PUBLIC_GAMES",
     "register_envs",
     "__version__",

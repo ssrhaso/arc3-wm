@@ -58,6 +58,9 @@ __all__ = [
     "build_task_action_profile",
     "usage_counts_from_action_indices",
     "load_action_log_jsonl",
+    "available_actions_from_replays",
+    "from_env",
+    "from_replays",
 ]
 
 #: The seven flat-space action TYPEs (RESET is not in the flat action space).
@@ -424,3 +427,85 @@ def build_task_action_profile(
         )
 
     return TaskActionProfile(task_id=task_id, rows=rows)
+
+
+# --- task validity sources -----------------------------------------------
+
+
+def from_env(
+    game_id: str,
+    *,
+    seed: int = 0,
+    arcade=None,
+    **profile_kwargs,
+) -> TaskActionProfile:
+    """Build a profile from the live engine (authoritative, OFFLINE mode).
+
+    Constructs :class:`arc3_wm.env.ARC3GymEnv`, resets it, and reads
+    ``info["available_actions"]``. Requires the game's ``environment_files/``
+    to be cached locally (the engine is the source of truth, identical to the
+    replay-derived set where both exist). Extra keyword arguments
+    (``budget_model``, ``inert_indices``, ``usage_counts``) pass through to
+    :func:`build_task_action_profile`.
+    """
+    from .env import ARC3GymEnv  # local import: keeps module JAX/Gym-free to import
+
+    env = ARC3GymEnv(game_id=game_id, seed=seed, arcade=arcade)
+    try:
+        _, info = env.reset()
+        available = list(info["available_actions"])
+    finally:
+        env.close()
+    return build_task_action_profile(game_id, available, **profile_kwargs)
+
+
+def available_actions_from_replays(
+    game_id: str,
+    replays_dir: Union[str, Path] = "data/replays",
+) -> list[int]:
+    """Union of the engine's ``available_actions`` across a game's replays.
+
+    Reads every ``data/replays/<game_id>/*.recording.jsonl`` frame and unions
+    the per-frame ``available_actions`` arrays. This covers games whose
+    ``environment_files/`` are not cached (the only source for, e.g., ls20 /
+    tn36). The set is a game-constant in the logged data (constant across every
+    frame for all audited games), so the union is the task's action-TYPE set.
+
+    Raises ``FileNotFoundError`` if the game's replay directory has no
+    recordings.
+    """
+    game_dir = Path(replays_dir) / game_id
+    files = sorted(game_dir.glob("*.recording.jsonl"))
+    if not files:
+        raise FileNotFoundError(
+            f"no *.recording.jsonl under {game_dir} - cannot derive "
+            f"available_actions for {game_id!r} from replays"
+        )
+    avail: set[int] = set()
+    for path in files:
+        with path.open("r", encoding="utf-8") as f:
+            for raw in f:
+                stripped = raw.strip()
+                if not stripped:
+                    continue
+                obj = json.loads(stripped)
+                data = obj.get("data", obj)  # rows are {"data": {...}, "timestamp": ...}
+                actions = data.get("available_actions")
+                if actions:
+                    avail.update(int(a) for a in actions)
+    return sorted(avail)
+
+
+def from_replays(
+    game_id: str,
+    replays_dir: Union[str, Path] = "data/replays",
+    **profile_kwargs,
+) -> TaskActionProfile:
+    """Build a profile from the human replays' ``available_actions`` union.
+
+    The provider-agnostic source for any of the 25 public games, including
+    those whose engine is not cached. Extra keyword arguments pass through to
+    :func:`build_task_action_profile`.
+    """
+    available = available_actions_from_replays(game_id, replays_dir)
+    return build_task_action_profile(game_id, available, **profile_kwargs)
