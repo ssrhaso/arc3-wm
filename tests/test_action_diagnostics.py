@@ -25,12 +25,16 @@ import json
 import pytest
 
 from arc3_wm.action_diagnostics import (
+    LF52_BUDGET,
     SOURCE_ABSENT,
     SOURCE_ENGINE,
     SOURCE_ENGINE_PROBE,
+    UNIFORM_BUDGET,
     ActionRow,
+    BudgetModel,
     TaskActionProfile,
     build_task_action_profile,
+    resolve_budget_model,
 )
 from arc3_wm.action_space import ACTION6_BASE, ACTION7_INDEX, N_ACTIONS
 
@@ -264,6 +268,75 @@ def test_to_json_and_to_csv_write_files(tmp_path):
     prof.to_csv(cp)
     assert json.loads(jp.read_text())["task_id"] == "ls20"
     assert len(cp.read_text().splitlines()) == N_ACTIONS + 1  # header + rows
+
+
+# --- budget-cost model (engine-confirmed weights) -------------------------
+
+
+def test_uniform_budget_is_default_and_costs_one():
+    # The global engine truth: every action id 1..7 counts as +1
+    # (arc_agi/scorecard.py inc_action_count). So absent a game-specific
+    # internal budget, every row costs 1 regardless of validity.
+    prof = build_task_action_profile("cd82", CD82)
+    assert all(r.budget_cost == 1 for r in prof.rows)
+    assert all(r.sources["budget_cost"] == "engine:uniform" for r in prof.rows)
+
+
+def test_lf52_budget_weights_match_engine_source():
+    # Confirmed from environment_files/lf52/271a04aa/lf52.py:
+    #   directional moves tmhxwcojkh -> +1 (lf52.py:5277)
+    #   ACTION6 grid-click dghsidbuet -> +1 (lf52.py:5335)
+    #   undo commit -> +20 (lf52.py:5805)
+    #   ACTION5 + special-region click -> +0 (lf52.py:5327, :5832)
+    # i.e. the paper's move=1 / undo=20 / no-op=0 weights are lf52's internal
+    # survival-budget counter, resolved automatically by task id.
+    prof = build_task_action_profile("lf52", LF52)
+    by_type = {r.action_type: r.budget_cost for r in prof.rows}
+    assert by_type["ACTION1"] == 1
+    assert by_type["ACTION2"] == 1
+    assert by_type["ACTION3"] == 1
+    assert by_type["ACTION4"] == 1
+    assert by_type["ACTION5"] == 0  # budget-exempt (no-op)
+    assert by_type["ACTION6"] == 1  # grid-click
+    assert by_type["ACTION7"] == 20  # undo
+    assert all(r.sources["budget_cost"] == "engine:lf52" for r in prof.rows)
+
+
+def test_resolve_budget_model_registry():
+    assert resolve_budget_model("lf52") is LF52_BUDGET
+    assert resolve_budget_model("vc33") is UNIFORM_BUDGET  # default
+    assert resolve_budget_model("anything") is UNIFORM_BUDGET
+
+
+def test_explicit_budget_model_override_wins():
+    # A caller can force a model regardless of task id (e.g. score lf52 under
+    # the uniform RHAE accounting instead of its survival budget).
+    prof = build_task_action_profile("lf52", LF52, budget_model=UNIFORM_BUDGET)
+    assert all(r.budget_cost == 1 for r in prof.rows)
+    assert all(r.sources["budget_cost"] == "engine:uniform" for r in prof.rows)
+
+
+def test_budget_model_covers_all_seven_action_types():
+    for model in (UNIFORM_BUDGET, LF52_BUDGET):
+        for name in (f"ACTION{i}" for i in range(1, 8)):
+            assert isinstance(model.cost(name), int)
+
+
+def test_budget_model_rejects_unknown_action_type():
+    with pytest.raises(KeyError):
+        UNIFORM_BUDGET.cost("RESET")  # RESET is not in the flat action space
+
+
+def test_budget_cost_is_type_property_not_validity():
+    # An invalid action still reports its action-TYPE budget cost (what it
+    # WOULD cost if taken), not 0-because-invalid.
+    prof = build_task_action_profile("lf52", LF52)
+    a7 = prof.rows[ACTION7_INDEX]
+    assert a7.valid_on_task is True and a7.budget_cost == 20
+    # ls20 has no ACTION7, but the cost of the ACTION7 type is still defined.
+    ls20 = build_task_action_profile("ls20", LS20, budget_model=LF52_BUDGET)
+    assert ls20.rows[ACTION7_INDEX].valid_on_task is False
+    assert ls20.rows[ACTION7_INDEX].budget_cost == 20
 
 
 # --- ActionRow direct construction is well-formed -------------------------

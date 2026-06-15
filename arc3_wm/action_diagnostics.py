@@ -48,10 +48,18 @@ __all__ = [
     "SOURCE_ENGINE_PROBE",
     "SOURCE_RUN_MEASURED",
     "SOURCE_ABSENT",
+    "BudgetModel",
+    "UNIFORM_BUDGET",
+    "LF52_BUDGET",
+    "GAME_BUDGET_MODELS",
+    "resolve_budget_model",
     "ActionRow",
     "TaskActionProfile",
     "build_task_action_profile",
 ]
+
+#: The seven flat-space action TYPEs (RESET is not in the flat action space).
+_ACTION_TYPE_NAMES: tuple[str, ...] = tuple(f"ACTION{i}" for i in range(1, 8))
 
 # --- per-field provenance tags -------------------------------------------
 
@@ -70,6 +78,70 @@ SOURCE_RUN_MEASURED = "run-measured"
 
 #: Honest null: no measurement was supplied for this field.
 SOURCE_ABSENT = "absent"
+
+
+# --- budget-cost models --------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BudgetModel:
+    """Per-action-TYPE budget cost, with a name for its provenance tag.
+
+    A model maps each of the seven flat action types (``ACTION1..ACTION7``) to
+    the integer it adds to a task's action budget when taken. ``budget_cost``
+    is therefore a property of the action *type*, independent of whether that
+    action is currently valid.
+    """
+
+    name: str
+    costs: Mapping[str, int]
+
+    def cost(self, action_type: str) -> int:
+        """Budget cost of ``action_type``. Raises ``KeyError`` if unknown."""
+        return self.costs[action_type]
+
+
+#: The global engine truth: the scorecard counts every action id ``1..7`` as
+#: exactly ``+1`` (``arc_agi/scorecard.py`` ``Card.inc_action_count`` /
+#: ``Scorecard.take_action``). This is the RHAE action accounting and the right
+#: default for any game without a distinct internal budget.
+UNIFORM_BUDGET = BudgetModel("uniform", {name: 1 for name in _ACTION_TYPE_NAMES})
+
+#: lf52's internal survival-budget counter ``asqvqzpfdi``, confirmed from
+#: ``environment_files/lf52/271a04aa/lf52.py``:
+#:   ACTION1-4 directional move ``tmhxwcojkh`` -> +1 (lf52.py:5277)
+#:   ACTION6 grid-click ``dghsidbuet``         -> +1 (lf52.py:5335)
+#:   ACTION7 undo (on commit)                  -> +20 (lf52.py:5805)
+#:   ACTION5 + special-region ACTION6 click    -> +0 (lf52.py:5327, :5832)
+#: These are the paper's move=1 / undo=20 / no-op=0 weights -- real, but a
+#: per-game survival mechanic, NOT a universal action cost. The +0 for the
+#: special-region ACTION6 click is a *cell-level* exemption that the type-level
+#: ACTION6 cost (1, the dominant grid-click) cannot express.
+LF52_BUDGET = BudgetModel(
+    "lf52",
+    {
+        "ACTION1": 1,
+        "ACTION2": 1,
+        "ACTION3": 1,
+        "ACTION4": 1,
+        "ACTION5": 0,
+        "ACTION6": 1,
+        "ACTION7": 20,
+    },
+)
+
+#: Games whose engine defines an internal action budget distinct from the
+#: uniform scorecard accounting. Everything else resolves to UNIFORM_BUDGET.
+GAME_BUDGET_MODELS: Mapping[str, BudgetModel] = {"lf52": LF52_BUDGET}
+
+
+def resolve_budget_model(
+    task_id: str, override: Optional[BudgetModel] = None
+) -> BudgetModel:
+    """Pick the budget model for ``task_id`` (``override`` wins if given)."""
+    if override is not None:
+        return override
+    return GAME_BUDGET_MODELS.get(task_id, UNIFORM_BUDGET)
 
 
 # --- schema --------------------------------------------------------------
@@ -200,21 +272,11 @@ class TaskActionProfile:
 # --- builder -------------------------------------------------------------
 
 
-def _budget_cost(action_type: str) -> int:
-    """Uniform budget cost (every action costs 1).
-
-    This is the global engine truth: the scorecard counts every action id in
-    ``1..7`` as exactly ``+1`` (``arc_agi/scorecard.py`` ``inc_action_count``).
-    Game-specific internal budgets that weight actions differently (e.g. lf52's
-    survival counter: move=1/undo=20/no-op=0) are layered in separately.
-    """
-    return 1
-
-
 def build_task_action_profile(
     task_id: str,
     available_actions: Iterable[int],
     *,
+    budget_model: Optional[BudgetModel] = None,
     inert_indices: Optional[Iterable[int]] = None,
     usage_counts: Optional[Mapping[int, int]] = None,
 ) -> TaskActionProfile:
@@ -231,6 +293,10 @@ def build_task_action_profile(
         iff its action type is present here (ACTION6's 4096 cells all share the
         type-level validity of id ``6``; the engine does not expose cell-level
         ACTION6 validity at reset).
+    budget_model:
+        Optional :class:`BudgetModel` for ``budget_cost``. Defaults to the
+        per-game model from :func:`resolve_budget_model` (lf52 -> its survival
+        budget; everything else -> :data:`UNIFORM_BUDGET`).
     inert_indices:
         Optional set of *valid* flat indices known (from a live state-change
         probe) to be inert -- accepted by the engine but changing nothing.
@@ -245,6 +311,8 @@ def build_task_action_profile(
         supplied, ``usage_fraction`` is ``count / sum(all counts)``. Usage is
         never derived from anything else.
     """
+    model = resolve_budget_model(task_id, budget_model)
+    budget_source = f"{SOURCE_ENGINE}:{model.name}"
     avail = {int(a) for a in available_actions}
     inert = {int(i) for i in inert_indices} if inert_indices is not None else set()
 
@@ -280,13 +348,13 @@ def build_task_action_profile(
                 action_type=action_type,
                 valid_on_task=valid,
                 is_state_changing=state_changing,
-                budget_cost=_budget_cost(action_type),
+                budget_cost=model.cost(action_type),
                 usage_count=usage_count,
                 usage_fraction=usage_fraction,
                 sources={
                     "valid_on_task": SOURCE_ENGINE,
                     "is_state_changing": sc_source,
-                    "budget_cost": SOURCE_ENGINE,
+                    "budget_cost": budget_source,
                     "usage_count": usage_source,
                     "usage_fraction": usage_source,
                 },
