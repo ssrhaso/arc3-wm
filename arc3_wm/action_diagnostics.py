@@ -45,6 +45,7 @@ from . import action_space as A
 
 __all__ = [
     "SOURCE_ENGINE",
+    "SOURCE_ENGINE_DEFAULT",
     "SOURCE_ENGINE_PROBE",
     "SOURCE_RUN_MEASURED",
     "SOURCE_ABSENT",
@@ -68,9 +69,20 @@ _ACTION_TYPE_NAMES: tuple[str, ...] = tuple(f"ACTION{i}" for i in range(1, 8))
 
 # --- per-field provenance tags -------------------------------------------
 
-#: Static ground truth read from the ARC-AGI-3 engine (action-TYPE validity,
-#: structural state-change, budget weights). Never a function of any run.
+#: A value read from / directly entailed by the ARC-AGI-3 engine: action-TYPE
+#: validity (``available_actions``), budget weights, and the
+#: ``is_state_changing=False`` of an *invalid* action (a direct consequence of
+#: the validity set). Never a function of any run, and never an inference about
+#: per-cell dynamics.
 SOURCE_ENGINE = "engine"
+
+#: Structural default for a *valid, un-probed* action: ``is_state_changing`` is
+#: presumed ``True`` because at reset-introspection the engine does not expose
+#: which cells are inert. This is an inference, NOT engine-confirmed per-cell
+#: truth (cf. the audit: sb26's click grid is mostly inert despite all cells
+#: being valid). A live state-change probe upgrades these to
+#: :data:`SOURCE_ENGINE_PROBE`.
+SOURCE_ENGINE_DEFAULT = "engine-default"
 
 #: A valid index refined by a live state-change probe -- the only honest way to
 #: learn that a *valid* action is *inert* (e.g. a sparse click cell, or undo
@@ -392,9 +404,17 @@ def build_task_action_profile(
 
         valid = type_id in avail
         state_changing = valid and idx not in inert
-        sc_source = (
-            SOURCE_ENGINE_PROBE if (valid and idx in inert) else SOURCE_ENGINE
-        )
+        if not valid:
+            # is_state_changing=False follows directly from the engine's
+            # validity set -- genuinely engine-derived.
+            sc_source = SOURCE_ENGINE
+        elif idx in inert:
+            # Observed inert by a live probe (valid but changes nothing).
+            sc_source = SOURCE_ENGINE_PROBE
+        else:
+            # Valid and un-probed: state-changing is a structural DEFAULT, not
+            # read from the engine's per-cell clickable introspection.
+            sc_source = SOURCE_ENGINE_DEFAULT
 
         if measured:
             count = int(usage_counts.get(idx, 0))

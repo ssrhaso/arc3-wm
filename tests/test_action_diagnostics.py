@@ -30,6 +30,7 @@ from arc3_wm.action_diagnostics import (
     LF52_BUDGET,
     SOURCE_ABSENT,
     SOURCE_ENGINE,
+    SOURCE_ENGINE_DEFAULT,
     SOURCE_ENGINE_PROBE,
     SOURCE_RUN_MEASURED,
     UNIFORM_BUDGET,
@@ -297,6 +298,36 @@ def test_inert_indices_flip_state_changing_not_valid():
         assert prof.rows[idx].sources["is_state_changing"] == SOURCE_ENGINE_PROBE
     # n_state_changing drops below n_valid by exactly the inert count.
     assert prof.n_state_changing == prof.n_valid - len(inert)
+
+
+def test_default_state_change_tag_is_engine_default_not_engine():
+    # A valid, non-inert cell's is_state_changing=True is a STRUCTURAL DEFAULT
+    # ("valid => presumed state-changing"), not a value read from the engine's
+    # clickable-cell introspection. Its source must say so: engine-default, NOT
+    # engine. (engine is reserved for values actually read from the engine.)
+    inert = {ACTION6_BASE + 10}
+    prof = build_task_action_profile("vc33", VC33, inert_indices=inert)
+    cell = ACTION6_BASE  # valid, not inert
+    assert prof.rows[cell].is_state_changing is True
+    assert prof.rows[cell].sources["is_state_changing"] == SOURCE_ENGINE_DEFAULT
+    assert prof.rows[cell].sources["is_state_changing"] != SOURCE_ENGINE
+    # The probed inert cell is unchanged: still engine-probe.
+    assert prof.rows[ACTION6_BASE + 10].sources["is_state_changing"] == SOURCE_ENGINE_PROBE
+    # valid_on_task is genuinely engine-derived and stays "engine".
+    assert prof.rows[cell].sources["valid_on_task"] == SOURCE_ENGINE
+    # Usage tags are unchanged (honest null by default).
+    assert prof.rows[cell].sources["usage_count"] == SOURCE_ABSENT
+    assert prof.rows[cell].sources["usage_fraction"] == SOURCE_ABSENT
+
+
+def test_invalid_action_state_change_tag_is_engine():
+    # An invalid action's is_state_changing=False IS engine-derived (it follows
+    # directly from the engine's available_actions set), so it stays "engine",
+    # not engine-default.
+    prof = build_task_action_profile("ls20", LS20)
+    a6 = prof.rows[ACTION6_BASE]
+    assert a6.valid_on_task is False and a6.is_state_changing is False
+    assert a6.sources["is_state_changing"] == SOURCE_ENGINE
 
 
 def test_inert_index_on_invalid_action_is_noop():

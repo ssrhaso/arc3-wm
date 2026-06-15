@@ -18,7 +18,8 @@ The API returns **(a)** the structural/validity profile populated from the engin
 and a **(b)** `usage_count`/`usage_fraction` slot that is **null unless** a real
 per-step action log from an instrumented rollout is supplied. (b) is never
 synthesised, inferred, or backed out of aggregate statistics. Each field carries a
-per-field `source` tag: `engine` / `engine-probe` / `run-measured` / `absent`.
+per-field `source` tag: `engine` / `engine-default` / `engine-probe` /
+`run-measured` / `absent`.
 
 ## 1. Where the engine exposes per-task action validity
 
@@ -52,6 +53,15 @@ Tier B (valid-but-inert) is representable via `inert_indices` (source
 **never** assumed. Absent a probe, every valid index defaults to state-changing
 (`n_state_changing == n_valid`), which is the honest structural answer: at
 reset-introspection the engine cannot tell an inert valid cell from a live one.
+
+**Provenance of `is_state_changing`** — the source tag distinguishes the three
+cases so the default is never mistaken for engine-confirmed truth: an *invalid*
+action's `False` is tagged `engine` (it follows directly from `available_actions`);
+a *valid, un-probed* cell's default `True` is tagged **`engine-default`** (a
+structural inference, not read from the engine's per-cell clickable introspection);
+a *probed inert* cell is tagged `engine-probe`. (`probe_state_change`, the live
+engine path that would upgrade `engine-default` → `engine`/`engine-probe` per cell,
+is intentionally not built yet — it is tied to a real run.)
 
 ### ⚠ Reconciliation flag for the ls20 prose
 
@@ -130,7 +140,7 @@ where the rollups are derived from the rows (never hardcoded). Per action row:
 {"action_index": 5, "action_type": "ACTION6", "valid_on_task": true,
  "is_state_changing": true, "budget_cost": 1, "usage_count": null,
  "usage_fraction": null,
- "sources": {"valid_on_task": "engine", "is_state_changing": "engine",
+ "sources": {"valid_on_task": "engine", "is_state_changing": "engine-default",
              "budget_cost": "engine:uniform", "usage_count": "absent",
              "usage_fraction": "absent"}}
 ```
