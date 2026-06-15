@@ -56,6 +56,8 @@ __all__ = [
     "ActionRow",
     "TaskActionProfile",
     "build_task_action_profile",
+    "usage_counts_from_action_indices",
+    "load_action_log_jsonl",
 ]
 
 #: The seven flat-space action TYPEs (RESET is not in the flat action space).
@@ -267,6 +269,66 @@ class TaskActionProfile:
         if path is not None:
             Path(path).write_text(text, encoding="utf-8", newline="")
         return text
+
+
+# --- empirical usage (b): from a real per-step action log ----------------
+
+
+def usage_counts_from_action_indices(
+    action_indices: Iterable[int],
+) -> dict[int, int]:
+    """Tally a per-step action-index stream into ``{flat_index: times_fired}``.
+
+    This is the ONLY supported way to obtain empirical usage: an explicit
+    stream of the flat action indices a policy actually emitted, step by step,
+    from an instrumented rollout. There is no path that derives usage from
+    entropy, random-action fraction, or any other aggregate -- doing so would
+    re-introduce a hedge the paper deliberately removed.
+
+    Every index must be a valid flat index in ``[0, N_ACTIONS)``; an
+    out-of-range value raises ``ValueError`` rather than being silently dropped.
+    """
+    counts: dict[int, int] = {}
+    for raw in action_indices:
+        idx = int(raw)
+        if not (0 <= idx < A.N_ACTIONS):
+            raise ValueError(
+                f"action index {idx} out of range [0, {A.N_ACTIONS})"
+            )
+        counts[idx] = counts.get(idx, 0) + 1
+    return counts
+
+
+def load_action_log_jsonl(path: Union[str, Path]) -> list[int]:
+    """Read an instrumented-rollout action log into a flat per-step stream.
+
+    The pinned on-disk format mirrors :class:`arc3_wm.eval_reward_sink`'s
+    reward log: one JSON object per line, each ``{"actions": [idx, ...]}`` for
+    one episode (flat action indices in emission order). Episodes are
+    concatenated into a single stream ready for
+    :func:`usage_counts_from_action_indices`.
+
+    A missing file raises ``FileNotFoundError``; a row without an ``"actions"``
+    key raises ``ValueError`` (a malformed log is surfaced, not silently
+    treated as an empty episode). Blank lines are skipped.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"action log not found: {path}")
+    stream: list[int] = []
+    with path.open("r", encoding="utf-8") as f:
+        for line_no, raw in enumerate(f, start=1):
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            obj = json.loads(stripped)
+            if "actions" not in obj:
+                raise ValueError(
+                    f"{path}:line {line_no}: row missing 'actions' key "
+                    f"(got keys {sorted(obj)})"
+                )
+            stream.extend(int(a) for a in obj["actions"])
+    return stream
 
 
 # --- builder -------------------------------------------------------------

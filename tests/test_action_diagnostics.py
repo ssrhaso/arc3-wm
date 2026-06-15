@@ -29,12 +29,15 @@ from arc3_wm.action_diagnostics import (
     SOURCE_ABSENT,
     SOURCE_ENGINE,
     SOURCE_ENGINE_PROBE,
+    SOURCE_RUN_MEASURED,
     UNIFORM_BUDGET,
     ActionRow,
     BudgetModel,
     TaskActionProfile,
     build_task_action_profile,
+    load_action_log_jsonl,
     resolve_budget_model,
+    usage_counts_from_action_indices,
 )
 from arc3_wm.action_space import ACTION6_BASE, ACTION7_INDEX, N_ACTIONS
 
@@ -173,6 +176,95 @@ def test_no_back_door_to_synthesize_usage():
     sig = inspect.signature(build_task_action_profile)
     banned = {"entropy", "rand_fraction", "rand_action", "ent"}
     assert banned.isdisjoint(sig.parameters)
+
+
+# --- (b) usage population from a real per-step action log -----------------
+
+
+def test_usage_counts_from_action_indices_counts():
+    counts = usage_counts_from_action_indices([5, 5, 5, 0, 4101, 0])
+    assert counts == {5: 3, 0: 2, 4101: 1}
+
+
+def test_usage_counts_rejects_out_of_range():
+    with pytest.raises(ValueError, match="out of range"):
+        usage_counts_from_action_indices([0, N_ACTIONS])
+    with pytest.raises(ValueError, match="out of range"):
+        usage_counts_from_action_indices([-1])
+
+
+def test_usage_counts_empty_stream():
+    assert usage_counts_from_action_indices([]) == {}
+
+
+def test_measured_usage_populates_rows_and_fraction():
+    # A per-step log fired ACTION6 cell idx 5 three times and ACTION1 once.
+    log = [5, 5, 5, 0]
+    prof = build_task_action_profile(
+        "vc33", VC33, usage_counts=usage_counts_from_action_indices(log)
+    )
+    assert prof.rows[5].usage_count == 3
+    assert prof.rows[5].usage_fraction == pytest.approx(0.75)
+    assert prof.rows[5].sources["usage_count"] == SOURCE_RUN_MEASURED
+    assert prof.rows[0].usage_count == 1
+    assert prof.rows[0].usage_fraction == pytest.approx(0.25)
+    # Fractions over fired indices sum to 1.
+    total = sum(r.usage_fraction for r in prof.rows if r.usage_fraction)
+    assert total == pytest.approx(1.0)
+
+
+def test_measured_zero_is_not_null():
+    # An action present in the log's denominator but never fired reads as a
+    # measured 0 (count 0, fraction 0.0, run-measured) -- NOT null. This is the
+    # honest distinction between "fired zero times" and "never measured".
+    prof = build_task_action_profile(
+        "vc33", VC33, usage_counts=usage_counts_from_action_indices([5])
+    )
+    # idx 5 fired once; a different valid cell (idx 6) fired zero times.
+    fired = prof.rows[5]
+    unfired = prof.rows[6]
+    assert fired.usage_count == 1 and fired.usage_fraction == pytest.approx(1.0)
+    assert unfired.usage_count == 0 and unfired.usage_fraction == 0.0
+    assert unfired.sources["usage_count"] == SOURCE_RUN_MEASURED
+    assert unfired.usage_count is not None  # measured, not null
+
+
+def test_load_action_log_jsonl_roundtrip(tmp_path):
+    p = tmp_path / "actions.jsonl"
+    p.write_text(
+        '{"actions": [5, 5, 0]}\n'
+        "\n"  # blank line tolerated
+        '{"actions": [5, 4101]}\n',
+        encoding="utf-8",
+    )
+    stream = load_action_log_jsonl(p)
+    assert stream == [5, 5, 0, 5, 4101]
+    counts = usage_counts_from_action_indices(stream)
+    assert counts == {5: 3, 0: 1, 4101: 1}
+
+
+def test_load_action_log_jsonl_missing_key_raises(tmp_path):
+    p = tmp_path / "bad.jsonl"
+    p.write_text('{"rewards": [0, 1]}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="actions"):
+        load_action_log_jsonl(p)
+
+
+def test_load_action_log_jsonl_missing_file_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        load_action_log_jsonl(tmp_path / "nope.jsonl")
+
+
+def test_end_to_end_log_to_csv_marks_measured(tmp_path):
+    p = tmp_path / "actions.jsonl"
+    p.write_text('{"actions": [5, 5, 0]}\n', encoding="utf-8")
+    counts = usage_counts_from_action_indices(load_action_log_jsonl(p))
+    prof = build_task_action_profile("vc33", VC33, usage_counts=counts)
+    obj = json.loads(prof.to_json())
+    assert obj["actions"][5]["usage_count"] == 2
+    assert obj["actions"][5]["sources"]["usage_count"] == SOURCE_RUN_MEASURED
+    # An unfired valid cell is a measured 0 in JSON (not null).
+    assert obj["actions"][7]["usage_count"] == 0
 
 
 # --- is_state_changing independent of valid (Tier B representable) --------
