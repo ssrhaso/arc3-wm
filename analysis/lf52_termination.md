@@ -115,13 +115,24 @@ enforces** — an action *budget*, not an action *sequence*. That is structurall
 one the engine emits as `terminated=True` (GAME_OVER) rather than the wrapper emitting `truncated`.
 
 **Residual the code cannot reconcile:** a *pure* hard-64 GAME_OVER predicts train max ≈ 65 too, yet
-train episodes reach 236 with zero clears. Candidate explanations (none confirmable without the
-engine): the budget may reset on within-level events that don't register as a `Δlevels` clear; or
-DV3's eval policy is lower-temperature/more-deterministic than train, pinning eval to the modal 64
-while train's higher stochasticity occasionally extends. This is exactly why the precise trigger is
-flagged as **not determinable from code** below.
+train episodes reach 236 with zero clears. *(Resolved 2026-06-15 — see update above: the budget
+counter `asqvqzpfdi` is incremented by directional/ACTION6 moves and undo (+20) but NOT by ACTION5
+or special-region clicks, so budget-exempt actions stretch the env-step count past 64 on a minority
+of episodes; the tail is real and smooth, with no 2×64 clustering.)*
+
+> ⚠️ **Correction (2026-06-15):** an earlier version of this paragraph speculated that *"DV3's eval
+> policy is lower-temperature/more-deterministic than train."* That is **false**: DreamerV3's
+> `agent.policy(…, mode=…)` ignores the `mode` argument entirely (`dreamerv3/agent.py:115-135` —
+> action is always `sample(policy)`), and the policy RNG seed is a monotonic `n_actions` counter
+> (`embodied/jax/agent.py:232-234`), so eval draws fresh-random actions with the **identical**
+> sampler as train. eval is not lower-temperature; the exact-64 is the engine budget (above), and
+> the train/eval tail difference is the budget-exempt-action mechanism plus eval's small sample.
 
 ## What cannot be determined from code (honest limit)
+
+> **SUPERSEDED 2026-06-15.** This section was written before the lf52 engine was fetched. The engine
+> is now cached at `environment_files/lf52/271a04aa/lf52.py` and the exact trigger is confirmed (see
+> the top-of-doc update). The text below is retained as a record of the pre-fetch state only.
 
 lf52's engine class is **not cached locally** — `environment_files/` holds only `cd82, sb26, tu93,
 vc33`; `find` for `lf52*.py` returns nothing. The action-space audit established the same
