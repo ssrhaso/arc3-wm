@@ -13,9 +13,41 @@ a *different* mechanism from the 1000-step truncation that sb26/ls20 hit. lf52 i
 structurally horizon-capped: human replays run 1→1605 steps and reach WIN. The exact-64 invariance
 under a uniform-random eval policy points to an **engine-enforced fixed per-episode action budget
 (~64 moves → GAME_OVER when the level is unsolved)** — i.e. a *fixed cap expressed as termination*,
-not a varied agent-reached death. **The precise GAME_OVER trigger cannot be confirmed from code**
-because lf52's `environment_files/` are not cached locally; the classification below is what code +
-logged data jointly support, with the residual flagged.
+not a varied agent-reached death. **This is now CONFIRMED from the engine source — see the
+2026-06-15 update immediately below**, which supersedes the original "cannot be confirmed from code"
+caveat and the §"What cannot be determined from code" section.
+
+## Update 2026-06-15 — RESOLVED by reading the lf52 engine source
+
+The lf52 engine class was re-fetched (`scripts/cache_env_files.py lf52`, NORMAL-mode file pull, no
+training run) to `environment_files/lf52/271a04aa/lf52.py` (version `271a04aa`, byte-identical to
+the version named in the Phase-4 run logs). The exact GAME_OVER trigger is now read directly from
+code:
+
+- **`lf52.py:5771-5772`** — `elif level == 1 and self.…asqvqzpfdi >= 64: self.lose()`. Level 1 has a
+  hard **64-action budget**; when the budget counter reaches 64 the engine calls `lose()`
+  (`lf52.py:2091-2092` sets the lose flag), which `arcengine` surfaces as `GameState.GAME_OVER` and
+  our wrapper maps to `terminated=True` ([env.py:164](../arc3_wm/env.py#L164)).
+- **Budget tiers are all multiples of 64**: L1 = 64, L2–5 = `64*5` = 320 (`lf52.py:5779`),
+  L6–10 = `64*10` = 640 (`lf52.py:5775`). The current level drives the tier via
+  `whtqurkphir = self._current_level_index + 1` (`lf52.py:5866`).
+- Because the random policy never clears level 1 (reward ≡ 0), **every episode dies at the level-1
+  budget of 64** — that is the exact-64.
+- **The "64 = 64×64 grid" guess is dead.** lf52's levels are **8×8** boards (`lf52.py:66-137`); the
+  64 is a deliberate move budget, unrelated to the grid.
+- **Train-tail mechanism (the old residual), also resolved.** The budget counter `asqvqzpfdi`
+  increments **+1** only on directional moves (`tmhxwcojkh`, `lf52.py:5277`) and ACTION6 grid-clicks
+  (`dghsidbuet`, `lf52.py:5335`), **+20** on a pending undo (`lf52.py:5805`), and is **not**
+  incremented by ACTION5 (`lf52.py:5327-5329`) or special-region ACTION6 clicks (`lf52.py:5832`).
+  So under uniform-random sampling, budget-exempt actions desync the env-step count from the
+  64-budget count: ~92 % of train episodes die at the modal 64 env-steps, with a smooth tail to 236
+  (and **no 2×/3×64 clustering**, since these are small per-episode perturbations, not full-budget
+  resets) — exactly the logged distribution. eval's smaller sample (~105 episodes) landed on clean
+  64s.
+
+**Net:** the termination is **(A) engine** — a hard-coded per-level action budget (`lose()` →
+GAME_OVER), not the grid and not our harness. No instrumented rerun is required; the original
+"residual / needs-a-rerun" framing below is closed.
 
 ## What the code rules OUT
 
