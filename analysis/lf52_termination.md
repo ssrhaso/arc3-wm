@@ -154,7 +154,7 @@ width) but unverifiable here; do not put it in the paper as fact.
 | Same mechanism as sb26/ls20's ending? | **No.** sb26/ls20 = 1000-step wrapper **truncation**; lf52 = engine **GAME_OVER** | `ls20_lf52_audit.md` §2c (ls20=1001 truncation-bound) vs lf52=64 self-terminating |
 | Fixed cap or agent-triggered lose-state? | **Fixed cap, expressed as termination** — engine action-budget GAME_OVER, not a varied death | exact-64 eval invariance under uniform-random; humans exceed 64 freely |
 | Global to all games? | **No** — lf52-specific engine behaviour; wrapper horizon is 1000 for all | `env.py:50`, launch scripts |
-| Exact trigger known? | **No** — engine not cached; needs cached file or live rollout | `find` (no `lf52*.py`); `environment_files/` lists 4 games |
+| Exact trigger known? | **Yes (as of 2026-06-15)** — hard-coded per-level budget; L1=64 `lose()`→GAME_OVER | `lf52.py:5771-5779` (engine re-fetched; see top-of-doc update) |
 
 ## Decision surfaced for Haso
 
