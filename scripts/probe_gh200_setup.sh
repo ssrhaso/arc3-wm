@@ -1,22 +1,40 @@
 #!/usr/bin/env bash
 # GH200 setup for the dynamics-competence probe Stage 2 (frozen-WM forward).
 #
-# Run from the repo root on the GH200 AFTER cloning the repo. Stages 1 (collect)
-# and 3 (score) are CPU-only and already done on the laptop; this only sets up
-# the GPU forward pass. See docs/dynamics-competence-probe.md.
+# PREREQUISITE: clone the arc3-wm repo and run this from its root:
+#   git clone https://github.com/ssrhaso/arc3-wm.git && cd arc3-wm
+# (The clone has the arc3_wm base + scripts + configs but NOT third_party/ -
+#  gitignored - nor the probe code, which rides in the B2 bundle below.)
+#
+# Stages 1 (collect) and 3 (score) are CPU-only and already done on the laptop;
+# this only sets up the GPU forward pass. See docs/dynamics-competence-probe.md.
 #
 #   bash scripts/probe_gh200_setup.sh [GAME] [SEED]    # default: cd82 s0
 #
-# IMPORTANT: the GH200 is aarch64 + Hopper, NOT the x86 + A100 of the Vast boxes
-# used in Phases 2-4. JAX GPU wheels differ on ARM; the install step below is the
+# IMPORTANT (1): the GH200 is aarch64 + Hopper, NOT the x86 + A100 of the Vast
+# boxes used in Phases 2-4. JAX GPU wheels differ on ARM; the install step is the
 # most likely thing to need adjusting. Verify `python -c "import jax;
 # print(jax.devices())"` shows the Hopper GPU before proceeding.
+#
+# IMPORTANT (2): dreamerv3 is PINNED to the exact commit the checkpoints were
+# trained against and that scripts/probe_predict.py mirrors. Do NOT use HEAD -
+# the WM API (enc/dyn/dec, report open-loop) and ckpt param layout must match.
 
 set -euo pipefail
 BUCKET="b2://arc-agi-3-replays-hasaan"
 GAME="${1:-cd82}"
 SEED="${2:-s0}"
 RUN="p4-${GAME}-${SEED}-warm-98de390"
+DV3_COMMIT="b65cf81a6fb13625af8722127459283f899a35d9"  # danijar/dreamerv3, pinned
+
+echo "== [0/4] dreamerv3 pinned checkout into third_party/ =="
+if [ ! -d third_party/dreamerv3/.git ]; then
+  mkdir -p third_party
+  git clone https://github.com/danijar/dreamerv3.git third_party/dreamerv3
+fi
+git -C third_party/dreamerv3 fetch --quiet origin "${DV3_COMMIT}" || true
+git -C third_party/dreamerv3 checkout --quiet "${DV3_COMMIT}"
+echo "   dreamerv3 at $(git -C third_party/dreamerv3 rev-parse --short HEAD)"
 
 echo "== [1/4] JAX + dreamerv3 stack (adjust for aarch64/Hopper if needed) =="
 pip install -U -r third_party/dreamerv3/requirements.txt
