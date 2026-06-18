@@ -8,7 +8,7 @@
 - **Run shape**: 500k env-steps, `--script train_eval`, warm-started from `checkpoints/pretrained-wm/v1/latest.pkl`
 - **Headline metric**: RHAE = **0.0079** on vc33 (level 1 cleared once in eval; gate "RHAE > 0" passes for this single game)
 
-Figure: `figures/p4_vc33_diagnosis.png` (and `.svg`). Notebook: `analysis/p4_vc33_dryrun_diagnosis.ipynb`.
+Figure: `figures/p4_vc33_diagnosis.png`. Notebook: `analysis/p4_vc33_dryrun_diagnosis.ipynb`.
 
 ---
 
@@ -86,5 +86,5 @@ Q6 + Q5 together rule this out. The pretrain corpus already covers L1-L7 well (o
 
 - `analysis/p4_vc33_dryrun_diagnosis.ipynb` - re-runnable notebook (assumes `scratch/p4-vc33-dryrun/{metrics,eval_episodes}.jsonl` + `scratch/p4-vc33-dryrun/data/replays/vc33/` present)
 - `analysis/build_p4_vc33_diagnosis.py` - script that rebuilds the notebook + figure from one source of truth
-- `figures/p4_vc33_diagnosis.png` (200 DPI) and `figures/p4_vc33_diagnosis.svg` - 6-panel figure
+- `figures/p4_vc33_diagnosis.png` (200 DPI) - 6-panel figure
 - `scratch/p4-vc33-dryrun/` - B2-mirrored artifacts (gitignored)
