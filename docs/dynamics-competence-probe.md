@@ -63,19 +63,22 @@ plus `jax[cuda]`). No env-files required (explicit obs/act spaces).
 ```bash
 # 0. pull a per-game checkpoint from B2 and extract it
 b2 file download b2://arc-agi-3-replays-hasaan/phase4-proper/p4-cd82-s0-warm-98de390/ckpt-final.tar.gz ckpt.tar.gz
-mkdir -p ckpt_cd82 && tar xzf ckpt.tar.gz -C ckpt_cd82   # -> ckpt_cd82/ckpt/<TS>/ + latest
+mkdir -p ckpt_cd82 && tar xzf ckpt.tar.gz -C ckpt_cd82
+# extracts directly to: ckpt_cd82/latest  +  ckpt_cd82/<TS>/{agent,step,replay_*}.pkl
 
 # 1. shape/JIT shakeout (no ckpt, random batch) — do this first
 python scripts/probe_predict.py --game cd82 --self-test --context-len 4 --horizon 8
 
 # 2. real predictions
 python scripts/probe_predict.py --game cd82 --source human \
-    --ckpt ckpt_cd82/ckpt --holdout results/dynamics_probe/holdout/cd82_human.npz \
+    --ckpt ckpt_cd82 --holdout results/dynamics_probe/holdout/cd82_human.npz \
     --context-len 4 --horizon 8 --outdir results/dynamics_probe/pred
 ```
 
-`--ckpt` points at the directory that contains the `latest` pointer file (the
-`ckpt/` dir inside the extracted tar — see [[project-dv3-ckpt-format]]).
+`--ckpt` points at the directory that directly contains the `latest` pointer
+file and the `<TS>/` folder (i.e. the tar's extraction root — there is **no**
+nested `ckpt/` subdir; see [[project-dv3-ckpt-format]]). Stage 2 loads only the
+`agent` attr (`agent.pkl`); the `replay_*`/`step` pkls are ignored.
 
 **Known-risky spots to verify on first GH200 run** (this stage is untestable on
 the laptop): the `report` `data`-key assertion (must equal obs∪act∪ext = `image,
