@@ -148,9 +148,6 @@ def build_config(game: str, context_len: int, extra_flags: list[str]):
         "--logdir", "/tmp/probe_logdir",
         "--task", f"arc3_{game}",
         "--configs", "size12m", "arc3",
-        # Trace report lazily so the baked-in C is read at first call, and keep
-        # the run single-device/simple for a one-off forward pass.
-        "--jax.precompile", "False",
         *extra_flags,
     ]
     args, leftover = _pa(argv)
@@ -268,9 +265,9 @@ def predict_rollout(agent, holdout_npz: Path, *, context_len, horizon,
     }
 
 
-def self_test(game, context_len, horizon):
+def self_test(game, context_len, horizon, extra_flags=None):
     """Build agent + run one random batch to shake out shapes/JIT (no ckpt)."""
-    agent, _ = make_probe_agent(game, context_len, [])
+    agent, _ = make_probe_agent(game, context_len, extra_flags or [])
     B, T = 2, context_len + horizon
     batch = {
         IMG_KEY: np.random.randint(0, 256, (B, T, OBS_HW, OBS_HW, 3), np.uint8),
@@ -300,20 +297,31 @@ def parse_args(argv=None):
     p.add_argument("--horizon", type=int, default=8)
     p.add_argument("--max-windows", type=int, default=None)
     p.add_argument("--batch-size", type=int, default=16)
+    p.add_argument("--platform", choices=["cpu", "cuda"], default=None,
+                   help="override jax.platform (default: config's cuda). Use cpu "
+                        "for login-node validation without a GPU.")
     p.add_argument("--self-test", action="store_true")
     p.add_argument("flags", nargs="*", help="extra config key=value overrides")
     return p.parse_args(argv)
 
 
+def _resolve_flags(args) -> list[str]:
+    flags = list(args.flags)
+    if args.platform:
+        flags = ["--jax.platform", args.platform] + flags
+    return flags
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
+    flags = _resolve_flags(args)
     if args.self_test:
-        self_test(args.game, args.context_len, args.horizon)
+        self_test(args.game, args.context_len, args.horizon, flags)
         return 0
     if not (args.ckpt and args.holdout):
         print("need --ckpt and --holdout (or --self-test)")
         return 2
-    agent, _ = make_probe_agent(args.game, args.context_len, list(args.flags))
+    agent, _ = make_probe_agent(args.game, args.context_len, flags)
     restore_checkpoint(agent, Path(args.ckpt))
     out = predict_rollout(
         agent, Path(args.holdout), context_len=args.context_len,

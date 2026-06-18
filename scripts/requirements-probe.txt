@@ -1,0 +1,36 @@
+# Deps to run the dynamics-competence probe Stage 2 (frozen-WM forward) on
+# Isambard-AI (aarch64 + GH200, cray-python/3.11.7). Matches the JAX version the
+# per-game checkpoints were trained with (dreamerv3 b65cf81). Trimmed of the
+# Atari/env-sim deps in dreamerv3/requirements.txt (ale_py, autorom, av).
+#
+# INSTALL ORDER MATTERS on a fresh venv (pip's resolver hits "resolution-too-deep"
+# if everything is solved at once). Install in these batches:
+#
+#   python3 -m venv .venv-probe && source .venv-probe/bin/activate && pip install -U pip
+#   pip install "jax[cuda12]==0.4.33"                                   # locks the cuda stack
+#   pip install "numpy<2" "chex==0.1.87" "optax==0.2.3" einops jaxtyping
+#   pip install "elements>=3.19.1" "ninjax>=3.5.1" "portal>=3.5.0" "scope>=0.4.4" "granular>=0.20.3"
+#   pip install gymnasium                                               # arc3_wm.env imports it
+#   # arcengine/arc-agi declare Requires-Python>=3.12 but are pure-Python and run
+#   # fine on 3.11; arc3_wm/__init__ imports them (env is never constructed). NOTE:
+#   # arc-agi>=0.9 bumps numpy to >=2.2.4 (overriding numpy<2); jax 0.4.33 imports
+#   # cleanly against numpy 2.4.x, so this is fine for the inference-only probe.
+#   pip install --ignore-requires-python "arcengine==0.9.3" "arc-agi==0.9.8"
+#
+# (The plain "pip install arc-agi" grabs a placeholder 0.0.7 that lacks arcengine
+#  - always pin 0.9.8 + arcengine 0.9.3 explicitly.)
+jax[cuda12]==0.4.33
+numpy<2
+chex==0.1.87
+optax==0.2.3
+einops
+jaxtyping
+elements>=3.19.1
+ninjax>=3.5.1
+portal>=3.5.0
+scope>=0.4.4
+granular>=0.20.3
+gymnasium
+# install these two with --ignore-requires-python on Python 3.11:
+arcengine==0.9.3
+arc-agi==0.9.8
