@@ -87,11 +87,9 @@ docs/phase4-smoke-evidence.md
 docs/eval-pipeline-investigation.md
 docs/smoke-evidence.md
 
-# --- Internal coauthor handoff (kept on disk, never published) ---
+# --- Internal coauthor handoff report + figures (kept on disk, never published) ---
 docs/progress-report-soumya.*
-
-# --- Regenerable figure intermediates (rebuilt by scripts/make_soumya_figures.py) ---
-docs/figures/soumya/RAW/
+docs/figures/soumya/
 
 # --- One-off investigation scripts (kept on disk, never published) ---
 scripts/inspect_*.py
