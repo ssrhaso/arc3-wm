@@ -7,8 +7,8 @@ per-action-type budget cost, and the task-level rollups derived FROM the rows
 ``usage_count``/``usage_fraction`` are ``None`` with a source tag that says so,
 and are never synthesised from anything.
 
-Ground-truth action-TYPE sets used as fixtures come from the read-only engine
-audit (``analysis/action_space_audit.md``), cross-checked live in this session:
+Ground-truth action-TYPE sets used as fixtures come from a read-only engine
+audit, cross-checked live:
 
     vc33 -> {6}            n_valid 4096
     sb26 -> {5,6,7}        n_valid 4098

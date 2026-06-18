@@ -87,7 +87,7 @@ SOURCE_ENGINE_DEFAULT = "engine-default"
 #: A valid index refined by a live state-change probe -- the only honest way to
 #: learn that a *valid* action is *inert* (e.g. a sparse click cell, or undo
 #: with nothing to undo). Carried so the valid-but-inert distinction is not
-#: flattened. See ``analysis/action_space_audit.md`` for the probe method.
+#: flattened. The probe issues each candidate action live and diffs the obs.
 SOURCE_ENGINE_PROBE = "engine-probe"
 
 #: Measured from an instrumented rollout's per-step action-index log.
