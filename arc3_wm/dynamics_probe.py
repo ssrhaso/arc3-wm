@@ -1,7 +1,7 @@
 """Pure metric functions for the dynamics-competence probes (Phase 6).
 
 These quantify whether a *frozen* DreamerV3 world model's predictions track
-reality, independent of the (dead) reward head — the load-bearing evidence for
+reality, independent of the (dead) reward head - the load-bearing evidence for
 the "competence without performance" claim. See ``docs`` and the Phase-6 probe
 scripts for the surrounding pipeline.
 
@@ -114,7 +114,7 @@ def action_sensitivity(preds_by_action: np.ndarray) -> float:
     from a *single* real state under each of ``A`` candidate actions. Returns
     the fraction of cells where the ``A`` action-conditioned predictions are not
     all identical (in palette space). **0.0 == an action-blind world model**
-    (every action yields the same next frame — the model is copying, not
+    (every action yields the same next frame - the model is copying, not
     modelling dynamics); >0 means the dynamics head responds to the action.
     Requires ``A >= 2``.
     """
