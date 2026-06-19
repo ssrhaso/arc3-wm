@@ -142,12 +142,19 @@ existing pipeline (not a refactor):
    (ad1ee4b: dynamics are weakly action-sensitive, not blind), but gate
    it behind a short action-conditionality diagnostic before the full
    sweep. Higher-variance; feeds the follow-up paper.
-2. **Second world-model backend.** The wrapper speaks Gymnasium and
-   DreamerV3-`embodied`, so a second backend is plumbing. Pick one with a
-   *different* controller to test whether the bottleneck is
-   Dreamer-specific: TD-MPC2 (MPPI planning, lower-friction first cut) or
-   a JEPA model (DINO-WM, LeWM) with an MPC planner. Deliverable: a
-   justified model choice plus the same 6-game RHAE table.
+2. **Second world-model backend.** The substrate's Gymnasium env is the
+   connector; any WM that consumes an image-obs/discrete-action Gym env
+   plugs in via a small adapter (the `embodied` path is DreamerV3-only).
+   Two flavors, two questions. *Same imagination actor, different WM*
+   (is the failure generic, not a Dreamer quirk?): the Atari-lineage
+   transformer/diffusion models, IRIS, DIAMOND, STORM, or TWISTER, all
+   64x64 image obs with their own actor-critic. *Different controller*
+   (does planning escape where the imagination actor stalls?): TD-MPC2
+   (MPPI), EfficientZero/MuZero (MCTS), or a JEPA model (DINO-WM, LeWM)
+   with an MPC planner. DIAMOND or STORM are the cleanest first cut; the
+   4102-way action space is the main porting caveat (these assume small
+   Atari action sets). Deliverable: a justified model choice plus the
+   same 6-game RHAE table.
 3. **Scale the DreamerV3 sweep.** Extend the 6-game sweep to all 25 (or a
    difficulty-stratified subset) at the same budget, to see whether vc33's
    weak non-zero is the ceiling. Pure plumbing on the launcher, no new
