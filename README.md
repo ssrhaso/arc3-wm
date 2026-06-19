@@ -130,67 +130,43 @@ fixing control or exploration close the gap?
 
 ### Directions for follow-on work
 
-Five directions, scoped for two interns. The substrate stands
-independent of all outcomes; each is one well-defined experiment on the
-existing pipeline, not a refactor.
+Five directions for two interns, each one well-defined experiment on the
+existing pipeline (not a refactor):
 
 1. **Controller-side intervention, world model frozen (primary).** The
-   direct "does fixing control close the gap" test, matched to the two
-   failure modes the diagnosis names. (a) On ls20, engage the substrate's
-   per-game mask (already exposed in `info["action_mask"]`), collapsing
-   the effective space from 4102 to the 4 directional actions, and rerun.
-   (b) On the four no-gradient games (sb26, cd82, tn36, lf52), swap the
-   stock actor for an intrinsic-motivation agent whose exploration does
-   not depend on extrinsic reward; Plan2Explore is the natural
-   Dreamer-family baseline. Plan2Explore is now viable because the
-   counterfactual fix (ad1ee4b) showed the dynamics are weakly
-   action-sensitive, not action-blind, so ensemble disagreement has a
-   real signal to chase. Gate it: run a short action-conditionality
-   diagnostic first to confirm the disagreement signal is non-trivial
-   before committing the full retraining sweep. Compute-medium,
-   higher-variance, cluster-heavy. This is the result that feeds a
-   follow-up paper.
+   direct "does fixing control close the gap" test. (a) On ls20, engage
+   the per-game mask (already in `info["action_mask"]`) to collapse 4102
+   actions to 4 and rerun. (b) On the no-gradient games (sb26, cd82,
+   tn36, lf52), swap the stock actor for Plan2Explore, whose exploration
+   needs no extrinsic reward. Now viable post the counterfactual fix
+   (ad1ee4b: dynamics are weakly action-sensitive, not blind), but gate
+   it behind a short action-conditionality diagnostic before the full
+   sweep. Higher-variance; feeds the follow-up paper.
+2. **Second world-model backend.** The wrapper speaks Gymnasium and
+   DreamerV3-`embodied`, so a second backend is plumbing. Pick one with a
+   *different* controller to test whether the bottleneck is
+   Dreamer-specific: TD-MPC2 (MPPI planning, lower-friction first cut) or
+   a JEPA model (DINO-WM, LeWM) with an MPC planner. Deliverable: a
+   justified model choice plus the same 6-game RHAE table.
+3. **Scale the DreamerV3 sweep.** Extend the 6-game sweep to all 25 (or a
+   difficulty-stratified subset) at the same budget, to see whether vc33's
+   weak non-zero is the ceiling. Pure plumbing on the launcher, no new
+   code; embarrassingly parallel, low-variance, good first task.
+4. **Prior-matched transfer.** The warm arm pooled all games by data
+   volume and bought nothing. Cluster games by shared core-knowledge
+   prior (objectness, contact, agentness), pretrain within a cluster, and
+   eval zero/few-shot on held-out games inside vs. outside it; a
+   volume-matched null cluster separates structured transfer from
+   more-data. Higher-variance.
+5. **Probe transferred priors on held-out games.** Extend the linear-probe
+   protocol (`analysis/`) to a game the WM never trained on: above-control
+   decoding of object identity, position, and contact events is the
+   representational fingerprint of transfer, isolated from control.
+   Reuses the frozen-model harness; compute-light, good first task.
 
-2. **Second world-model backend (drop-in comparison).** The wrapper
-   speaks Gymnasium and DreamerV3-`embodied`, so a second backend is
-   plumbing, not a rewrite. Pick a model with a *different* controller so
-   the comparison probes whether the bottleneck is Dreamer-specific:
-   TD-MPC2 (MPPI planning instead of imagination actor) or a JEPA-style
-   world model (DINO-WM, LeWM) with an MPC planner. The deliverable is a
-   justified model choice plus the same 6-game RHAE table. Caveat: a JEPA
-   WM does not ship a Dreamer-style imagination actor, so the intern must
-   wire a planner; TD-MPC2 is the lower-friction first cut. Compute-medium,
-   well-bounded.
-
-3. **Scale the DreamerV3 sweep to more games.** The current sweep is 6 of
-   25 public games. Extend to the full 25 (or a difficulty-stratified
-   subset) at the same budget to test whether vc33's weak non-zero is the
-   ceiling or whether other games also occasionally commit. Pure plumbing
-   on the existing launcher; no new code. Compute-heavy but
-   embarrassingly parallel, low-variance, good first task.
-
-4. **Prior-matched transfer.** The warm arm pooled all 25 games by data
-   volume and bought no benefit. Cluster games by shared core-knowledge
-   prior (objectness, contact/occlusion, agentness) rather than pooling
-   indiscriminately, pretrain a world model within a cluster, and
-   evaluate zero/few-shot on held-out games inside vs. outside it. A
-   data-volume-matched null cluster separates structured transfer from
-   more-data. Prediction: lifts eval-clears on prior-sharing held-out
-   games while leaving reconstruction (already at floor) unchanged.
-   Compute-heavy, higher-variance.
-
-5. **Probe transferred priors on held-out games.** Extend the existing
-   linear-probe protocol (`analysis/`) to a game the world model was
-   never trained on: above-control decoding of object identity, position,
-   and contact/occlusion events would show the model carries a prior into
-   an unseen game, the representational fingerprint of transfer, isolated
-   from whether the controller can exploit it. Reuses the frozen-model
-   probe harness; compute-light, low-variance, good first task.
-
-Suggested split: one intern takes the low-variance, well-bounded tasks
-(3 and 5) to build confidence on the pipeline; the other takes the
-higher-variance controller and transfer work (1 and 4). Direction 2 is
-shared scaffolding either can pick up once the substrate is familiar.
+Suggested split: one intern takes the low-variance tasks (3, 5), the
+other the higher-variance controller and transfer work (1, 4); 2 is
+shared scaffolding either can pick up.
 
 ## Scope and non-goals
 
