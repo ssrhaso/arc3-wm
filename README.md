@@ -120,28 +120,77 @@ then combined (see [`arc3_wm/rhae.py`](arc3_wm/rhae.py) and
 
 The substrate (contribution 1) is complete, tested, and reusable. The
 negative result and its diagnosis (contributions 2 and 3) are
-established across the full 6-game paired sweep. Three steps remain,
-each with a pre-specified criterion that would confirm or relocate the
-diagnosis:
+established across the full 6-game paired sweep, including the two
+frozen-model probes that anchor the diagnosis: linear level-identity
+decoding from the RSSM latent above raw-pixel and clock controls (real
+in cd82 and tn36), and open-loop rollout fidelity versus copy-last-frame
+(the model never beats copy). What remains is the controller-side test
+that the diagnosis predicts: with the world model held fixed, does
+fixing control or exploration close the gap?
 
-1. **Representational probing.** Linear decoders on the frozen RSSM
-   latents for task-relevant variables (level identity, transition
-   events, object configuration), against a label-permuted control.
-   Above-control accuracy confirms the world model encodes structure
-   the controller fails to exploit; a null result relocates the
-   bottleneck back to representation learning.
-2. **Generative-rollout fidelity.** Per-step latent- and pixel-space
-   divergence between imagined and ground-truth trajectories over the
-   actor's planning horizon. (FVD is ill-posed here: its I3D backbone is
-   trained on natural video, not 64x64 abstract grids.)
-3. **Controller-side intervention.** A bounded ablation that raises the
-   imagination-to-environment training ratio and steepens the
-   entropy-annealing schedule with the world model held fixed, to
-   isolate whether more policy-improvement compute alone closes the gap.
+### Directions for follow-on work
 
-Steps 1 and 2 are compute-light and run on a frozen model; step 3 is a
-single bounded retraining sweep. The substrate stands independent of all
-three outcomes.
+Five directions, scoped for two interns. The substrate stands
+independent of all outcomes; each is one well-defined experiment on the
+existing pipeline, not a refactor.
+
+1. **Controller-side intervention, world model frozen (primary).** The
+   direct "does fixing control close the gap" test, matched to the two
+   failure modes the diagnosis names. (a) On ls20, engage the substrate's
+   per-game mask (already exposed in `info["action_mask"]`), collapsing
+   the effective space from 4102 to the 4 directional actions, and rerun.
+   (b) On the four no-gradient games (sb26, cd82, tn36, lf52), swap the
+   stock actor for an intrinsic-motivation agent whose exploration does
+   not depend on extrinsic reward; Plan2Explore is the natural
+   Dreamer-family baseline. Plan2Explore is now viable because the
+   counterfactual fix (ad1ee4b) showed the dynamics are weakly
+   action-sensitive, not action-blind, so ensemble disagreement has a
+   real signal to chase. Gate it: run a short action-conditionality
+   diagnostic first to confirm the disagreement signal is non-trivial
+   before committing the full retraining sweep. Compute-medium,
+   higher-variance, cluster-heavy. This is the result that feeds a
+   follow-up paper.
+
+2. **Second world-model backend (drop-in comparison).** The wrapper
+   speaks Gymnasium and DreamerV3-`embodied`, so a second backend is
+   plumbing, not a rewrite. Pick a model with a *different* controller so
+   the comparison probes whether the bottleneck is Dreamer-specific:
+   TD-MPC2 (MPPI planning instead of imagination actor) or a JEPA-style
+   world model (DINO-WM, LeWM) with an MPC planner. The deliverable is a
+   justified model choice plus the same 6-game RHAE table. Caveat: a JEPA
+   WM does not ship a Dreamer-style imagination actor, so the intern must
+   wire a planner; TD-MPC2 is the lower-friction first cut. Compute-medium,
+   well-bounded.
+
+3. **Scale the DreamerV3 sweep to more games.** The current sweep is 6 of
+   25 public games. Extend to the full 25 (or a difficulty-stratified
+   subset) at the same budget to test whether vc33's weak non-zero is the
+   ceiling or whether other games also occasionally commit. Pure plumbing
+   on the existing launcher; no new code. Compute-heavy but
+   embarrassingly parallel, low-variance, good first task.
+
+4. **Prior-matched transfer.** The warm arm pooled all 25 games by data
+   volume and bought no benefit. Cluster games by shared core-knowledge
+   prior (objectness, contact/occlusion, agentness) rather than pooling
+   indiscriminately, pretrain a world model within a cluster, and
+   evaluate zero/few-shot on held-out games inside vs. outside it. A
+   data-volume-matched null cluster separates structured transfer from
+   more-data. Prediction: lifts eval-clears on prior-sharing held-out
+   games while leaving reconstruction (already at floor) unchanged.
+   Compute-heavy, higher-variance.
+
+5. **Probe transferred priors on held-out games.** Extend the existing
+   linear-probe protocol (`analysis/`) to a game the world model was
+   never trained on: above-control decoding of object identity, position,
+   and contact/occlusion events would show the model carries a prior into
+   an unseen game, the representational fingerprint of transfer, isolated
+   from whether the controller can exploit it. Reuses the frozen-model
+   probe harness; compute-light, low-variance, good first task.
+
+Suggested split: one intern takes the low-variance, well-bounded tasks
+(3 and 5) to build confidence on the pipeline; the other takes the
+higher-variance controller and transfer work (1 and 4). Direction 2 is
+shared scaffolding either can pick up once the substrate is familiar.
 
 ## Scope and non-goals
 
