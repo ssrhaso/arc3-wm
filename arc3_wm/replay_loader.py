@@ -16,7 +16,8 @@ Action alignment is **convention (B)**: ``action[t] = flat(action_input on
 row t+1)`` - the action chosen *at* obs[t]. The last step of every
 episode uses sentinel ``action = 0`` (masked by ``is_last`` downstream).
 
-Episode boundaries (verified by 39-file empirical scan, 122 transitions):
+Episode boundaries (rules established from an early 39-file scan, 122
+transitions; the loader parses the full replay corpus in the test suite):
 - A row with ``action_input.id == 0`` (or ``"RESET"``) after line 0 ends
   the previous episode and starts a new one (the RESET row itself is the
   first row of the new episode - its frame is the post-reset obs).

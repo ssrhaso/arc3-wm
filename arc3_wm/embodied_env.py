@@ -1,9 +1,9 @@
 """Bridge ``arc3_wm.env.ARC3GymEnv`` to DreamerV3's ``embodied.Env`` interface.
 
 Per design-decisions.md D12, we bypass ``dreamerv3/main.py``; this module
-is the env half of the bridge. ``scripts/launch_pergame.py`` (a future
-deliverable) imports ``ARC3EmbodiedEnv`` and builds the rest of the
-training loop (agent, replay, driver).
+is the env half of the bridge. ``scripts/launch_pergame.py`` imports
+``ARC3EmbodiedEnv`` and builds the rest of the training loop (agent,
+replay, driver).
 
 Key translations vs. ``embodied/envs/from_gym.py``:
 
