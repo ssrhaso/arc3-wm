@@ -1,7 +1,7 @@
 """Pure metric functions for the dynamics-competence probes (Phase 6).
 
 These quantify whether a *frozen* DreamerV3 world model's predictions track
-reality, independent of the (dead) reward head - the load-bearing evidence for
+reality, independent of the reward head - the load-bearing evidence for
 the "competence without performance" claim. See ``docs`` and the Phase-6 probe
 scripts for the surrounding pipeline.
 
