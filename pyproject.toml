@@ -45,6 +45,7 @@ arc3-wm = "arc3_wm.__main__:main"
 dev = [
     "pytest>=8",
     "pytest-xdist",
+    "pytest-timeout",
     "gdown",
 ]
 
