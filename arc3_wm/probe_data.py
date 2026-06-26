@@ -40,7 +40,31 @@ __all__ = [
     "make_counterfactual_specs",
     "build_rollout_prediction_npz",
     "build_counterfactual_prediction_npz",
+    "frame_labels",
 ]
+
+
+def frame_labels(rewards: np.ndarray, ep_id: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Per-frame ``(level_id, transition)`` labels for the latent probe.
+
+    Derived from the reward stream (reward == delta-levels) so they can be
+    recomputed from any holdout npz without re-collecting:
+
+    * ``level_id`` (int32) - levels cleared *before* this step (exclusive prefix
+      sum of reward within the episode); the frame shows the pre-clear board, so
+      this is the level the frame is on. The ordinal level-identity target.
+    * ``transition`` (bool) - did a level-clear fire at this step (reward > 0).
+      The binary transition-event target.
+    """
+    rewards = np.asarray(rewards, dtype=np.float32)
+    ep_id = np.asarray(ep_id)
+    transition = rewards > 0
+    level_id = np.zeros(len(rewards), dtype=np.int32)
+    for e in np.unique(ep_id):
+        m = ep_id == e
+        csum = np.cumsum(rewards[m])
+        level_id[m] = (csum - rewards[m]).astype(np.int32)
+    return level_id, transition
 
 
 @dataclass
@@ -158,20 +182,28 @@ def candidate_actions_for_types(
 
 def make_counterfactual_specs(
     npz: dict, *, context_len: int, n_click: int, max_specs: int | None,
-    seed: int, require_change: bool = True,
+    seed: int, require_change: bool = True, allow_no_avail: bool = False,
 ) -> list[CounterfactualSpec]:
     """Build Probe-A specs at states with a known available-action set.
 
     A spec is created at episode steps ``t >= context_len - 1`` that are not the
     episode's last step (so a true next frame exists). When ``require_change``
     (default) only states whose taken action actually moved the board are kept -
-    those are the states where action-sensitivity is meaningful. Requires the
-    npz to carry availability (``has_avail`` True / non-empty ``avail``); returns
-    ``[]`` otherwise.
+    those are the states where action-sensitivity is meaningful (this is the
+    "state-changing actions only" filter).
+
+    Availability: the random source carries per-frame ``avail`` so the candidate
+    set is the truly-available actions. The human source has no ``avail``; with
+    ``allow_no_avail=True`` we fall back to all seven action types as candidates
+    (so human counterfactuals are possible, at the cost of including a few
+    engine-rejected types). Returns ``[]`` if no avail and ``allow_no_avail`` is
+    False.
     """
-    if not bool(npz.get("has_avail", np.array(False))):
+    has_avail = bool(npz.get("has_avail", np.array(False)))
+    if not has_avail and not allow_no_avail:
         return []
     rng = np.random.default_rng(seed)
+    all_types = np.ones(7, dtype=bool)
     specs: list[CounterfactualSpec] = []
     for ep in iter_episodes(npz):
         L = ep.frames.shape[0]
@@ -180,8 +212,9 @@ def make_counterfactual_specs(
             if require_change and bool((true_next == ep.frames[t]).all()):
                 continue
             taken = int(ep.actions[t])
+            avail_t = ep.avail[t] if has_avail else all_types
             cands = candidate_actions_for_types(
-                ep.avail[t], taken, n_click=n_click, rng=rng
+                avail_t, taken, n_click=n_click, rng=rng
             )
             if cands.shape[0] < 2:
                 continue

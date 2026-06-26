@@ -13,10 +13,30 @@ from arc3_wm.action_space import ACTION6_BASE, ACTION7_INDEX
 from arc3_wm.palette import PALETTE_RGB
 from arc3_wm.probe_data import (
     candidate_actions_for_types,
+    frame_labels,
     iter_episodes,
     make_counterfactual_specs,
     make_rollout_windows,
 )
+
+
+def test_frame_labels_exclusive_prefix_and_transition():
+    # Two episodes. ep0: clear at step 2; ep1: clear at step 1.
+    rewards = np.array([0, 0, 1, 0, 0, 1, 0], dtype=np.float32)
+    ep_id = np.array([0, 0, 0, 0, 1, 1, 1], dtype=np.int32)
+    level_id, transition = frame_labels(rewards, ep_id)
+    # ep0: levels-before = 0,0,0,1 (the clear at step2 bumps the NEXT frame)
+    assert list(level_id[ep_id == 0]) == [0, 0, 0, 1]
+    # ep1: 0,0,1
+    assert list(level_id[ep_id == 1]) == [0, 0, 1]
+    assert list(transition.astype(int)) == [0, 0, 1, 0, 0, 1, 0]
+
+
+def test_frame_labels_no_clears_all_zero():
+    rewards = np.zeros(5, dtype=np.float32)
+    ep_id = np.zeros(5, dtype=np.int32)
+    level_id, transition = frame_labels(rewards, ep_id)
+    assert (level_id == 0).all() and (~transition).all()
 
 
 def _frame(val: int) -> np.ndarray:
