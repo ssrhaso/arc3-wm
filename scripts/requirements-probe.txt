@@ -31,6 +31,9 @@ portal>=3.5.0
 scope>=0.4.4
 granular>=0.20.3
 gymnasium
+matplotlib   # probe_figures.py only (dreamerv3 deps usually pull it already)
+# scikit-learn deliberately NOT required: probe_fit_probes.py uses a numpy
+# ridge linear probe (one less dep to install on the minimal aarch64 env).
 # install these two with --ignore-requires-python on Python 3.11:
 arcengine==0.9.3
 arc-agi==0.9.8
