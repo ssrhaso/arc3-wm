@@ -71,18 +71,36 @@ def _avail_to_mask(available_actions: list[int]) -> np.ndarray:
 
 
 def _pack(records: list[dict[str, Any]], game: str, source: str, has_avail: bool) -> dict:
-    """Stack a list of per-step dicts into the flat-transition npz schema."""
+    """Stack a list of per-step dicts into the flat-transition npz schema.
+
+    Adds two per-frame labels used by the latent-probing stage
+    (``scripts/probe_dump_latents.py`` + ``probe_fit_probes.py``):
+
+    * ``level_id``   - levels cleared *before* this step (exclusive prefix sum of
+      reward within the episode). The frame shows the pre-clear board, so the
+      label is the level the frame belongs to. The ordinal "which level am I on"
+      probe target. (Always 0 on games a random policy never clears.)
+    * ``transition`` - bool, did a level-clear fire at this step (reward > 0).
+      The binary "transition event" probe target.
+    """
     if not records:
         raise RuntimeError(f"no transitions collected for {game}/{source}")
+    from arc3_wm.probe_data import frame_labels
+
     frames = np.stack([r["frame"] for r in records]).astype(np.uint8)
+    rewards = np.array([r["reward"] for r in records], dtype=np.float32)
+    ep_id = np.array([r["ep_id"] for r in records], dtype=np.int32)
+    level_id, transition = frame_labels(rewards, ep_id)
     return {
         "frames": frames,
         "actions": np.array([r["action"] for r in records], dtype=np.int32),
-        "rewards": np.array([r["reward"] for r in records], dtype=np.float32),
-        "ep_id": np.array([r["ep_id"] for r in records], dtype=np.int32),
+        "rewards": rewards,
+        "ep_id": ep_id,
         "step": np.array([r["step"] for r in records], dtype=np.int32),
         "is_last": np.array([r["is_last"] for r in records], dtype=bool),
         "avail": np.stack([r["avail"] for r in records]).astype(bool),
+        "level_id": level_id,
+        "transition": transition,
         "game": np.array(game),
         "source": np.array(source),
         "has_avail": np.array(has_avail),
