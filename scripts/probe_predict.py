@@ -78,16 +78,24 @@ def build_spaces():
     return obs_space, act_space
 
 
-def _make_probe_agent_class(context_len: int):
-    """Agent subclass whose ``report`` runs the open-loop rollout (split at C).
+def _make_probe_agent_class(context_len: int, mode: str = "rollout"):
+    """Agent subclass whose ``report`` runs a frozen-WM probe forward.
 
-    ``context_len`` is baked in as a class attribute so it is a Python-static
-    value at trace time (the split index cannot be a traced array).
+    ``mode``:
+      * ``rollout`` - observe a C-frame context, imagine H steps under the real
+        actions, decode -> predicted frames (Probe B).
+      * ``latents`` - observe the FULL sequence, dump the RSSM model-state
+        (deterministic ``deter`` + stochastic ``stoch``) per frame, no decode
+        (step-1 latent probe input).
+
+    ``context_len`` and ``mode`` are baked in as class attributes so they are
+    Python-static at trace time (the split index / branch cannot be traced).
     """
     from dreamerv3.agent import Agent
 
     class ProbeAgent(Agent):
         _PROBE_CONTEXT_LEN = int(context_len)
+        _PROBE_MODE = str(mode)
 
         def report(self, carry, data):
             # Override the MODEL's report. `self` is the model (see Agent.__new__).
@@ -109,6 +117,24 @@ def _make_probe_agent_class(context_len: int):
             }
 
             enc_carry, dyn_carry, dec_carry, _ = carry
+
+            if self._PROBE_MODE == "latents":
+                # Observe the FULL sequence into the RSSM posterior; dump the
+                # model-state (deterministic h + stochastic z) per frame. No
+                # imagine, no decode - this is the step-1 latent-probe input.
+                enc_carry, _, tokens = self.enc(enc_carry, obs, reset, training=False)
+                dyn_carry, _, feat = self.dyn.observe(
+                    dyn_carry, tokens, prevact, reset, training=False)
+                metrics = {}
+                if isinstance(feat, dict):
+                    for fk in ("deter", "stoch"):
+                        if fk in feat:
+                            metrics[f"probe/{fk}"] = feat[fk]
+                if not metrics:  # fallback if feat isn't a {deter,stoch} dict
+                    metrics["probe/feat"] = self.feat2tensor(feat)
+                carry = (enc_carry, dyn_carry, dec_carry,
+                         {k: data[k][:, -1] for k in self.act_space})
+                return carry, metrics
 
             enc_carry, _, tokens = self.enc(enc_carry, obs, reset, training=False)
             fh = lambda x: jax.tree.map(lambda v: v[:, :C], x)
@@ -154,18 +180,24 @@ def build_config(game: str, context_len: int, extra_flags: list[str]):
     return _bc(args, leftover)
 
 
-def make_probe_agent(game: str, context_len: int, extra_flags: list[str]):
+def make_probe_agent(game: str, context_len: int, extra_flags: list[str],
+                     mode: str = "rollout"):
     import elements
     from scripts.launch_pergame import build_config as _  # ensure importable
 
     config = build_config(game, context_len, extra_flags)
     obs_space, act_space = build_spaces()
-    AgentCls = _make_probe_agent_class(context_len)
+    AgentCls = _make_probe_agent_class(context_len, mode)
+    # Disable AOT precompile: it bakes report for (batch_size, report_length);
+    # our probe calls report with many different (B, T) shapes, so we want the
+    # plain jit that retraces per shape instead. precompile is a JAX Options
+    # field absent from configs.yaml, so inject it into the jax sub-config.
+    jax_cfg = {**dict(config.jax), "precompile": False}
     agent = AgentCls(
         obs_space, act_space,
         elements.Config(
             **config.agent, logdir=config.logdir, seed=config.seed,
-            jax=config.jax, batch_size=config.batch_size,
+            jax=jax_cfg, batch_size=config.batch_size,
             batch_length=config.batch_length, replay_context=config.replay_context,
             report_length=config.report_length, replica=config.replica,
             replicas=config.replicas,
@@ -221,19 +253,38 @@ def windows_to_batch(windows, context_len: int, horizon: int):
     }
 
 
-def run_forward(agent, batch: dict):
-    """Call the agent's report path on one batch; return numpy probe outputs."""
-    import jax
-    B = batch[IMG_KEY].shape[0]
+def run_report(agent, batch: dict) -> dict:
+    """Call the agent's report path on one batch; return the raw metrics dict.
+
+    Shared by all probe modes - the per-mode ``report`` override decides which
+    ``probe/*`` arrays come back (rollout: pred/true/context_last; latents:
+    deter/stoch). Returned arrays are numpy (the outer report device_gets them).
+
+    The outer report asserts ``data.keys() == self.spaces.keys()`` (obs + act +
+    ext). ext_space includes replay-context entries (``dyn/deter``, ``dyn/stoch``)
+    our batch omits; our override does its own observe and ignores them, so we
+    fill any missing space key with zeros of the declared shape/dtype.
+    """
+    from embodied.jax import internal
+    B, T = batch[IMG_KEY].shape[:2]
+    data = dict(batch)
+    for k, sp in agent.spaces.items():
+        if k not in data:
+            data[k] = np.zeros((B, T, *tuple(sp.shape)), sp.dtype)
+    # Place inputs on the train sharding before the jit (mirrors stream()):
+    # report's _report expects sharded data/carry, not host numpy.
+    data = internal.device_put(data, agent.train_sharded)
+    data["seed"] = agent._seeds(0, agent.train_mirrored)
     carry = agent.init_report(B)
-    seed = agent._seeds(0, agent.train_mirrored)
-    data = {**batch, "seed": seed}
-    data = jax.tree.map(lambda x: x, data)  # leave on host; outer device_puts
     _, mets = agent.report(carry, data)
-    pred = np.asarray(mets["probe/pred"])
-    true = np.asarray(mets["probe/true"])
-    ctx = np.asarray(mets["probe/context_last"])
-    return pred, true, ctx
+    return mets
+
+
+def run_forward(agent, batch: dict):
+    """Rollout-mode convenience: return (pred, true, context_last) numpy arrays."""
+    mets = run_report(agent, batch)
+    return (np.asarray(mets["probe/pred"]), np.asarray(mets["probe/true"]),
+            np.asarray(mets["probe/context_last"]))
 
 
 def predict_rollout(agent, holdout_npz: Path, *, context_len, horizon,
@@ -265,6 +316,73 @@ def predict_rollout(agent, holdout_npz: Path, *, context_len, horizon,
     }
 
 
+def predict_counterfactual(agent, holdout_npz: Path, *, context_len, target_a,
+                           n_click, max_specs, seed, batch_size):
+    """Probe A: per-action one-step predictions, via the rollout forward at H=1.
+
+    For each branch state we observe the last ``context_len`` frames, then for
+    each of ``target_a`` candidate actions run a 1-step open-loop imagine+decode
+    (the exact rollout path with horizon=1) - so no new JAX code, just one
+    rollout batch per action slot. Needs per-frame availability => random source.
+    The scorer (`score_counterfactual`) reads the resulting cf npz.
+    """
+    from arc3_wm.probe_data import RolloutWindow, make_counterfactual_specs
+
+    d = dict(np.load(holdout_npz, allow_pickle=True))
+    game, source = str(d["game"]), str(d["source"])
+    specs = make_counterfactual_specs(
+        d, context_len=context_len, n_click=n_click, max_specs=max_specs, seed=seed,
+        require_change=True, allow_no_avail=True)  # state-changing filter; human-source OK
+    kept = [s for s in specs if s.candidate_actions.shape[0] >= target_a]
+    base = {"game": np.array(game), "source": np.array(source),
+            "target_a": np.array(target_a), "n_specs": np.array(len(kept))}
+    if not kept:
+        print(f"  [{game}/{source}] no counterfactual specs (needs avail/random source)")
+        return {
+            "cf_pred": np.zeros((0, target_a, OBS_HW, OBS_HW, 3), np.uint8),
+            "cf_true_next": np.zeros((0, OBS_HW, OBS_HW, 3), np.uint8),
+            "cf_context": np.zeros((0, OBS_HW, OBS_HW, 3), np.uint8),
+            "cf_actions": np.zeros((0, target_a), np.int32),
+            "cf_taken_idx": np.zeros((0,), np.int32), **base,
+        }
+    N = len(kept)
+    cf_pred = np.zeros((N, target_a, OBS_HW, OBS_HW, 3), np.uint8)
+    for j in range(target_a):
+        # The candidate action must drive the SINGLE imagined step. In the report
+        # override the imagined frame at offset 0 (the only one at H=1) is decoded
+        # from prevact[:, C] = action[:, C-1] -- i.e. the *last context action*
+        # slot, NOT the future slot action[:, C]. Putting the candidate in
+        # future_actions (action[:, C]) leaves it as prevact[:, C+1], a horizon-2
+        # driver H=1 never consumes, so every candidate decoded the identical frame
+        # under the REAL last action (the action-blindness was this off-by-one, not
+        # the model). Fix: overwrite the last context action with the candidate and
+        # leave the (unused) future slot a dummy.
+        ctx_act = [s.context_actions[-context_len:].copy() for s in kept]
+        for ca, s in zip(ctx_act, kept):
+            ca[-1] = s.candidate_actions[j]
+        windows = [
+            RolloutWindow(
+                ep_id=s.ep_id, start=s.t + 1,
+                context_frames=s.context_frames[-context_len:],
+                context_actions=ca,
+                future_actions=np.zeros(1, np.int32),  # unused at H=1 (see above)
+                true_future=s.true_next[None], context_last=s.context_last)
+            for ca, s in zip(ctx_act, kept)
+        ]
+        for b0 in range(0, N, batch_size):
+            chunk = windows[b0:b0 + batch_size]
+            p, _, _ = run_forward(agent, windows_to_batch(chunk, context_len, 1))
+            cf_pred[b0:b0 + len(chunk), j] = p[:, 0]
+        print(f"  [{game}/{source}] cf action-slot {j+1}/{target_a} done")
+    return {
+        "cf_pred": cf_pred,
+        "cf_true_next": np.stack([s.true_next for s in kept]).astype(np.uint8),
+        "cf_context": np.stack([s.context_last for s in kept]).astype(np.uint8),
+        "cf_actions": np.stack([s.candidate_actions[:target_a] for s in kept]).astype(np.int32),
+        "cf_taken_idx": np.array([s.taken_idx for s in kept], np.int32), **base,
+    }
+
+
 def self_test(game, context_len, horizon, extra_flags=None):
     """Build agent + run one random batch to shake out shapes/JIT (no ckpt)."""
     agent, _ = make_probe_agent(game, context_len, extra_flags or [])
@@ -293,13 +411,24 @@ def parse_args(argv=None):
     p.add_argument("--ckpt", help="extracted checkpoint directory")
     p.add_argument("--holdout", help="Stage-1 holdout npz")
     p.add_argument("--outdir", default="results/dynamics_probe/pred")
+    p.add_argument("--mode", choices=["rollout", "counterfactual"], default="rollout",
+                   help="rollout = Probe B (multi-step fidelity); counterfactual "
+                        "= Probe A (per-action 1-step; needs random source).")
     p.add_argument("--context-len", type=int, default=4)
     p.add_argument("--horizon", type=int, default=8)
     p.add_argument("--max-windows", type=int, default=None)
     p.add_argument("--batch-size", type=int, default=16)
+    p.add_argument("--target-a", type=int, default=4, help="counterfactual: candidate actions")
+    p.add_argument("--n-click", type=int, default=8, help="counterfactual: sampled ACTION6 cells")
+    p.add_argument("--max-specs", type=int, default=None, help="counterfactual: cap states")
+    p.add_argument("--seed", type=int, default=0, help="counterfactual candidate sampling seed")
     p.add_argument("--platform", choices=["cpu", "cuda"], default=None,
                    help="override jax.platform (default: config's cuda). Use cpu "
                         "for login-node validation without a GPU.")
+    p.add_argument("--compute-dtype", default=None,
+                   help="override jax.compute_dtype. Use float32 on aarch64 CPU: "
+                        "the config default bfloat16 hits an LLVM AArch64 codegen "
+                        "bug (Cannot select nxv4bf16).")
     p.add_argument("--self-test", action="store_true")
     p.add_argument("flags", nargs="*", help="extra config key=value overrides")
     return p.parse_args(argv)
@@ -309,6 +438,8 @@ def _resolve_flags(args) -> list[str]:
     flags = list(args.flags)
     if args.platform:
         flags = ["--jax.platform", args.platform] + flags
+    if getattr(args, "compute_dtype", None):
+        flags = ["--jax.compute_dtype", args.compute_dtype] + flags
     return flags
 
 
@@ -323,23 +454,25 @@ def main(argv=None) -> int:
         return 2
     agent, _ = make_probe_agent(args.game, args.context_len, flags)
     restore_checkpoint(agent, Path(args.ckpt))
-    out = predict_rollout(
-        agent, Path(args.holdout), context_len=args.context_len,
-        horizon=args.horizon, max_windows=args.max_windows,
-        batch_size=args.batch_size)
     outdir = Path(args.outdir); outdir.mkdir(parents=True, exist_ok=True)
-    dest = outdir / f"{args.game}_{args.source}_rollout.npz"
-    np.savez_compressed(dest, **out)
-    print(f"[probe_predict] wrote {dest} :: {out['rb_pred'].shape[0]} windows")
+    if args.mode == "counterfactual":
+        out = predict_counterfactual(
+            agent, Path(args.holdout), context_len=args.context_len,
+            target_a=args.target_a, n_click=args.n_click, max_specs=args.max_specs,
+            seed=args.seed, batch_size=args.batch_size)
+        dest = outdir / f"{args.game}_{args.source}_cf.npz"
+        np.savez_compressed(dest, **out)
+        print(f"[probe_predict] wrote {dest} :: {out['cf_pred'].shape[0]} states")
+    else:
+        out = predict_rollout(
+            agent, Path(args.holdout), context_len=args.context_len,
+            horizon=args.horizon, max_windows=args.max_windows,
+            batch_size=args.batch_size)
+        dest = outdir / f"{args.game}_{args.source}_rollout.npz"
+        np.savez_compressed(dest, **out)
+        print(f"[probe_predict] wrote {dest} :: {out['rb_pred'].shape[0]} windows")
     return 0
 
-
-# PROBE_A_TODO (counterfactual / action-sensitivity), to add once B is verified:
-#   - observe a fixed C-frame context per state -> dyn_carry
-#   - for each candidate action a in the spec: self.dyn.imagine(dyn_carry,
-#     {'action': a[:, None]}, length=1) -> decode -> per-action 1-step frame
-#   - assemble with arc3_wm.probe_data.build_counterfactual_prediction_npz
-#   This reuses the same agent/override; only the batch + imagine loop differ.
 
 if __name__ == "__main__":
     raise SystemExit(main())
