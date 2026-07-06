@@ -24,3 +24,17 @@ Decide which mechanism, if any, addresses the sparse-reward failure that keeps D
 | Reward linear-decodability | Not yet probed. This is the decision gate. |
 | State-change shaping | Designed, not implemented. |
 | TWISTER port | Not started. Gated on the probe. |
+
+## Evidence to date
+
+Source: 24-run wandb analysis (2026-05-25), sharpened 2026-06-17, plus the counterfactual dynamics probe (2026-06-19).
+
+**Real-env reachability.** `scripts/eval_random_rhae.py` ran a uniform-random agent through the real env: vc33 scored 0/300 L1 clears (an independent 832-episode varying-seed run also scored 0). On the 5 dead games (cd82, sb26, tn36, ls20, lf52) the trained actor stays at rand/action about 1.000 for the full 500k steps with episode score identically 0, so those runs behave as random-policy runs and never reach reward online. vc33 is the only game that scores, via 17 chance clears while partially committed.
+
+**Imagination reachability.** On all 5 dead games the imagined return is identically 0 (ret_min equals ret_max equals 0, reward-head loss about 0). The reward head fits by predicting all-zero because the buffer contains no clears, so there are no positive examples for any head to learn from.
+
+**World-model fit is orthogonal to escape.** cd82 has the tightest world model in the sweep (image loss 0.065 versus vc33 0.16), the most action-sensitive dynamics, and pixel-robust latent level structure, yet still scores RHAE=0. A better world model is exactly what cd82 already has, and it changed nothing.
+
+**Dynamics competence.** The counterfactual probe (after the alignment-bug fix, commit ad1ee4b) shows the world model is weakly action-conditional but not action-correct: the prediction moves with the action, but the taken action's true consequence is not singled out and rarely beats copy-last-frame. Defensible claim: a weak, partial world model the controller never exploits.
+
+**Conclusion.** The failure is reward cold-start and hard exploration, not representation capacity.
