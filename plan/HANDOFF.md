@@ -1,9 +1,5 @@
 # HANDOFF: World Model Selection for Sparse-Reward ARC-AGI-3
 
-**Owner:** Haso
-**Status:** decision pending (see "Decision gate")
-**Scope note:** TWISTER and reward shaping are both out-of-scope items in CLAUDE.md and require explicit sign-off before implementation. This document is a decision aid, not an approved workstream.
-
 ## Purpose
 
 Decide which mechanism, if any, addresses the sparse-reward failure that keeps DreamerV3 at RHAE=0 on most Phase-4 games, and whether TWISTER (Burchi, AC-CPC plus Transformer SSM) is the right tool for it.
@@ -17,13 +13,13 @@ Decide which mechanism, if any, addresses the sparse-reward failure that keeps D
 
 ## Status at a glance
 
-| Item | State |
-|------|-------|
-| Reachability (real env) | Probed. Random policy gets 0/300 clears on vc33. |
+| Item                       | State                                                  |
+| -------------------------- | ------------------------------------------------------ |
+| Reachability (real env)    | Probed. Random policy gets 0/300 clears on vc33.       |
 | Reachability (imagination) | Probed. Imagined return identically 0 on 5 dead games. |
-| Reward linear-decodability | Not yet probed. This is the decision gate. |
-| State-change shaping | Designed, not implemented. |
-| TWISTER port | Not started. Gated on the probe. |
+| Reward linear-decodability | Not yet probed. This is the decision gate.             |
+| State-change shaping       | Designed, not implemented.                             |
+| TWISTER port               | Not started. Gated on the probe.                       |
 
 ## Evidence to date
 
@@ -38,3 +34,25 @@ Source: 24-run wandb analysis (2026-05-25), sharpened 2026-06-17, plus the count
 **Dynamics competence.** The counterfactual probe (after the alignment-bug fix, commit ad1ee4b) shows the world model is weakly action-conditional but not action-correct: the prediction moves with the action, but the taken action's true consequence is not singled out and rarely beats copy-last-frame. Defensible claim: a weak, partial world model the controller never exploits.
 
 **Conclusion.** The failure is reward cold-start and hard exploration, not representation capacity.
+
+## Decision gate: reward linear-decodability probe
+
+The one test not yet run, and the one that decides whether TWISTER is relevant.
+
+**Question.** If handed a real positive, can the current latent even represent the reward?
+
+**Method.**
+
+1. Freeze the Phase-3 (or a Phase-4) world-model checkpoint.
+2. Take held-out human level-up transitions (available via the `data/human_baselines.json` pipeline and `arc3_wm.replay_loader`).
+3. Encode to RSSM latents. Fit a linear probe from latent to level-up label.
+4. Report decodability (accuracy or AUC) versus a shuffled-label control.
+
+**Interpretation.**
+
+- Decodable: the representation is adequate; reward learning fails only because positives are scarce or never generated. TWISTER will not help. Proceed to shaping or exploration.
+- Not decodable even from human positives: a genuine representation gap the reward head cannot bridge. TWISTER's AC-CPC lever is on-target and worth the port.
+
+**Cost.** About one day. Reuses the probe harness in `arc3_wm/dynamics_probe.py` as a template. No training and no new infrastructure.
+
+**Prior.** Given cd82 (tightest fit, still 0), the expected outcome is "decodable", which points away from TWISTER.
