@@ -4,6 +4,8 @@
 
 Decide which mechanism, if any, addresses the sparse-reward failure that keeps DreamerV3 at RHAE=0 on most Phase-4 games, and whether TWISTER (Burchi, AC-CPC plus Transformer SSM) is the right tool for it.
 
+Owner: Haso. Status: decision pending (see "Decision gate"). Scope note: TWISTER and reward shaping are both out-of-scope items in CLAUDE.md and require explicit sign-off before implementation. This document is a decision aid, not an approved workstream.
+
 ## TL;DR
 
 1. The Phase-4 failure is reward cold-start (no positive examples in the buffer), not weak world-model representation. cd82 has the tightest world model in the sweep and still scores 0.
@@ -97,3 +99,29 @@ Wrap the training env factory only. Keep the eval env native so RHAE stays hones
 - Reward hacking: raw delta-reward lets the agent farm flicker. The novelty-gated variant removes this and is the honest default.
 - Potential-based shaping (Ng 1999), `r' = r + gamma * Phi(s') - Phi(s)`, provably preserves the optimal policy, which is cleaner for the paper but weaker at cold-start ignition. Non-potential change-reward is stronger for ignition but changes the optimum. Novelty-gating is the middle ground.
 - Paper framing: sparse native reward for eval and RHAE; dense interaction bonus during training only.
+
+## TWISTER assessment
+
+TWISTER (Burchi, github.com/burchim/TWISTER) is a standalone PyTorch codebase built on DreamerV3. Core method is action-conditioned Contrastive Predictive Coding (AC-CPC) inside a Transformer state-space model, evaluated on Atari 100k and DMC.
+
+**Why "sparse-reward Atari" does not transfer directly.** The sparse games TWISTER wins (Freeway, Frostbite, Hero, Private Eye) are reward-rare-but-reachable: a stochastic actor reaches reward occasionally, and a sharper world model exploits it. The ARC-3 dead games are reward-unreachable-by-random, closer to hard exploration. No Atari 100k method, TWISTER included, manufactures the first reward.
+
+**Integration cost.** TWISTER is a separate engine in a separate framework, not a plugin for the JAX danijar/dreamerv3 the sprint is committed to. Two routes:
+
+- Route A: adopt the PyTorch engine wholesale. Rebuilds the env adapter, replay loader, RHAE eval plumbing, and cross-game pretraining against a new codebase, and discards the Phase-3 checkpoint (a JAX RSSM cannot load into a PyTorch TSSM). This is a reference-implementation switch (Haso-owned) plus a second world-model arm (out of scope).
+- Route B: port only the AC-CPC auxiliary loss (and optionally the Transformer SSM) into the existing JAX DreamerV3. Keeps all plumbing and the Phase-3 checkpoint. AC-CPC alone is a few days; adding the Transformer SSM is 1 to 2 weeks plus retuning. If TWISTER is pursued mid-sprint at all, this is the only acceptable route.
+
+**Recommendation.** Do not start TWISTER before the decision-gate probe. If the probe says "decodable" (expected), TWISTER is aimed one axis away from the wall and belongs in the follow-up paper, where the AC-CPC to "not action-correct" link is a strong, measured motivation. If the probe says "not decodable", TWISTER's lever becomes relevant and Route B is the path.
+
+## Recommended sequence
+
+1. Run the reward linear-decodability probe (about one day). Decision gate for everything below.
+2. If scarcity is confirmed: prototype the novelty-gated StateChangeRewardWrapper on the 5 dead games. Cheapest path from RHAE=0 to RHAE greater than 0, in-framework, keeps the Phase-3 checkpoint and Gymnasium wrapper.
+3. If shaping ignites reward on the dead games, evaluate whether it generalizes across the sweep before deciding on exploration methods (Plan2Explore).
+4. Hold TWISTER as the follow-up-paper arm unless the probe returns "not decodable", in which case escalate Route B as a sprint candidate.
+
+## Open decisions (Haso owns)
+
+1. Reward shaping is a deliberate deviation from "env native rewards, unmodified" and a DreamerV3 modification (CLAUDE.md decision 5). Needs sign-off before implementation.
+2. TWISTER is a second world-model arm and, via Route A, a reference-implementation switch (CLAUDE.md out-of-scope plus decisions 4 and 5). Needs sign-off.
+3. Whether the decision-gate probe uses the Phase-3 checkpoint or a Phase-4 per-game checkpoint.
