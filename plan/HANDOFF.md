@@ -56,3 +56,44 @@ The one test not yet run, and the one that decides whether TWISTER is relevant.
 **Cost.** About one day. Reuses the probe harness in `arc3_wm/dynamics_probe.py` as a template. No training and no new infrastructure.
 
 **Prior.** Given cd82 (tightest fit, still 0), the expected outcome is "decodable", which points away from TWISTER.
+
+## Fallback intervention: state-change reward shaping
+
+The on-mechanism fix if the probe confirms scarcity. This is the StochasticGoose signal named in the CLAUDE.md fallback ladder.
+
+**Idea.** Native reward is delta-levels and fires almost never. A meaningful ARC-3 action changes the grid; a no-op or rejected action does not. Use grid change as a dense proxy for "you affected the world":
+
+```
+r_shaped = r_native + beta * change_signal(obs_t, obs_prev)
+```
+
+**change_signal options, cheapest to safest.**
+
+- Binary: 1 if obs changed else 0.
+- Magnitude: fraction of cells changed (Hamming distance over 4096), normalized.
+- Novelty-gated: reward only unseen states (hash the grid, reward inversely to visit count). This is count-based exploration and resists flicker-farming.
+
+**Why it targets the diagnosed mechanism.** The actor-collapse analysis states the falsifiable prediction directly: injecting one positive reward example (chance clear, Plan2Explore intrinsic, or state-change shaping) breaks the entropy-only symmetry on exactly the zero-return games, leaving world-model fit unchanged. Dense change-reward manufactures positives, which seed the reward head, which yields return variance, critic value, and a real actor gradient.
+
+**How to bolt on without forking DreamerV3.** Apply it env-side as an `embodied` wrapper, the same pattern as `arc3_wm/eval_reward_sink.py` (which duck-types `embodied.core.wrappers.Wrapper`). DreamerV3 stays untouched and simply sees a modified reward channel.
+
+```python
+class StateChangeRewardWrapper(Wrapper):   # duck-types embodied Wrapper, like EvalRewardSink
+    def __init__(self, env, beta=0.01, mode="hamming", novelty_gate=True): ...
+    def step(self, action):
+        obs = self.env.step(action)
+        delta = self._change(obs["image"], self._prev)
+        obs["reward"] = obs["reward"] + self.beta * delta
+        self._prev = obs["image"]
+        if obs["is_last"]:
+            self._prev = None
+        return obs
+```
+
+Wrap the training env factory only. Keep the eval env native so RHAE stays honest (RHAE is post-hoc on native progress). beta, mode, and novelty_gate are config knobs.
+
+**Risks and options.**
+
+- Reward hacking: raw delta-reward lets the agent farm flicker. The novelty-gated variant removes this and is the honest default.
+- Potential-based shaping (Ng 1999), `r' = r + gamma * Phi(s') - Phi(s)`, provably preserves the optimal policy, which is cleaner for the paper but weaker at cold-start ignition. Non-potential change-reward is stronger for ignition but changes the optimum. Novelty-gating is the middle ground.
+- Paper framing: sparse native reward for eval and RHAE; dense interaction bonus during training only.
