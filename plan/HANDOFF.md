@@ -164,3 +164,12 @@ If the probe confirms scarcity, implement the wrapper here.
 - `data/human_baselines.json`: per-game human baselines and level structure.
 - `scripts/extract_human_baselines.py`: how that fixture is produced.
 - `scripts/eval_random_rhae.py` and `scripts/diag_uniform_random_baseline.py`: the random-policy reachability evidence cited above.
+
+### Tests and further reading
+
+- `tests/test_probe_fit.py`, `tests/test_probe_data.py`, `tests/test_dynamics_probe.py`: probe pipeline tests.
+- `tests/test_eval_reward_sink.py`, `tests/test_launcher_dry_run.py`, `tests/test_launcher_warmstart.py`: wrapper and launcher tests.
+- `docs/phase-checklists.md`: phase gates and exit criteria.
+- `docs/phase4-warmstart-notes.md`: Phase-4 warm-start behaviour.
+
+First task: run the decision gate (probe_collect_holdout, then probe_dump_latents, then probe_fit_probes with a level-up target) before touching shaping or TWISTER.
