@@ -157,3 +157,10 @@ If the probe confirms scarcity, implement the wrapper here.
 - `tests/test_eval_reward_sink.py`: test template for the new wrapper.
 - `scripts/launch_pergame.py`: the make_env override. Wrap the training env factory here and leave the eval env native.
 - `configs/arc3.yaml`: where the beta, mode, and novelty_gate knobs belong.
+
+### RHAE, baselines, and evidence
+
+- `arc3_wm/rhae.py` and `scripts/compute_rhae.py`: post-hoc RHAE, the metric of record.
+- `data/human_baselines.json`: per-game human baselines and level structure.
+- `scripts/extract_human_baselines.py`: how that fixture is produced.
+- `scripts/eval_random_rhae.py` and `scripts/diag_uniform_random_baseline.py`: the random-policy reachability evidence cited above.
