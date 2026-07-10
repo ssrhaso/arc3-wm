@@ -124,3 +124,16 @@ TWISTER (Burchi, github.com/burchim/TWISTER) is a standalone PyTorch codebase bu
 1. Reward shaping is a deliberate deviation from "env native rewards, unmodified" and a DreamerV3 modification (CLAUDE.md decision 5). Needs sign-off before implementation.
 2. TWISTER is a second world-model arm and, via Route A, a reference-implementation switch (CLAUDE.md out-of-scope plus decisions 4 and 5). Needs sign-off.
 3. Whether the decision-gate probe uses the Phase-3 checkpoint or a Phase-4 per-game checkpoint.
+
+## Files for the intern
+
+Paths are repo-relative. Read CLAUDE.md first; it is the authoritative spec (gitignored by design).
+
+### Start here
+
+- `arc3_wm/env.py`: Gymnasium env over arc_agi; source of the RGB grid any change signal reads.
+- `arc3_wm/embodied_env.py`: ARC3EmbodiedEnv, the DreamerV3-facing env.
+- `arc3_wm/action_space.py`: flat 4102 action space and per-game masking.
+- `arc3_wm/registration.py`: task registration for arc3_<game>.
+- `docs/using-the-wrapper.md`: how the wrapper is meant to be driven.
+- `docs/design-decisions.md`: numbered design decisions, including D12 (launcher bypasses dreamerv3/main.py).
