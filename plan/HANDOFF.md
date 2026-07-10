@@ -137,3 +137,14 @@ Paths are repo-relative. Read CLAUDE.md first; it is the authoritative spec (git
 - `arc3_wm/registration.py`: task registration for arc3_<game>.
 - `docs/using-the-wrapper.md`: how the wrapper is meant to be driven.
 - `docs/design-decisions.md`: numbered design decisions, including D12 (launcher bypasses dreamerv3/main.py).
+
+### Decision-gate probe
+
+The linear-decodability probe is mostly built. Reuse this pipeline and adapt the target label to level-up.
+
+- `scripts/probe_collect_holdout.py`: stage 1, collect held-out human episodes from `data/replays/`.
+- `scripts/probe_dump_latents.py`: encode frames to frozen RSSM latents (needs the JAX box).
+- `scripts/probe_fit_probes.py`: fit linear probes with a by-episode split and a label-permutation control. This is the closest existing analog to the gate.
+- `arc3_wm/probe_data.py`: shared JAX-free window and spec preparation.
+- `arc3_wm/dynamics_probe.py`: JAX-free metric functions.
+- `docs/dynamics-competence-probe.md`: probe rationale and full pipeline.
