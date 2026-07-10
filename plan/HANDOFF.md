@@ -148,3 +148,12 @@ The linear-decodability probe is mostly built. Reuse this pipeline and adapt the
 - `arc3_wm/probe_data.py`: shared JAX-free window and spec preparation.
 - `arc3_wm/dynamics_probe.py`: JAX-free metric functions.
 - `docs/dynamics-competence-probe.md`: probe rationale and full pipeline.
+
+### Reward shaping
+
+If the probe confirms scarcity, implement the wrapper here.
+
+- `arc3_wm/eval_reward_sink.py`: the wrapper pattern to copy for StateChangeRewardWrapper; it duck-types the embodied Wrapper without importing JAX.
+- `tests/test_eval_reward_sink.py`: test template for the new wrapper.
+- `scripts/launch_pergame.py`: the make_env override. Wrap the training env factory here and leave the eval env native.
+- `configs/arc3.yaml`: where the beta, mode, and novelty_gate knobs belong.
