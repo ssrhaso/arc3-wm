@@ -222,8 +222,13 @@ def train_loop(
     mode: str,
     val_dataset=None,
     evaluate: Optional[Callable[[nn.Module], dict]] = None,
+    resume: bool = False,
 ) -> dict:
-    """Generic training loop for WM ("wm") and BC ("bc") modes."""
+    """Generic training loop for WM ("wm") and BC ("bc") modes.
+
+    ``resume=True`` continues from ``out_dir/latest.pt`` when present
+    (model, EMA, optimizer, step and epoch all restored), so a requeued
+    slurm job picks up where it stopped."""
     device = resolve_device(cfg.device)
     model = model.to(device)
     torch.manual_seed(cfg.seed)
@@ -231,6 +236,17 @@ def train_loop(
     optimizer = make_optimizer(model, cfg)
     ema = EMAHelper(model, decay=cfg.ema_decay)
     log = MetricsLog(out_dir / "metrics.jsonl")
+    start_epoch = 0
+    resume_step = 0
+    latest = out_dir / "latest.pt"
+    if resume and latest.exists():
+        ckpt = torch.load(latest, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        ema.load_state_dict(ckpt["ema"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        resume_step = int(ckpt["step"])
+        start_epoch = int(ckpt.get("extra", {}).get("epoch", -1)) + 1
+        log.write({"resumed": True, "step": resume_step, "epoch": start_epoch})
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=cfg.batch_size,
@@ -242,11 +258,11 @@ def train_loop(
     autocast_dtype = (
         torch.bfloat16 if (cfg.bf16 and device == "cuda") else None
     )
-    global_step = 0
+    global_step = resume_step
     batch_i = 0
     best_metric = -1.0
     start = time.time()
-    for epoch in range(cfg.epochs):
+    for epoch in range(start_epoch, cfg.epochs):
         model.train()
         for batch in loader:
             parts, consumed = deep_supervision_batch(

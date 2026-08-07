@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--num-workers", type=int, default=4)
     p.add_argument("--device", default="auto")
     p.add_argument("--no-bf16", action="store_true")
+    p.add_argument("--resume", action="store_true", help="continue from out/latest.pt if present")
     p.add_argument("--no-dedup", action="store_true")
     # Model overrides.
     p.add_argument("--d-model", type=int, default=512)
@@ -137,6 +138,7 @@ def main(argv=None) -> int:
         args.out,
         mode="wm",
         evaluate=lambda m: evaluate_wm(m, val_ds),
+        resume=args.resume,
     )
     print(json.dumps(result))
     return 0
