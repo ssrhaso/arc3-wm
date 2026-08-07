@@ -28,7 +28,7 @@ def _write_eval(dirpath: Path, episodes: list[list[float]], summary: dict) -> No
 def test_collect_and_markdown(tmp_path):
     sweep = tmp_path / "sweep"
     # vc33 hybrid: clears level 1 in 10 actions (rewards[0] is the initial
-    # obs step) -> level score min((20/10)^2, 1.15) = 1.15, weighted 1/(1+2+3).
+    # obs step).
     _write_eval(
         sweep / "eval" / "vc33_s0_hybrid",
         [[0.0] + [0.0] * 9 + [1.0]],
@@ -47,10 +47,13 @@ def test_collect_and_markdown(tmp_path):
     assert rows[("vc33", 0, "random")]["rhae"] == 0.0
     hybrid = rows[("vc33", 0, "hybrid")]
     assert hybrid["levels_completed"] == 1
-    assert hybrid["rhae"] > 0.15  # 1.15 * 1/6 = 0.1917
+    # Level 1 in 10 actions vs human 20: min((20/10)^2, 1.15) = 1.15.
+    # Covered levels are {1, 2} (level 3 has no baseline, D-B excludes it
+    # from the denominator): game score = 1.15 * 1 / (1 + 2) = 0.3833.
+    assert abs(hybrid["rhae"] - 1.15 / 3) < 1e-9
     md = B.to_markdown(results)
     assert "| vc33 | 0 |" in md
-    assert "0.0000" in md and "0.19" in md
+    assert "0.0000" in md and "0.3833" in md
 
 
 def test_main_writes_results_json(tmp_path):
