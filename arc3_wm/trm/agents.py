@@ -156,7 +156,9 @@ class TRMAgent:
                 g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
                 batch = g.expand(len(cands), -1, -1)
                 acts = torch.from_numpy(cands).to(self.device)
-                out = self.world_model.predict(batch, acts)
+                out = self.world_model.predict(
+                    batch, acts, max_steps=cfg.wm_predict_steps
+                )
                 pred = out.next_logits.argmax(-1).cpu().numpy()
                 if out.reward_logit is not None:
                     scores += cfg.w_reward * torch.sigmoid(out.reward_logit).cpu().numpy()

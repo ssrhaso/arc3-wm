@@ -44,7 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--w-reward", type=float, default=10.0)
     p.add_argument("--w-change", type=float, default=0.5)
     p.add_argument("--max-click-candidates", type=int, default=64)
+    p.add_argument("--wm-predict-steps", type=int, default=2)
     p.add_argument("--no-ema", action="store_true")
+    p.add_argument(
+        "--resume", action="store_true",
+        help="append to an existing eval_episodes.jsonl instead of restarting",
+    )
     return p
 
 
@@ -74,6 +79,7 @@ def main(argv=None) -> int:
         w_change=args.w_change,
         epsilon=args.epsilon,
         max_click_candidates=args.max_click_candidates,
+        wm_predict_steps=args.wm_predict_steps,
         seed=args.seed,
     )
     agent = TRMAgent(agent_cfg, policy=policy, world_model=wm, device=device)
@@ -84,12 +90,16 @@ def main(argv=None) -> int:
 
     args.out.mkdir(parents=True, exist_ok=True)
     sink = args.out / "eval_episodes.jsonl"
+    done_episodes = 0
+    if args.resume and sink.exists():
+        done_episodes = sum(1 for _ in open(sink))
     summary = {
         "game": args.game,
         "episodes": 0,
         "level_clears": 0,
         "wins": 0,
         "total_actions": 0,
+        "resumed_at": done_episodes or None,
         "config": {
             "agent": vars(args) | {"out": str(args.out),
                                    "bc_ckpt": str(args.bc_ckpt),
@@ -97,8 +107,9 @@ def main(argv=None) -> int:
         },
     }
     start = time.time()
-    with open(sink, "w") as fh:
-        for ep in range(args.episodes):
+    mode = "a" if (args.resume and done_episodes) else "w"
+    with open(sink, mode) as fh:
+        for ep in range(done_episodes, args.episodes):
             record = run_episode(env, agent, max_actions=args.max_actions)
             fh.write(json.dumps({"rewards": record["rewards"],
                                  "terminal_state": record["terminal_state"]}) + "\n")

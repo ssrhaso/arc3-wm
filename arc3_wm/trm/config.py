@@ -166,11 +166,16 @@ class AgentConfig:
     epsilon: float = 0.05  # residual masked-uniform exploration
     max_click_candidates: int = 64  # salience-pruned ACTION6 candidates per step
     novelty_count_power: float = 0.5  # novelty = 1 / count^power
+    # Supervision steps per WM prediction at decision time. Follow-up
+    # analysis (arXiv:2512.11847) finds most accuracy arrives at the first
+    # recursion step; 2 trades a little fidelity for ~3x planner speed.
+    wm_predict_steps: int = 2
     seed: int = 0
 
     def __post_init__(self) -> None:
         _require(0.0 <= self.epsilon <= 1.0, "epsilon must be in [0, 1]")
         _require(self.max_click_candidates >= 1, "max_click_candidates must be >= 1")
+        _require(self.wm_predict_steps >= 1, "wm_predict_steps must be >= 1")
 
 
 def to_dict(cfg: Any) -> dict:

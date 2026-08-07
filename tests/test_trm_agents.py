@@ -108,7 +108,7 @@ def test_agent_compositions_produce_masked_actions(use_bc, use_wm):
 def test_agent_novelty_prefers_state_changing_action():
     # World model stub: action 0 keeps the grid, action 1 changes it.
     class StubWM:
-        def predict(self, grids, actions):
+        def predict(self, grids, actions, max_steps=None):
             import torch as t
 
             b = grids.shape[0]
