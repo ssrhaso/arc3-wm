@@ -187,18 +187,35 @@ class _GameCache:
         assert (self.actions[self.transition_idx + 1] >= 0).all()
 
 
+Spec = "Path | tuple[Path, Optional[np.ndarray]]"
+
+
+def _load_caches(specs) -> list[_GameCache]:
+    """Accept paths or (path, episode_ids) pairs (the train/val split)."""
+    caches = []
+    for spec in specs:
+        if isinstance(spec, tuple):
+            path, episodes = spec
+        else:
+            path, episodes = spec, None
+        caches.append(_GameCache(Path(path), episodes=episodes))
+    return caches
+
+
 class WMTransitionDataset:
     """(grid, action) -> (next_grid, reward, state) transition samples.
 
-    ``dedup=True`` collapses identical (grid, action, next_grid) triples,
-    which shrinks the heavily-static corpus and reweights rare transitions
-    upward - the copy-degeneracy countermeasure at the data level.
+    ``specs``: npz paths, or (path, episode_ids) pairs to restrict to a
+    train/val episode split. ``dedup=True`` collapses identical
+    (grid, action, next_grid) triples, which shrinks the heavily-static
+    corpus and reweights rare transitions upward - the copy-degeneracy
+    countermeasure at the data level.
     """
 
-    def __init__(self, npz_paths: list[Path], dedup: bool = True) -> None:
+    def __init__(self, specs: list, dedup: bool = True) -> None:
         import torch  # noqa: F401  (deferred; keeps preprocessing torch-free)
 
-        self._caches = [_GameCache(p) for p in npz_paths]
+        self._caches = _load_caches(specs)
         self._index: list[tuple[int, int]] = []
         seen: set[bytes] = set()
         for ci, cache in enumerate(self._caches):
@@ -233,12 +250,15 @@ class WMTransitionDataset:
 
 
 class BCDataset:
-    """(grid, mask) -> human action samples for behaviour cloning."""
+    """(grid, mask) -> human action samples for behaviour cloning.
 
-    def __init__(self, npz_paths: list[Path]) -> None:
+    ``specs`` as in WMTransitionDataset: paths or (path, episode_ids).
+    """
+
+    def __init__(self, specs: list) -> None:
         import torch  # noqa: F401
 
-        self._caches = [_GameCache(p) for p in npz_paths]
+        self._caches = _load_caches(specs)
         self._index = [
             (ci, int(t))
             for ci, cache in enumerate(self._caches)
