@@ -111,7 +111,10 @@ def main(argv=None) -> int:
     with open(sink, mode) as fh:
         for ep in range(done_episodes, args.episodes):
             record = run_episode(env, agent, max_actions=args.max_actions)
-            fh.write(json.dumps({"rewards": record["rewards"],
+            # compute_rhae expects the DV3 stream shape: rewards[0] is the
+            # initial-obs step (no action taken) and is skipped there, so
+            # prepend it; every later entry is one action's reward.
+            fh.write(json.dumps({"rewards": [0.0] + record["rewards"],
                                  "terminal_state": record["terminal_state"]}) + "\n")
             fh.flush()
             summary["episodes"] += 1
