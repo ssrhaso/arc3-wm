@@ -48,6 +48,11 @@ dev = [
     "pytest-timeout",
     "gdown",
 ]
+# TRM component library (arc3_wm.trm). torch>=2.5 matches the oldest
+# runtime we target (NGC 24.09 container).
+trm = [
+    "torch>=2.5",
+]
 
 [project.urls]
 Homepage = "https://github.com/ssrhaso/ARC_AGI_3"
