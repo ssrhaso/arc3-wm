@@ -166,6 +166,9 @@ class AgentConfig:
     epsilon: float = 0.05  # residual masked-uniform exploration
     max_click_candidates: int = 64  # salience-pruned ACTION6 candidates per step
     novelty_count_power: float = 0.5  # novelty = 1 / count^power
+    # Epistemic bonus when an ensemble of world models is supplied: fraction
+    # of cells the members disagree on (Plan2Explore-style, decision-time).
+    w_disagree: float = 0.0
     # Supervision steps per WM prediction at decision time. Follow-up
     # analysis (arXiv:2512.11847) finds most accuracy arrives at the first
     # recursion step; 2 trades a little fidelity for ~3x planner speed.

@@ -40,6 +40,11 @@ class TrainConfig:
     seed: int = 0
     log_every: int = 50
     eval_every: int = 1  # run the val evaluation every N epochs (and last)
+    # When the batch carries a second transition (dataset n_steps=2), add a
+    # scheduled-sampling unroll loss: the model's own (detached, argmax)
+    # prediction is fed back with the next action and scored against the
+    # true two-step-ahead frame. Trains open-loop robustness.
+    unroll_weight: float = 0.0
     loss_weights: dict = field(
         default_factory=lambda: {
             "grid": 1.0, "change": 0.5, "reward": 1.0, "state": 0.5,
@@ -176,6 +181,13 @@ def deep_supervision_batch(
                     state=batch.get("state"),
                     prev_grid=batch["grid"],
                 )
+                if cfg.unroll_weight > 0 and "next_grid_2" in batch:
+                    with torch.no_grad():
+                        fed_back = out.next_logits.argmax(-1)
+                    out2 = model(fed_back, batch["action_2"])
+                    parts["unroll"] = cfg.unroll_weight * model.loss(
+                        out2, batch["next_grid_2"], prev_grid=fed_back
+                    )["grid"]
             else:
                 out = model(batch["grid"], carry=carry, mask=batch.get("mask"), x=x)
                 parts = model.loss(out, batch["action"])

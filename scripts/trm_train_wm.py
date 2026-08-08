@@ -38,6 +38,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-bf16", action="store_true")
     p.add_argument("--resume", action="store_true", help="continue from out/latest.pt if present")
     p.add_argument("--no-dedup", action="store_true")
+    p.add_argument("--unroll-weight", type=float, default=0.0,
+                   help="scheduled-sampling 2-step unroll loss weight (0 = off)")
     # Model overrides.
     p.add_argument("--d-model", type=int, default=512)
     p.add_argument("--n-layers", type=int, default=2)
@@ -95,7 +97,8 @@ def main(argv=None) -> int:
         train_specs.append((path, tr))
         val_specs.append((path, va))
 
-    train_ds = WMTransitionDataset(train_specs, dedup=not args.no_dedup)
+    n_steps = 2 if args.unroll_weight > 0 else 1
+    train_ds = WMTransitionDataset(train_specs, dedup=not args.no_dedup, n_steps=n_steps)
     val_ds = WMTransitionDataset(val_specs, dedup=False)
     print(f"train transitions: {len(train_ds)}, val transitions: {len(val_ds)}")
 
@@ -117,6 +120,7 @@ def main(argv=None) -> int:
         bf16=not args.no_bf16,
         seed=args.seed,
         eval_every=args.eval_every,
+        unroll_weight=args.unroll_weight,
     )
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "run.json").write_text(

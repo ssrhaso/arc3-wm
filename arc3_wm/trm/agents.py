@@ -167,16 +167,34 @@ class TRMAgent:
         return choice
 
     def _wm_scores(self, grid: np.ndarray, cands: np.ndarray):
-        """One-step WM scores for candidate actions + predicted next grids."""
+        """One-step WM scores for candidate actions + predicted next grids.
+
+        ``world_model`` may be a single model or a list (ensemble): member 0
+        drives prediction/novelty; the per-cell argmax disagreement of the
+        other members against member 0 adds an epistemic ``w_disagree``
+        bonus (uncertain transitions are worth trying).
+        """
         import torch
 
         cfg = self.cfg
+        members = (
+            self.world_model
+            if isinstance(self.world_model, (list, tuple))
+            else [self.world_model]
+        )
         g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
         batch = g.expand(len(cands), -1, -1)
         acts = torch.from_numpy(cands).to(self.device)
-        out = self.world_model.predict(batch, acts, max_steps=cfg.wm_predict_steps)
+        out = members[0].predict(batch, acts, max_steps=cfg.wm_predict_steps)
         pred = out.next_logits.argmax(-1).cpu().numpy()
         scores = np.zeros(len(cands), dtype=np.float64)
+        if len(members) > 1 and cfg.w_disagree != 0.0:
+            disagree = np.zeros(len(cands), dtype=np.float64)
+            for member in members[1:]:
+                other = member.predict(batch, acts, max_steps=cfg.wm_predict_steps)
+                other_pred = other.next_logits.argmax(-1).cpu().numpy()
+                disagree += (other_pred != pred).mean(axis=(1, 2))
+            scores += cfg.w_disagree * disagree / (len(members) - 1)
         if out.reward_logit is not None:
             scores += cfg.w_reward * torch.sigmoid(out.reward_logit).cpu().numpy()
         if out.state_logits is not None:

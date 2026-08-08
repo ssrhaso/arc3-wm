@@ -212,14 +212,20 @@ class WMTransitionDataset:
     countermeasure at the data level.
     """
 
-    def __init__(self, specs: list, dedup: bool = True) -> None:
+    def __init__(self, specs: list, dedup: bool = True, n_steps: int = 1) -> None:
         import torch  # noqa: F401  (deferred; keeps preprocessing torch-free)
 
+        if n_steps not in (1, 2):
+            raise ValueError("n_steps must be 1 or 2")
+        self.n_steps = n_steps
         self._caches = _load_caches(specs)
         self._index: list[tuple[int, int]] = []
         seen: set[bytes] = set()
         for ci, cache in enumerate(self._caches):
+            valid = set(cache.transition_idx.tolist())
             for t in cache.transition_idx:
+                if n_steps == 2 and (t + 1) not in valid:
+                    continue  # needs two consecutive in-episode transitions
                 if dedup:
                     key = (
                         cache.grids[t].tobytes()
@@ -240,13 +246,17 @@ class WMTransitionDataset:
         ci, t = self._index[i]
         c = self._caches[ci]
         reward = float(c.levels[t + 1] - c.levels[t] > 0)
-        return {
+        sample = {
             "grid": torch.from_numpy(c.grids[t].astype(np.int64)),
             "action": torch.tensor(int(c.actions[t + 1]), dtype=torch.long),
             "next_grid": torch.from_numpy(c.grids[t + 1].astype(np.int64)),
             "reward": torch.tensor(reward),
             "state": torch.tensor(int(c.states[t + 1]), dtype=torch.long),
         }
+        if self.n_steps == 2:
+            sample["action_2"] = torch.tensor(int(c.actions[t + 2]), dtype=torch.long)
+            sample["next_grid_2"] = torch.from_numpy(c.grids[t + 2].astype(np.int64))
+        return sample
 
 
 class BCDataset:

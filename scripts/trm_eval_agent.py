@@ -35,7 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-actions", type=int, default=1000)
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--bc-ckpt", type=Path, default=None)
-    p.add_argument("--wm-ckpt", type=Path, default=None)
+    p.add_argument("--wm-ckpt", type=Path, nargs="+", default=None,
+                   help="one checkpoint, or several for an ensemble")
     p.add_argument("--device", default="auto")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--epsilon", type=float, default=0.05)
@@ -43,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--w-novelty", type=float, default=1.0)
     p.add_argument("--w-reward", type=float, default=10.0)
     p.add_argument("--w-change", type=float, default=0.5)
+    p.add_argument("--w-disagree", type=float, default=0.0)
     p.add_argument("--max-click-candidates", type=int, default=64)
     p.add_argument("--wm-predict-steps", type=int, default=2)
     p.add_argument("--bc-score", choices=["logp", "prob"], default="logp")
@@ -71,7 +73,8 @@ def main(argv=None) -> int:
     if args.bc_ckpt:
         policy = load_policy(args.bc_ckpt, device=device, use_ema=not args.no_ema)
     if args.wm_ckpt:
-        wm = load_wm(args.wm_ckpt, device=device, use_ema=not args.no_ema)
+        models = [load_wm(c, device=device, use_ema=not args.no_ema) for c in args.wm_ckpt]
+        wm = models if len(models) > 1 else models[0]
 
     agent_cfg = AgentConfig(
         use_bc=policy is not None,
@@ -80,6 +83,7 @@ def main(argv=None) -> int:
         w_novelty=args.w_novelty,
         w_reward=args.w_reward,
         w_change=args.w_change,
+        w_disagree=args.w_disagree,
         epsilon=args.epsilon,
         max_click_candidates=args.max_click_candidates,
         wm_predict_steps=args.wm_predict_steps,
