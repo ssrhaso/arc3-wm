@@ -189,11 +189,21 @@ class TRMAgent:
         pred = out.next_logits.argmax(-1).cpu().numpy()
         scores = np.zeros(len(cands), dtype=np.float64)
         if len(members) > 1 and cfg.w_disagree != 0.0:
+            # Per-cell Jensen-Shannon divergence between member predictive
+            # distributions (argmax mismatch masks distributional
+            # uncertainty; JSD is the discrete-space score used by
+            # MAX-style decision-time exploration).
+            p0 = torch.softmax(out.next_logits.float(), dim=-1)
             disagree = np.zeros(len(cands), dtype=np.float64)
             for member in members[1:]:
                 other = member.predict(batch, acts, max_steps=cfg.wm_predict_steps)
-                other_pred = other.next_logits.argmax(-1).cpu().numpy()
-                disagree += (other_pred != pred).mean(axis=(1, 2))
+                p1 = torch.softmax(other.next_logits.float(), dim=-1)
+                m = 0.5 * (p0 + p1)
+                log_m = m.clamp_min(1e-9).log()
+                kl0 = (p0 * (p0.clamp_min(1e-9).log() - log_m)).sum(-1)
+                kl1 = (p1 * (p1.clamp_min(1e-9).log() - log_m)).sum(-1)
+                jsd = 0.5 * (kl0 + kl1)  # [B, 64, 64], in [0, ln 2]
+                disagree += jsd.mean(dim=(1, 2)).cpu().numpy()
             scores += cfg.w_disagree * disagree / (len(members) - 1)
         if out.reward_logit is not None:
             scores += cfg.w_reward * torch.sigmoid(out.reward_logit).cpu().numpy()
