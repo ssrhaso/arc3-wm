@@ -45,6 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--w-change", type=float, default=0.5)
     p.add_argument("--max-click-candidates", type=int, default=64)
     p.add_argument("--wm-predict-steps", type=int, default=2)
+    p.add_argument("--bc-score", choices=["logp", "prob"], default="logp")
+    p.add_argument("--plan-depth", type=int, default=1)
+    p.add_argument("--beam-width", type=int, default=8)
     p.add_argument("--no-ema", action="store_true")
     p.add_argument(
         "--resume", action="store_true",
@@ -80,6 +83,9 @@ def main(argv=None) -> int:
         epsilon=args.epsilon,
         max_click_candidates=args.max_click_candidates,
         wm_predict_steps=args.wm_predict_steps,
+        bc_score=args.bc_score,
+        plan_depth=args.plan_depth,
+        beam_width=args.beam_width,
         seed=args.seed,
     )
     agent = TRMAgent(agent_cfg, policy=policy, world_model=wm, device=device)

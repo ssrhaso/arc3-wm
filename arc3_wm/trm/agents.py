@@ -150,32 +150,72 @@ class TRMAgent:
                 g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
                 m = torch.from_numpy(mask.copy())[None].to(self.device)
                 _, out = self.policy.act(g, mask=m, temperature=0.0)
-                log_p = torch.log_softmax(out.flat_logits[0].float(), dim=-1)
-                scores += cfg.w_bc * log_p.cpu().numpy()[cands]
+                if cfg.bc_score == "prob":
+                    bc = torch.softmax(out.flat_logits[0].float(), dim=-1)
+                else:
+                    bc = torch.log_softmax(out.flat_logits[0].float(), dim=-1)
+                scores += cfg.w_bc * bc.cpu().numpy()[cands]
             if cfg.use_wm:
-                g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
-                batch = g.expand(len(cands), -1, -1)
-                acts = torch.from_numpy(cands).to(self.device)
-                out = self.world_model.predict(
-                    batch, acts, max_steps=cfg.wm_predict_steps
-                )
-                pred = out.next_logits.argmax(-1).cpu().numpy()
-                if out.reward_logit is not None:
-                    scores += cfg.w_reward * torch.sigmoid(out.reward_logit).cpu().numpy()
-                if out.state_logits is not None:
-                    p_state = torch.softmax(out.state_logits.float(), dim=-1).cpu().numpy()
-                    scores -= cfg.w_reward * p_state[:, 2]  # avoid predicted GAME_OVER
-                if out.change_logits is not None:
-                    p_change = torch.sigmoid(out.change_logits.float()).mean((1, 2))
-                    scores += cfg.w_change * p_change.cpu().numpy()
-                scores += cfg.w_novelty * np.asarray(
-                    [self.memory.novelty(pred[i]) for i in range(len(cands))]
-                )
+                wm_scores, pred = self._wm_scores(grid, cands)
+                scores += wm_scores
+                if cfg.plan_depth >= 2:
+                    scores += self._beam_bonus(grid, mask, cands, scores, pred)
 
         best = np.flatnonzero(scores == scores.max())
         choice = int(cands[self.rng.choice(best)])
         self._prev_grid = grid.copy()
         return choice
+
+    def _wm_scores(self, grid: np.ndarray, cands: np.ndarray):
+        """One-step WM scores for candidate actions + predicted next grids."""
+        import torch
+
+        cfg = self.cfg
+        g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
+        batch = g.expand(len(cands), -1, -1)
+        acts = torch.from_numpy(cands).to(self.device)
+        out = self.world_model.predict(batch, acts, max_steps=cfg.wm_predict_steps)
+        pred = out.next_logits.argmax(-1).cpu().numpy()
+        scores = np.zeros(len(cands), dtype=np.float64)
+        if out.reward_logit is not None:
+            scores += cfg.w_reward * torch.sigmoid(out.reward_logit).cpu().numpy()
+        if out.state_logits is not None:
+            p_state = torch.softmax(out.state_logits.float(), dim=-1).cpu().numpy()
+            scores -= cfg.w_reward * p_state[:, 2]  # avoid predicted GAME_OVER
+        if out.change_logits is not None:
+            p_change = torch.sigmoid(out.change_logits.float()).mean((1, 2))
+            scores += cfg.w_change * p_change.cpu().numpy()
+        scores += cfg.w_novelty * np.asarray(
+            [self.memory.novelty(pred[i]) for i in range(len(cands))]
+        )
+        return scores, pred
+
+    def _beam_bonus(
+        self,
+        grid: np.ndarray,
+        mask: np.ndarray,
+        cands: np.ndarray,
+        scores: np.ndarray,
+        pred: np.ndarray,
+    ) -> np.ndarray:
+        """Depth-2 lookahead: for the top ``beam_width`` first actions, add
+        the discounted best second-step WM score from the predicted state.
+
+        The action-type mask is reused for the second step (per-game
+        availability is near-static); second-step novelty counts are read
+        against the shared memory without observing the imagined states.
+        """
+        cfg = self.cfg
+        bonus = np.zeros(len(cands), dtype=np.float64)
+        beam = np.argsort(scores)[::-1][: cfg.beam_width]
+        for i in beam:
+            g2 = pred[i].astype(np.uint8)
+            cands2 = candidate_actions(
+                mask, g2, grid, cfg.second_step_candidates, self.rng
+            )
+            s2, _ = self._wm_scores(g2, cands2)
+            bonus[i] = cfg.plan_discount * float(s2.max())
+        return bonus
 
 
 def run_episode(

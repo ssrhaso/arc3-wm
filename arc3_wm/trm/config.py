@@ -170,12 +170,27 @@ class AgentConfig:
     # analysis (arXiv:2512.11847) finds most accuracy arrives at the first
     # recursion step; 2 trades a little fidelity for ~3x planner speed.
     wm_predict_steps: int = 2
+    # BC component scale: "logp" adds w_bc * log pi(a|s) (unbounded below,
+    # tends to dominate); "prob" adds w_bc * pi(a|s), commensurate with the
+    # [0, 1] novelty/reward terms.
+    bc_score: str = "logp"
+    # Planning depth: 1 = one-step lookahead; 2 = beam over the top
+    # ``beam_width`` first actions, each scored by its best discounted
+    # second-step outcome.
+    plan_depth: int = 1
+    beam_width: int = 8
+    plan_discount: float = 0.5
+    second_step_candidates: int = 8
     seed: int = 0
 
     def __post_init__(self) -> None:
         _require(0.0 <= self.epsilon <= 1.0, "epsilon must be in [0, 1]")
         _require(self.max_click_candidates >= 1, "max_click_candidates must be >= 1")
         _require(self.wm_predict_steps >= 1, "wm_predict_steps must be >= 1")
+        _require(self.bc_score in ("logp", "prob"), f"bad bc_score {self.bc_score!r}")
+        _require(self.plan_depth in (1, 2), "plan_depth must be 1 or 2")
+        _require(self.beam_width >= 1, "beam_width must be >= 1")
+        _require(self.second_step_candidates >= 1, "second_step_candidates must be >= 1")
 
 
 def to_dict(cfg: Any) -> dict:
