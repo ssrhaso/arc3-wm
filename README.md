@@ -38,6 +38,12 @@ or DreamerV3-`embodied` plugs in with no `arc3_wm` changes. The standard
 interface is the integration point; there is no custom abstraction
 layer. See [docs/using-the-wrapper.md](docs/using-the-wrapper.md).
 
+This fork adds `arc3_wm.trm`, a Tiny Recursive Model component library
+(discrete world model, behaviour-cloning policy, novelty planner - all
+composable) with training/eval entry points under `scripts/trm_*.py`;
+see [docs/trm-components.md](docs/trm-components.md). Install with
+`pip install -e ".[trm]"`.
+
 ## Install
 
 ```bash
