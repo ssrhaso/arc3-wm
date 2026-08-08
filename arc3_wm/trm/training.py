@@ -39,6 +39,7 @@ class TrainConfig:
     bf16: bool = True
     seed: int = 0
     log_every: int = 50
+    eval_every: int = 1  # run the val evaluation every N epochs (and last)
     loss_weights: dict = field(
         default_factory=lambda: {
             "grid": 1.0, "change": 0.5, "reward": 1.0, "state": 0.5,
@@ -280,7 +281,12 @@ def train_loop(
             if cfg.max_steps and global_step >= cfg.max_steps:
                 break
         val_metrics = {}
-        if evaluate is not None:
+        is_eval_epoch = (
+            (epoch + 1) % max(cfg.eval_every, 1) == 0
+            or epoch == cfg.epochs - 1
+            or (cfg.max_steps and global_step >= cfg.max_steps)
+        )
+        if evaluate is not None and is_eval_epoch:
             model.eval()
             with ema.swap(model):
                 val_metrics = evaluate(model)
