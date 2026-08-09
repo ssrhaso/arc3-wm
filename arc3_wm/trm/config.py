@@ -196,6 +196,26 @@ class AgentConfig:
         _require(self.second_step_candidates >= 1, "second_step_candidates must be >= 1")
 
 
+@dataclass
+class GraphAgentConfig:
+    """Scientist-loop agent: state-graph exploration with BFS navigation,
+    explore/execute phases, object-centric click candidates, optional WM
+    no-op pruning. Requires no training; the graph persists across
+    episodes (min-over-episodes RHAE rewards explore-then-execute)."""
+
+    max_click_objects: int = 24
+    # With a world model attached: defer untested edges whose predicted
+    # next state equals the current state with change prob below this
+    # threshold (saves real actions on predicted no-ops). 0 disables.
+    wm_noop_prune: float = 0.0
+    wm_predict_steps: int = 1
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        _require(self.max_click_objects >= 1, "max_click_objects must be >= 1")
+        _require(0.0 <= self.wm_noop_prune < 1.0, "wm_noop_prune in [0, 1)")
+
+
 def to_dict(cfg: Any) -> dict:
     """Dataclass config -> plain-JSON dict (recursive)."""
     _require(dataclasses.is_dataclass(cfg), f"not a dataclass: {type(cfg)!r}")
