@@ -31,6 +31,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--game", required=True)
+    p.add_argument("--agent", choices=["score", "graph"], default="score",
+                   help="score = weighted-component agent; graph = state-graph scientist loop")
+    p.add_argument("--max-click-objects", type=int, default=24)
+    p.add_argument("--wm-noop-prune", type=float, default=0.0)
     p.add_argument("--episodes", type=int, default=50)
     p.add_argument("--max-actions", type=int, default=1000)
     p.add_argument("--out", type=Path, required=True)
@@ -65,7 +69,8 @@ def main(argv=None) -> int:
 
     from arc3_wm.env import ARC3GymEnv
     from arc3_wm.trm.agents import TRMAgent, run_episode
-    from arc3_wm.trm.config import AgentConfig
+    from arc3_wm.trm.config import AgentConfig, GraphAgentConfig
+    from arc3_wm.trm.graph_agent import GraphAgent, run_graph_episode
     from arc3_wm.trm.training import load_policy, load_wm, resolve_device
 
     device = resolve_device(args.device)
@@ -75,6 +80,19 @@ def main(argv=None) -> int:
     if args.wm_ckpt:
         models = [load_wm(c, device=device, use_ema=not args.no_ema) for c in args.wm_ckpt]
         wm = models if len(models) > 1 else models[0]
+
+    if args.agent == "graph":
+        graph_cfg = GraphAgentConfig(
+            max_click_objects=args.max_click_objects,
+            wm_noop_prune=args.wm_noop_prune,
+            wm_predict_steps=args.wm_predict_steps,
+            seed=args.seed,
+        )
+        agent = GraphAgent(graph_cfg, world_model=wm, device=device)
+        episode_fn = lambda env, agent_, max_actions: run_graph_episode(
+            env, agent_, max_actions=max_actions
+        )
+        return _run_eval(args, agent, episode_fn)
 
     agent_cfg = AgentConfig(
         use_bc=policy is not None,
@@ -93,6 +111,16 @@ def main(argv=None) -> int:
         seed=args.seed,
     )
     agent = TRMAgent(agent_cfg, policy=policy, world_model=wm, device=device)
+    episode_fn = lambda env, agent_, max_actions: run_episode(
+        env, agent_, max_actions=max_actions
+    )
+    return _run_eval(args, agent, episode_fn)
+
+
+def _run_eval(args, agent, episode_fn) -> int:
+    import arc_agi
+
+    from arc3_wm.env import ARC3GymEnv
 
     arcade = arc_agi.Arcade()
     env = ARC3GymEnv(game_id=args.game, arcade=arcade, seed=args.seed,
@@ -120,7 +148,7 @@ def main(argv=None) -> int:
     mode = "a" if (args.resume and done_episodes) else "w"
     with open(sink, mode) as fh:
         for ep in range(done_episodes, args.episodes):
-            record = run_episode(env, agent, max_actions=args.max_actions)
+            record = episode_fn(env, agent, args.max_actions)
             # compute_rhae expects the DV3 stream shape: rewards[0] is the
             # initial-obs step (no action taken) and is skipped there, so
             # prepend it; every later entry is one action's reward.

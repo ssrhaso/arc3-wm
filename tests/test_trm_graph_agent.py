@@ -129,3 +129,35 @@ def test_graph_agent_path_mismatch_recovers():
 def test_node_key_separates_levels():
     grid = np.zeros((64, 64), dtype=np.uint8)
     assert node_key(0, grid) != node_key(1, grid)
+
+
+class TickingChainEnv(ChainEnv):
+    """ChainEnv plus a progress bar: cell (63, t) flips each step - every
+    raw frame is unique, defeating naive hashing."""
+
+    def _obs(self):
+        obs, info = super()._obs()
+        from arc3_wm.dynamics_probe import quantize_to_palette
+
+        grid = quantize_to_palette(obs).astype(np.uint8)
+        grid[63, :] = 0  # static UI strip, independent of game state
+        for t in range(min(self.steps, 63)):
+            grid[63, t] = 9
+        return decode_frame(grid), info
+
+
+def test_clock_calibration_recovers_graph_reuse():
+    agent = GraphAgent(GraphAgentConfig(seed=0))
+    env = TickingChainEnv()
+    r1 = run_graph_episode(env, agent, max_actions=50)
+    r2 = run_graph_episode(env, agent, max_actions=50)
+    # Third reset triggers calibration from the two divergent episodes.
+    r3 = run_graph_episode(env, agent, max_actions=50)
+    assert agent.clock_mask is not None and agent.clock_mask.any()
+    assert agent.stats["clock_cells"] > 0
+    # Avatar/state cells (row 0-62 fill) must NOT be masked.
+    assert not agent.clock_mask[:63, :].any()
+    # With the clock masked, the goal path replays exactly.
+    r4 = run_graph_episode(env, agent, max_actions=50)
+    assert sum(r4["rewards"]) == 1.0
+    assert r4["steps"] == 3
