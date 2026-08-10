@@ -96,35 +96,59 @@ class TRMWorldModel(nn.Module):
         reward: Optional[torch.Tensor] = None,
         state: Optional[torch.Tensor] = None,
         prev_grid: Optional[torch.Tensor] = None,
+        sample_mask: Optional[torch.Tensor] = None,
     ) -> dict[str, torch.Tensor]:
         """Per-step losses. ``prev_grid`` enables changed-cell weighting and
         the change-mask target; ``reward`` is binary (level cleared);
-        ``state`` indexes STATES."""
+        ``state`` indexes STATES. ``sample_mask`` (float [B], 1 = active)
+        excludes ACT-halted samples from every term - per-sample deep
+        supervision, matching the official carry-slot semantics."""
         cfg = self.cfg
         parts: dict[str, torch.Tensor] = {}
-        weight = None
+        b = next_grid.shape[0]
+        sm = (
+            sample_mask.float()
+            if sample_mask is not None
+            else torch.ones(b, device=next_grid.device)
+        )
+        denom = sm.sum().clamp(min=1.0)
+
+        def masked_mean(per_sample: torch.Tensor) -> torch.Tensor:
+            return (per_sample * sm).sum() / denom
+
         changed = None
+        weight = sm[:, None, None].expand(-1, 64, 64).clone()
         if prev_grid is not None:
             changed = (next_grid != prev_grid).float()
-            weight = 1.0 + (cfg.changed_cell_weight - 1.0) * changed
+            weight = weight * (1.0 + (cfg.changed_cell_weight - 1.0) * changed)
         parts["grid"] = grid_cross_entropy(
             out.next_logits, next_grid.long(), cfg.loss, weight=weight
         )
         if out.change_logits is not None and changed is not None:
-            parts["change"] = F.binary_cross_entropy_with_logits(
-                out.change_logits, changed
+            parts["change"] = masked_mean(
+                F.binary_cross_entropy_with_logits(
+                    out.change_logits, changed, reduction="none"
+                ).mean(dim=(1, 2))
             )
         if out.reward_logit is not None and reward is not None:
-            parts["reward"] = F.binary_cross_entropy_with_logits(
-                out.reward_logit, reward.float()
+            parts["reward"] = masked_mean(
+                F.binary_cross_entropy_with_logits(
+                    out.reward_logit, reward.float(), reduction="none"
+                )
             )
         if out.state_logits is not None and state is not None:
-            parts["state"] = F.cross_entropy(out.state_logits.float(), state.long())
+            parts["state"] = masked_mean(
+                F.cross_entropy(out.state_logits.float(), state.long(), reduction="none")
+            )
         # ACT halt target: the decoded next frame is exactly right.
         with torch.no_grad():
             exact = (out.next_logits.argmax(-1) == next_grid.long()).flatten(1).all(-1)
-        parts["halt"] = F.binary_cross_entropy_with_logits(out.q_halt, exact.float())
-        parts["exact_match"] = exact.float().mean().detach()
+        parts["halt"] = masked_mean(
+            F.binary_cross_entropy_with_logits(
+                out.q_halt, exact.float(), reduction="none"
+            )
+        )
+        parts["exact_match"] = masked_mean(exact.float()).detach()
         return parts
 
     @torch.no_grad()
@@ -134,19 +158,45 @@ class TRMWorldModel(nn.Module):
         action: torch.Tensor,
         max_steps: Optional[int] = None,
     ) -> WMOutput:
-        """Inference: recurse until the halt head fires or ``max_steps``
-        supervision steps (default ``core.halt_max_steps``)."""
+        """Inference with per-sample adaptive compute: each sample's output
+        is frozen at its first halting supervision step; recursion stops
+        when every sample has halted or at ``max_steps`` (default
+        ``core.halt_max_steps``)."""
         steps = max_steps or self.cfg.core.halt_max_steps
         x = self.embed(grid, action)
         carry: Optional[Carry] = None
         out: Optional[WMOutput] = None
+        done: Optional[torch.Tensor] = None
+        frozen: dict[str, torch.Tensor] = {}
         for _ in range(steps):
             out = self.forward(grid, action, carry, x=x)
             carry = out.carry
-            if (out.q_halt > 0).all():
+            halted = out.q_halt > 0
+            if done is None:
+                done = torch.zeros_like(halted)
+            newly = halted & ~done
+            for name in ("next_logits", "change_logits", "reward_logit",
+                         "state_logits", "q_halt"):
+                value = getattr(out, name)
+                if value is None:
+                    continue
+                if name not in frozen:
+                    frozen[name] = value.clone()
+                else:
+                    idx = ~done  # keep updating only not-yet-frozen rows
+                    frozen[name][idx] = value[idx]
+            done = done | newly
+            if bool(done.all()):
                 break
         assert out is not None
-        return out
+        return WMOutput(
+            next_logits=frozen["next_logits"],
+            change_logits=frozen.get("change_logits"),
+            reward_logit=frozen.get("reward_logit"),
+            state_logits=frozen.get("state_logits"),
+            q_halt=frozen["q_halt"],
+            carry=out.carry,
+        )
 
     @torch.no_grad()
     def rollout(

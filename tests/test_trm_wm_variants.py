@@ -147,3 +147,71 @@ def test_rollout_probe_windows(seq_cache):
     assert len(R.val_windows(cache, 2, 100, rng)) == 4
     assert len(R.val_windows(cache, 4, 100, rng)) == 2
     assert len(R.val_windows(cache, 8, 100, rng)) == 0
+
+
+def test_sample_mask_excludes_halted_from_loss():
+    torch.manual_seed(0)
+    model = TRMWorldModel(TINY)
+    g = torch.randint(0, 4, (4, 64, 64))
+    nxt = torch.randint(0, 4, (4, 64, 64))
+    out = model(g, torch.tensor([0, 1, 2, 3]))
+    full = model.loss(out, nxt, prev_grid=g)
+    half = model.loss(out, nxt, prev_grid=g,
+                      sample_mask=torch.tensor([1.0, 1.0, 0.0, 0.0]))
+    assert not torch.isclose(full["grid"], half["grid"])
+    zero = model.loss(out, nxt, prev_grid=g,
+                      sample_mask=torch.tensor([0.0, 0.0, 0.0, 0.0]))
+    assert float(zero["grid"]) == 0.0
+
+
+def test_training_exits_when_all_halt(tmp_path):
+    import numpy as np
+
+    from arc3_wm.trm import config as C2
+    from arc3_wm.trm.data import WMTransitionDataset
+
+    cfg_model = C2.WorldModelConfig(
+        core=C2.TRMCoreConfig(
+            d_model=32, n_heads=4, n_layers=1, l_cycles=1, h_cycles=1,
+            n_supervision=4, halt_max_steps=4, halt_exploration_prob=0.0,
+            halt_bias_init=5.0,  # force immediate halting
+        ),
+        tokenizer=C2.TokenizerConfig(d_model=32, patch_size=16, cell_embed_dim=4),
+    )
+    rng = np.random.default_rng(0)
+    path = tmp_path / "toy.npz"
+    np.savez_compressed(
+        path,
+        grids=rng.integers(0, 4, size=(5, 64, 64)).astype(np.uint8),
+        actions=np.array([-1, 0, 1, 2, 3], dtype=np.int16),
+        levels=np.zeros(5, dtype=np.int16),
+        states=np.zeros(5, dtype=np.int8),
+        avail=np.ones((5, 7), dtype=np.uint8),
+        episode_starts=np.array([0], dtype=np.int64),
+    )
+    ds = WMTransitionDataset([path], dedup=False)
+    batch = torch.utils.data.default_collate([ds[i] for i in range(4)])
+    torch.manual_seed(0)
+    model = TRMWorldModel(cfg_model)
+    cfg = TrainConfig(lr=1e-3, warmup_steps=1)
+    opt = make_optimizer(model, cfg)
+    ema = EMAHelper(model)
+    _, consumed = deep_supervision_batch(model, batch, opt, ema, cfg, 0, mode="wm")
+    assert consumed == 1  # every sample halts at step 1 -> loop exits
+
+
+def test_predict_freezes_per_sample_outputs():
+    torch.manual_seed(0)
+    cfg_model = C.WorldModelConfig(
+        core=C.TRMCoreConfig(
+            d_model=32, n_heads=4, n_layers=1, l_cycles=1, h_cycles=1,
+            halt_max_steps=4, halt_bias_init=5.0,
+        ),
+        tokenizer=C.TokenizerConfig(d_model=32, patch_size=16, cell_embed_dim=4),
+    )
+    model = TRMWorldModel(cfg_model)
+    g = torch.randint(0, 4, (2, 64, 64))
+    out = model.predict(g, torch.tensor([0, 1]))
+    # bias +5 -> all halt at step 1; frozen output equals a single step.
+    single = model(g, torch.tensor([0, 1]))
+    assert torch.allclose(out.next_logits, single.next_logits)

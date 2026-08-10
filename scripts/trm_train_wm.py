@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-supervision", type=int, default=6)
     p.add_argument("--halt-max-steps", type=int, default=6)
     p.add_argument("--y-init", choices=["buffer", "input"], default="buffer")
-    p.add_argument("--halt-bias-init", type=float, default=-5.0)
+    p.add_argument("--halt-bias-init", type=float, default=0.0)
     p.add_argument("--changed-cell-weight", type=float, default=20.0)
     p.add_argument("--loss", choices=["stablemax_ce", "softmax_ce"], default="stablemax_ce")
     return p

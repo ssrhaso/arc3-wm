@@ -67,11 +67,14 @@ def test_gradients_flow_only_through_last_block():
     assert torch.isfinite(x.grad).all()
 
 
-def test_q_head_initial_bias_says_dont_halt():
+def test_q_head_initial_state_does_not_halt():
+    # Zero-init (official TRM): q starts at exactly 0, and halting is
+    # strict q > 0, so a fresh head never halts but can learn either way.
     core = make_core()
     x = torch.randn(2, SEQ, 32)
     _, q_halt, _ = core(x)
-    assert (q_halt < 0).all()
+    assert (q_halt <= 0).all()
+    assert not (q_halt > 0).any()
 
 
 def test_y_init_input_mode_starts_from_input():

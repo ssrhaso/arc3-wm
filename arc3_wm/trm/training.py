@@ -162,6 +162,11 @@ def deep_supervision_batch(
     carry = None
     agg: dict[str, float] = {}
     steps_done = 0
+    # Per-sample deep supervision: a sample that halts (subject to the ACT
+    # exploration minimum) exits - it stops contributing loss at later
+    # steps, so halting has a real consequence during training (the
+    # explicit-loop equivalent of the official carry-slot replacement).
+    active = torch.ones(b, dtype=torch.bool, device=device)
     for step_i in range(core_cfg.n_supervision):
         lr_scale = warmup_constant_lr(global_step + steps_done, cfg.warmup_steps)
         for group in optimizer.param_groups:
@@ -171,6 +176,7 @@ def deep_supervision_batch(
             if autocast_dtype is not None
             else _nullcontext()
         )
+        sample_mask = active.float()
         with ctx:
             if mode == "wm":
                 out = model(batch["grid"], batch["action"], carry=carry, x=x)
@@ -180,17 +186,19 @@ def deep_supervision_batch(
                     reward=batch.get("reward"),
                     state=batch.get("state"),
                     prev_grid=batch["grid"],
+                    sample_mask=sample_mask,
                 )
                 if cfg.unroll_weight > 0 and "next_grid_2" in batch:
                     with torch.no_grad():
                         fed_back = out.next_logits.argmax(-1)
                     out2 = model(fed_back, batch["action_2"])
                     parts["unroll"] = cfg.unroll_weight * model.loss(
-                        out2, batch["next_grid_2"], prev_grid=fed_back
+                        out2, batch["next_grid_2"], prev_grid=fed_back,
+                        sample_mask=sample_mask,
                     )["grid"]
             else:
                 out = model(batch["grid"], carry=carry, mask=batch.get("mask"), x=x)
-                parts = model.loss(out, batch["action"])
+                parts = model.loss(out, batch["action"], sample_mask=sample_mask)
             loss = sum(
                 cfg.loss_weights.get(k, 1.0) * v
                 for k, v in parts.items()
@@ -207,7 +215,8 @@ def deep_supervision_batch(
         agg["loss"] = agg.get("loss", 0.0) + float(loss.detach())
         with torch.no_grad():
             halted = (out.q_halt > 0) & ((step_i + 1) >= min_halt)
-        if bool(halted.all()):
+            active = active & ~halted
+        if not bool(active.any()):
             break
         # The optimizer just stepped: recompute the input embedding under the
         # fresh weights for the next supervision step.

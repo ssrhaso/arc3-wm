@@ -92,19 +92,41 @@ class TRMPolicy(nn.Module):
         out: PolicyOutput,
         action: torch.Tensor,
         value_target: Optional[torch.Tensor] = None,
+        sample_mask: Optional[torch.Tensor] = None,
     ) -> dict[str, torch.Tensor]:
-        """Behaviour-cloning losses against the human action."""
+        """Behaviour-cloning losses against the human action.
+        ``sample_mask`` (float [B], 1 = active) excludes ACT-halted samples
+        (per-sample deep supervision)."""
         parts: dict[str, torch.Tensor] = {}
+        sm = (
+            sample_mask.float()
+            if sample_mask is not None
+            else torch.ones(action.shape[0], device=action.device)
+        )
+        denom = sm.sum().clamp(min=1.0)
+
+        def masked_mean(per_sample: torch.Tensor) -> torch.Tensor:
+            return (per_sample * sm).sum() / denom
+
         if self.cfg.loss == "stablemax_ce":
-            parts["bc"] = stablemax_cross_entropy(out.flat_logits, action.long())
+            nll = stablemax_cross_entropy(out.flat_logits, action.long(), reduction="none")
         else:
-            parts["bc"] = F.cross_entropy(out.flat_logits.float(), action.long())
+            nll = F.cross_entropy(
+                out.flat_logits.float(), action.long(), reduction="none"
+            )
+        parts["bc"] = masked_mean(nll)
         if out.value is not None and value_target is not None:
-            parts["value"] = F.mse_loss(out.value, value_target.float())
+            parts["value"] = masked_mean(
+                F.mse_loss(out.value, value_target.float(), reduction="none")
+            )
         with torch.no_grad():
             correct = out.flat_logits.argmax(-1) == action.long()
-        parts["halt"] = F.binary_cross_entropy_with_logits(out.q_halt, correct.float())
-        parts["accuracy"] = correct.float().mean().detach()
+        parts["halt"] = masked_mean(
+            F.binary_cross_entropy_with_logits(
+                out.q_halt, correct.float(), reduction="none"
+            )
+        )
+        parts["accuracy"] = masked_mean(correct.float()).detach()
         return parts
 
     @torch.no_grad()
@@ -121,12 +143,30 @@ class TRMPolicy(nn.Module):
         x = self.embed(grid)
         carry: Optional[Carry] = None
         out: Optional[PolicyOutput] = None
+        done: Optional[torch.Tensor] = None
+        frozen_logits: Optional[torch.Tensor] = None
         for _ in range(steps):
             out = self.forward(grid, carry, mask=mask, x=x)
             carry = out.carry
-            if (out.q_halt > 0).all():
+            halted = out.q_halt > 0
+            if done is None:
+                done = torch.zeros_like(halted)
+            if frozen_logits is None:
+                frozen_logits = out.flat_logits.clone()
+            else:
+                frozen_logits[~done] = out.flat_logits[~done]
+            done = done | halted
+            if bool(done.all()):
                 break
-        assert out is not None
+        assert out is not None and frozen_logits is not None
+        out = PolicyOutput(
+            flat_logits=frozen_logits,
+            type_logits=out.type_logits,
+            click_logits=out.click_logits,
+            value=out.value,
+            q_halt=out.q_halt,
+            carry=out.carry,
+        )
         if temperature <= 0:
             return out.flat_logits.argmax(-1), out
         probs = torch.softmax(out.flat_logits / temperature, dim=-1)
