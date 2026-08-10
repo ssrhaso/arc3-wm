@@ -63,6 +63,10 @@ class TRMCoreConfig:
     # "buffer" = fixed random init states (paper). "input" initialises y from
     # the input embedding, biasing the world model toward copy-then-refine.
     y_init: str = "buffer"
+    # Halt-head bias init. -5 (a conservative "don't halt" start) proved to
+    # trap the head in the never-halt regime for transition-level training;
+    # the official TRM zero-init lets it learn both directions.
+    halt_bias_init: float = -5.0
 
     def __post_init__(self) -> None:
         _require(self.d_model % self.n_heads == 0, "d_model must divide n_heads")

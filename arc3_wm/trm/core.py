@@ -175,9 +175,8 @@ class TRMCore(nn.Module):
         self.register_buffer("y_init", torch.randn(cfg.d_model, generator=gen))
         self.register_buffer("z_init", torch.randn(cfg.d_model, generator=gen))
         self.q_head = nn.Linear(cfg.d_model, 1, bias=True)
-        # Start strongly "don't halt" so early training ponders.
         nn.init.zeros_(self.q_head.weight)
-        nn.init.constant_(self.q_head.bias, -5.0)
+        nn.init.constant_(self.q_head.bias, cfg.halt_bias_init)
 
     def init_carry(self, x: torch.Tensor) -> Carry:
         b, s, d = x.shape
