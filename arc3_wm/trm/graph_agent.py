@@ -46,10 +46,12 @@ class GraphAgent:
         self,
         cfg: GraphAgentConfig,
         world_model=None,
+        policy=None,
         device: str = "cpu",
     ) -> None:
         self.cfg = cfg
         self.world_model = world_model
+        self.policy = policy
         self.device = device
         self.graph = StateGraph()
         self.rng = np.random.default_rng(cfg.seed)
@@ -229,7 +231,7 @@ class GraphAgent:
         if not self._path:
             untested = self.graph.untested(key)
             if untested:
-                action = self._choose_probe(key, grid, untested)
+                action = self._choose_probe(key, grid, untested, mask)
                 if action is not None:
                     self.stats["probe"] += 1
                     return action
@@ -258,12 +260,28 @@ class GraphAgent:
             priors[i] = 1.0 if tried < 8 else (changed + 1) / (tried + 1)
         return priors
 
+    def _bc_probs(self, grid: np.ndarray, mask: np.ndarray) -> Optional[np.ndarray]:
+        """Full 4102-way BC probabilities for the current state, or None."""
+        if self.policy is None or self.cfg.w_bc <= 0:
+            return None
+        import torch
+
+        with torch.no_grad():
+            g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
+            m = torch.from_numpy(mask.copy())[None].to(self.device)
+            _, out = self.policy.act(g, mask=m, temperature=0.0)
+            return torch.softmax(out.flat_logits[0].float(), dim=-1).cpu().numpy()
+
     def _choose_probe(
-        self, key: NodeKey, grid: np.ndarray, untested: list[int]
+        self, key: NodeKey, grid: np.ndarray, untested: list[int],
+        mask: Optional[np.ndarray] = None,
     ) -> Optional[int]:
+        bc = self._bc_probs(grid, mask) if mask is not None else None
         if self.world_model is None or self.cfg.wm_noop_prune <= 0:
-            priors = self._type_priors(untested)
-            return int(untested[int(priors.argmax())])
+            scores = self._type_priors(untested)
+            if bc is not None:
+                scores = scores + self.cfg.w_bc * bc[untested]
+            return int(untested[int(scores.argmax())])
         import torch
 
         with torch.no_grad():
@@ -301,9 +319,10 @@ class GraphAgent:
                 self.stats["pruned"] += 1
             else:
                 keep.append(action)
-                scores.append(
-                    10.0 * p_reward[i] + novel[i] + p_change[i] + priors[i]
-                )
+                score = 10.0 * p_reward[i] + novel[i] + p_change[i] + priors[i]
+                if bc is not None:
+                    score += self.cfg.w_bc * float(bc[action])
+                scores.append(score)
         if keep:
             return int(keep[int(np.argmax(scores))])
         return int(deferred.pop(0)) if deferred else None

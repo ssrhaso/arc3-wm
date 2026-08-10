@@ -214,6 +214,10 @@ class GraphAgentConfig:
     # threshold (saves real actions on predicted no-ops). 0 disables.
     wm_noop_prune: float = 0.0
     wm_predict_steps: int = 1
+    # With a BC policy attached: add w_bc * pi_BC(a|s) to the probe score,
+    # steering first-pass exploration along the demonstrated behaviour
+    # (decisive on resume-type games where the first clear sets the score).
+    w_bc: float = 0.0
     seed: int = 0
 
     def __post_init__(self) -> None:

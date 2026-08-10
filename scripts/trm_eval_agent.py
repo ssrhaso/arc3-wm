@@ -86,9 +86,10 @@ def main(argv=None) -> int:
             max_click_objects=args.max_click_objects,
             wm_noop_prune=args.wm_noop_prune,
             wm_predict_steps=args.wm_predict_steps,
+            w_bc=args.w_bc if policy is not None else 0.0,
             seed=args.seed,
         )
-        agent = GraphAgent(graph_cfg, world_model=wm, device=device)
+        agent = GraphAgent(graph_cfg, world_model=wm, policy=policy, device=device)
         episode_fn = lambda env, agent_, max_actions: run_graph_episode(
             env, agent_, max_actions=max_actions
         )

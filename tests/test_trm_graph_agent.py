@@ -161,3 +161,25 @@ def test_clock_calibration_recovers_graph_reuse():
     r4 = run_graph_episode(env, agent, max_actions=50)
     assert sum(r4["rewards"]) == 1.0
     assert r4["steps"] == 3
+
+
+def test_bc_prior_steers_probe_choice():
+    class StubPolicy:
+        def act(self, g, mask=None, temperature=0.0):
+            import torch as t
+
+            logits = t.full((1, 4102), -30.0)
+            logits[0, 1] = 30.0  # demonstrates ACTION2 (flat index 1)
+
+            class Out:
+                flat_logits = logits
+
+            return t.tensor([1]), Out()
+
+    cfg = GraphAgentConfig(w_bc=5.0, seed=0)
+    agent = GraphAgent(cfg, policy=StubPolicy())
+    grid = np.zeros((64, 64), dtype=np.uint8)
+    mask = build_mask([1, 2])
+    # Without the prior, type-priors tie and argmax picks index 0; the BC
+    # prior must steer the first probe to the demonstrated action 1.
+    assert agent.act(grid, mask) == 1
