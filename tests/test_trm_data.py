@@ -170,3 +170,14 @@ def test_cross_validate_against_replay_loader():
         for t in (0, len(ep_b) - 1):
             rgb = ep_b[t]["image"]
             assert (quantize_to_palette(rgb) == ep_a["grids"][t]).all()
+
+
+def test_bc_dataset_no_mask_emits_full_action_space(synthetic_replay, tmp_path):
+    out = preprocess_game(synthetic_replay, "testg", tmp_path / "cache")
+    masked = BCDataset([out])
+    unmasked = BCDataset([out], use_mask=False)
+    row = np.array([1, 0, 0, 0, 0, 0, 0], dtype=np.uint8)
+    assert not masked._mask(row).all()
+    assert unmasked._mask(row).all()
+    assert unmasked[0]["mask"].shape == (4102,)
+    assert bool(unmasked[0]["mask"].all())

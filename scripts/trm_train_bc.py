@@ -36,6 +36,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--eval-every", type=int, default=1)
     p.add_argument("--device", default="auto")
     p.add_argument("--no-bf16", action="store_true")
+    p.add_argument("--no-mask", action="store_true",
+                   help="train over the full unmasked 4102-way action space "
+                        "(reference-paper protocol)")
     p.add_argument("--resume", action="store_true", help="continue from out/latest.pt if present")
     p.add_argument("--d-model", type=int, default=512)
     p.add_argument("--n-layers", type=int, default=2)
@@ -83,8 +86,8 @@ def main(argv=None) -> int:
         tr, va = train_val_split_episodes(path, args.val_fraction, args.seed)
         train_specs.append((path, tr))
         val_specs.append((path, va))
-    train_ds = BCDataset(train_specs)
-    val_ds = BCDataset(val_specs)
+    train_ds = BCDataset(train_specs, use_mask=not args.no_mask)
+    val_ds = BCDataset(val_specs, use_mask=not args.no_mask)
     print(f"train samples: {len(train_ds)}, val samples: {len(val_ds)}")
 
     model_cfg = build_model_config(args)

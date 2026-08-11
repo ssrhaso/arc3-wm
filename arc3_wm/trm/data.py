@@ -265,7 +265,7 @@ class BCDataset:
     ``specs`` as in WMTransitionDataset: paths or (path, episode_ids).
     """
 
-    def __init__(self, specs: list) -> None:
+    def __init__(self, specs: list, use_mask: bool = True) -> None:
         import torch  # noqa: F401
 
         self._caches = _load_caches(specs)
@@ -275,11 +275,17 @@ class BCDataset:
             for t in cache.transition_idx
         ]
         self._mask_cache: dict[bytes, np.ndarray] = {}
+        # use_mask=False trains over the full unmasked 4102-way space
+        # (the reference paper's protocol): the emitted mask is all-ones,
+        # so MASK_BIAS is never applied in the loss.
+        self.use_mask = use_mask
 
     def __len__(self) -> int:
         return len(self._index)
 
     def _mask(self, avail_row: np.ndarray) -> np.ndarray:
+        if not self.use_mask:
+            avail_row = np.ones(7, dtype=np.uint8)
         key = avail_row.tobytes()
         mask = self._mask_cache.get(key)
         if mask is None:
