@@ -143,9 +143,15 @@ class PolicyConfig:
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
     value_head: bool = True
     loss: str = "stablemax_ce"
+    # >1 turns the policy into a plan refiner (the ARC-AGI-2 usage pattern
+    # transplanted): y carries a K-step action plan that the recursion
+    # iteratively revises; the halt target is the WHOLE plan being right.
+    # Executed MPC-style (first action, then replan). 1 = plain BC.
+    plan_length: int = 1
 
     def __post_init__(self) -> None:
         _require(self.core.d_model == self.tokenizer.d_model, "d_model mismatch core/tokenizer")
+        _require(self.plan_length >= 1, "plan_length must be >= 1")
         _require(self.loss in ("stablemax_ce", "softmax_ce"), f"bad loss {self.loss!r}")
 
 

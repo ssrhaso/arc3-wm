@@ -192,3 +192,22 @@ def test_stablemax_mask_bias_leak_is_negligible():
                         -torch.log1p((-x).clamp(min=0)))
     p = torch.softmax(log_s, dim=-1)
     assert p[0, 6:].sum().item() < 1e-3  # leaked mass to 4096 masked actions
+
+
+def test_plan_policy_shapes_loss_and_act():
+    torch.manual_seed(0)
+    cfg = PolicyConfig(core=TINY_CORE, tokenizer=TINY_TOK, plan_length=4)
+    pol = TRMPolicy(cfg)
+    grid = torch.randint(0, 16, (3, 64, 64))
+    out = pol(grid)
+    assert out.plan_logits.shape == (3, 4, N_ACTIONS)
+    assert torch.equal(out.flat_logits, out.plan_logits[:, 0])
+    action = torch.randint(0, N_ACTIONS, (3, 4))
+    valid = torch.ones(3, 4)
+    valid[1, 2:] = 0.0
+    parts = pol.loss(out, action, plan_valid=valid)
+    assert "bc" in parts and "step0_accuracy" in parts
+    parts["bc"].backward()  # trains end to end
+    a, out2 = pol.act(grid, temperature=0.0)
+    assert a.shape == (3,)
+    assert torch.equal(a, out2.flat_logits.argmax(-1))  # MPC executes step 0

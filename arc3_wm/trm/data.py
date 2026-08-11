@@ -171,6 +171,7 @@ class _GameCache:
         self.states = data["states"]
         self.avail = data["avail"]
         starts = data["episode_starts"]
+        self.episode_starts = starts
         n = len(self.grids)
         ends = np.append(starts[1:], n)
         # Transition t -> t+1 exists for every t whose successor is in the
@@ -265,7 +266,9 @@ class BCDataset:
     ``specs`` as in WMTransitionDataset: paths or (path, episode_ids).
     """
 
-    def __init__(self, specs: list, use_mask: bool = True) -> None:
+    def __init__(
+        self, specs: list, use_mask: bool = True, plan_length: int = 1
+    ) -> None:
         import torch  # noqa: F401
 
         self._caches = _load_caches(specs)
@@ -279,6 +282,26 @@ class BCDataset:
         # (the reference paper's protocol): the emitted mask is all-ones,
         # so MASK_BIAS is never applied in the loss.
         self.use_mask = use_mask
+        # plan_length K > 1: the label becomes the complete remaining human
+        # solution of the CURRENT level (up to and including the clearing
+        # action), capped at K steps - the ARC-AGI-2 "whole answer" target.
+        # Episodes whose level is never cleared imitate to the episode end.
+        # Steps past the solution/cap are masked out via "plan_valid".
+        self.plan_length = plan_length
+        if plan_length > 1:
+            self._sol_end = []  # per cache: frame t -> last label index (incl.)
+            for cache in self._caches:
+                starts = cache.episode_starts
+                ends = np.append(starts[1:], len(cache.actions))
+                lv = cache.levels.astype(np.int64)
+                last = np.empty(len(lv), dtype=np.int64)
+                for s, e in zip(starts, ends):
+                    nxt_up = -1
+                    for idx in range(e - 1, s - 1, -1):
+                        last[idx] = nxt_up if nxt_up >= 0 else e - 1
+                        if idx > s and lv[idx] > lv[idx - 1]:
+                            nxt_up = idx
+                self._sol_end.append(last)
 
     def __len__(self) -> int:
         return len(self._index)
@@ -299,11 +322,25 @@ class BCDataset:
 
         ci, t = self._index[i]
         c = self._caches[ci]
-        return {
+        sample = {
             "grid": torch.from_numpy(c.grids[t].astype(np.int64)),
-            "action": torch.tensor(int(c.actions[t + 1]), dtype=torch.long),
             "mask": torch.from_numpy(self._mask(c.avail[t]).copy()),
         }
+        if self.plan_length == 1:
+            sample["action"] = torch.tensor(int(c.actions[t + 1]), dtype=torch.long)
+            return sample
+        hi = int(self._sol_end[ci][t])
+        k = self.plan_length
+        actions = np.zeros(k, dtype=np.int64)
+        valid = np.zeros(k, dtype=np.float32)
+        for j in range(k):
+            idx = t + 1 + j
+            if idx <= hi:
+                actions[j] = int(c.actions[idx])
+                valid[j] = 1.0
+        sample["action"] = torch.from_numpy(actions)
+        sample["plan_valid"] = torch.from_numpy(valid)
+        return sample
 
 
 def train_val_split_episodes(

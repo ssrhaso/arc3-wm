@@ -33,12 +33,13 @@ MASK_BIAS = -1e9  # additive bias for unavailable actions (finite, CE-safe)
 
 @dataclass
 class PolicyOutput:
-    flat_logits: torch.Tensor  # [B, 4102], mask applied if given
-    type_logits: torch.Tensor  # [B, 7]
-    click_logits: torch.Tensor  # [B, 4096]
+    flat_logits: torch.Tensor  # [B, 4102] (plan step 0), mask applied if given
+    type_logits: torch.Tensor  # [B, 7] (plan step 0)
+    click_logits: torch.Tensor  # [B, 4096] (plan step 0)
     value: Optional[torch.Tensor]  # [B]
     q_halt: torch.Tensor  # [B]
     carry: Carry
+    plan_logits: Optional[torch.Tensor] = None  # [B, K, 4102] when K > 1
 
 
 class TRMPolicy(nn.Module):
@@ -49,8 +50,9 @@ class TRMPolicy(nn.Module):
         self.seq_len = cfg.tokenizer.n_tokens
         self.core = TRMCore(cfg.core, max_seq_len=self.seq_len)
         d = cfg.core.d_model
-        self.type_head = nn.Linear(d, N_ACTION_TYPES)
-        self.click_head = CellHead(cfg.tokenizer)
+        self.plan_length = cfg.plan_length
+        self.type_head = nn.Linear(d, N_ACTION_TYPES * self.plan_length)
+        self.click_head = CellHead(cfg.tokenizer, n_maps=self.plan_length)
         self.value_head = nn.Linear(d, 1) if cfg.value_head else None
 
     def embed(self, grid: torch.Tensor) -> torch.Tensor:
@@ -70,21 +72,32 @@ class TRMPolicy(nn.Module):
             x = self.embed(grid)
         y, q_halt, carry_out = self.core(x, carry)
         pooled = pool_tokens(y)
-        type_logits = self.type_head(pooled)
-        click_logits = click_logits_from_cells(self.click_head(y))
-        flat = assemble_flat_logits(type_logits, click_logits)
+        k = self.plan_length
+        b = grid.shape[0]
+        type_k = self.type_head(pooled).view(b, k, -1)  # [B, K, 7]
+        maps = self.click_head(y)  # [B, 64, 64] or [B, K, 64, 64]
+        click_k = maps.reshape(b, k, -1)  # [B, K, 4096]
+        flat_k = assemble_flat_logits(
+            type_k.reshape(b * k, -1), click_k.reshape(b * k, -1)
+        ).view(b, k, -1)
+        # The availability mask is only known for the current frame, so it
+        # biases plan step 0 alone; later plan steps stay unmasked.
         if mask is not None:
-            flat = flat + torch.where(
-                mask.bool(), torch.zeros_like(flat), torch.full_like(flat, MASK_BIAS)
+            step0 = flat_k[:, 0] + torch.where(
+                mask.bool(),
+                torch.zeros_like(flat_k[:, 0]),
+                torch.full_like(flat_k[:, 0], MASK_BIAS),
             )
+            flat_k = torch.cat([step0[:, None], flat_k[:, 1:]], dim=1)
         value = self.value_head(pooled).squeeze(-1) if self.value_head else None
         return PolicyOutput(
-            flat_logits=flat,
-            type_logits=type_logits,
-            click_logits=click_logits,
+            flat_logits=flat_k[:, 0],
+            type_logits=type_k[:, 0],
+            click_logits=click_k[:, 0],
             value=value,
             q_halt=q_halt,
             carry=carry_out,
+            plan_logits=flat_k if k > 1 else None,
         )
 
     def loss(
@@ -93,8 +106,13 @@ class TRMPolicy(nn.Module):
         action: torch.Tensor,
         value_target: Optional[torch.Tensor] = None,
         sample_mask: Optional[torch.Tensor] = None,
+        plan_valid: Optional[torch.Tensor] = None,
     ) -> dict[str, torch.Tensor]:
-        """Behaviour-cloning losses against the human action.
+        """Behaviour-cloning losses against the human action(s).
+
+        ``action`` is [B] for plain BC, or [B, K] for the plan refiner with
+        ``plan_valid`` (float [B, K], 1 = step exists before episode end).
+        The halt target is full-(plan-)correctness either way.
         ``sample_mask`` (float [B], 1 = active) excludes ACT-halted samples
         (per-sample deep supervision)."""
         parts: dict[str, torch.Tensor] = {}
@@ -108,19 +126,37 @@ class TRMPolicy(nn.Module):
         def masked_mean(per_sample: torch.Tensor) -> torch.Tensor:
             return (per_sample * sm).sum() / denom
 
-        if self.cfg.loss == "stablemax_ce":
-            nll = stablemax_cross_entropy(out.flat_logits, action.long(), reduction="none")
-        else:
-            nll = F.cross_entropy(
-                out.flat_logits.float(), action.long(), reduction="none"
+        def ce(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+            if self.cfg.loss == "stablemax_ce":
+                return stablemax_cross_entropy(logits, target.long(), reduction="none")
+            return F.cross_entropy(logits.float(), target.long(), reduction="none")
+
+        if action.dim() == 2:
+            b, k = action.shape
+            logits_k = out.plan_logits
+            assert logits_k is not None, "plan action given to a K=1 policy"
+            pv = (
+                plan_valid.float()
+                if plan_valid is not None
+                else torch.ones(b, k, device=action.device)
             )
+            nll_k = ce(logits_k.reshape(b * k, -1), action.reshape(b * k)).view(b, k)
+            nll = (nll_k * pv).sum(-1) / pv.sum(-1).clamp(min=1.0)
+            with torch.no_grad():
+                step_hit = logits_k.argmax(-1) == action.long()
+                correct = ((step_hit | (pv < 0.5)).all(-1))
+                parts["step0_accuracy"] = masked_mean(
+                    step_hit[:, 0].float()
+                ).detach()
+        else:
+            nll = ce(out.flat_logits, action)
+            with torch.no_grad():
+                correct = out.flat_logits.argmax(-1) == action.long()
         parts["bc"] = masked_mean(nll)
         if out.value is not None and value_target is not None:
             parts["value"] = masked_mean(
                 F.mse_loss(out.value, value_target.float(), reduction="none")
             )
-        with torch.no_grad():
-            correct = out.flat_logits.argmax(-1) == action.long()
         parts["halt"] = masked_mean(
             F.binary_cross_entropy_with_logits(
                 out.q_halt, correct.float(), reduction="none"
@@ -155,7 +191,7 @@ class TRMPolicy(nn.Module):
             # (same per-sample pattern as TRMWorldModel.predict), so the
             # returned PolicyOutput is internally consistent.
             for name in ("flat_logits", "type_logits", "click_logits",
-                         "value", "q_halt"):
+                         "value", "q_halt", "plan_logits"):
                 value = getattr(out, name)
                 if value is None:
                     continue
@@ -175,6 +211,7 @@ class TRMPolicy(nn.Module):
             value=frozen.get("value"),
             q_halt=frozen["q_halt"],
             carry=out.carry,
+            plan_logits=frozen.get("plan_logits"),
         )
         if temperature <= 0:
             return out.flat_logits.argmax(-1), out

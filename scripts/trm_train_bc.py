@@ -50,6 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--loss", choices=["stablemax_ce", "softmax_ce"], default="stablemax_ce")
     p.add_argument("--seq-mixer", choices=["attention", "mlp"], default="attention",
                    help="token mixer inside the shared net (mlp = MLP-Mixer ablation)")
+    p.add_argument("--plan-length", type=int, default=1,
+                   help=">1: plan-refinement policy (ARC-AGI-2 usage pattern) - "
+                        "y carries the next K human actions, halt = whole plan right")
     return p
 
 
@@ -64,7 +67,8 @@ def build_model_config(args) -> C.PolicyConfig:
         seq_mixer=args.seq_mixer,
     )
     tok = C.TokenizerConfig(d_model=args.d_model, patch_size=args.patch_size)
-    return C.PolicyConfig(core=core, tokenizer=tok, loss=args.loss)
+    return C.PolicyConfig(core=core, tokenizer=tok, loss=args.loss,
+                          plan_length=args.plan_length)
 
 
 def main(argv=None) -> int:
@@ -89,8 +93,10 @@ def main(argv=None) -> int:
         tr, va = train_val_split_episodes(path, args.val_fraction, args.seed)
         train_specs.append((path, tr))
         val_specs.append((path, va))
-    train_ds = BCDataset(train_specs, use_mask=not args.no_mask)
-    val_ds = BCDataset(val_specs, use_mask=not args.no_mask)
+    train_ds = BCDataset(train_specs, use_mask=not args.no_mask,
+                         plan_length=args.plan_length)
+    val_ds = BCDataset(val_specs, use_mask=not args.no_mask,
+                       plan_length=args.plan_length)
     print(f"train samples: {len(train_ds)}, val samples: {len(val_ds)}")
 
     model_cfg = build_model_config(args)

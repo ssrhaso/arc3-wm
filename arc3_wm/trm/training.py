@@ -198,11 +198,12 @@ def deep_supervision_batch(
                     )["grid"]
             else:
                 out = model(batch["grid"], carry=carry, mask=batch.get("mask"), x=x)
-                parts = model.loss(out, batch["action"], sample_mask=sample_mask)
+                parts = model.loss(out, batch["action"], sample_mask=sample_mask,
+                                   plan_valid=batch.get("plan_valid"))
             loss = sum(
                 cfg.loss_weights.get(k, 1.0) * v
                 for k, v in parts.items()
-                if k not in ("exact_match", "accuracy")
+                if k not in ("exact_match", "accuracy", "step0_accuracy")
             )
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -388,6 +389,8 @@ def evaluate_bc(model, dataset, batch_size: int = 64, max_batches: int = 50) -> 
             break
         grid = batch["grid"].to(device)
         action = batch["action"].to(device)
+        if action.dim() == 2:  # plan labels: score the executed first step
+            action = action[:, 0]
         pred, _ = model.act(grid, mask=batch["mask"].to(device), temperature=0.0)
         n += grid.shape[0]
         top1 += int((pred == action).sum())

@@ -112,15 +112,18 @@ class GridHead(nn.Module):
 
 
 class CellHead(nn.Module):
-    """Patch tokens -> one scalar logit per cell (B, 64, 64).
+    """Patch tokens -> scalar logit(s) per cell.
 
-    Used for the world model's change mask and the policy's click head.
+    ``n_maps=1`` (default) returns (B, 64, 64) - the world model's change
+    mask and the plain policy click head. ``n_maps=K`` returns
+    (B, K, 64, 64) - one click map per plan step.
     """
 
-    def __init__(self, cfg: TokenizerConfig) -> None:
+    def __init__(self, cfg: TokenizerConfig, n_maps: int = 1) -> None:
         super().__init__()
         self.cfg = cfg
-        self.decode = nn.Linear(cfg.d_model, cfg.cells_per_patch)
+        self.n_maps = n_maps
+        self.decode = nn.Linear(cfg.d_model, cfg.cells_per_patch * n_maps)
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         b, n, _ = tokens.shape
@@ -128,9 +131,11 @@ class CellHead(nn.Module):
             raise ValueError(f"expected {self.cfg.n_tokens} tokens, got {n}")
         p = self.cfg.patch_size
         t = self.cfg.tokens_per_side
-        logits = self.decode(tokens)  # [B, n, p*p]
-        logits = logits.view(b, t, t, p, p).permute(0, 1, 3, 2, 4)
-        return logits.reshape(b, GRID, GRID)
+        k = self.n_maps
+        logits = self.decode(tokens)  # [B, n, p*p*K]
+        logits = logits.view(b, t, t, p, p, k).permute(0, 5, 1, 3, 2, 4)
+        maps = logits.reshape(b, k, GRID, GRID)
+        return maps[:, 0] if k == 1 else maps
 
 
 def rgb_free_grid_check(grid: torch.Tensor) -> None:

@@ -181,3 +181,26 @@ def test_bc_dataset_no_mask_emits_full_action_space(synthetic_replay, tmp_path):
     assert unmasked._mask(row).all()
     assert unmasked[0]["mask"].shape == (4102,)
     assert bool(unmasked[0]["mask"].all())
+
+
+def test_bc_dataset_plan_labels_stop_at_level_clear(synthetic_replay, tmp_path):
+    out = preprocess_game(synthetic_replay, "testg", tmp_path / "cache")
+    plain = BCDataset([out])
+    plan = BCDataset([out], plan_length=4)
+    assert len(plan) == len(plain)
+    for i in range(len(plan)):
+        s = plan[i]
+        assert s["action"].shape == (4,) and s["plan_valid"].shape == (4,)
+        assert s["plan_valid"][0] == 1.0
+        assert int(s["action"][0]) == int(plain[i]["action"])
+        for j in range(4):
+            if s["plan_valid"][j]:
+                assert int(s["action"][j]) >= 0
+    # Fixture ep0: frames 0,1,2 with the level-up click at index 2.
+    # Frame 0's solution = actions 1..2 (two steps, ending at the clear);
+    # frame 1's solution = action 2 alone. Nothing crosses the level clear.
+    s0, s1 = plan[0], plan[1]
+    assert s0["plan_valid"].tolist() == [1.0, 1.0, 0.0, 0.0]
+    assert int(s0["action"][1]) == 5 + 3 * 64 + 7  # the clearing click
+    assert s1["plan_valid"].tolist() == [1.0, 0.0, 0.0, 0.0]
+    assert int(s1["action"][0]) == 5 + 3 * 64 + 7
