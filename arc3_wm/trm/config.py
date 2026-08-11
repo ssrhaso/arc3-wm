@@ -169,6 +169,11 @@ class AgentConfig:
     w_reward: float = 10.0
     w_change: float = 0.5
     epsilon: float = 0.05  # residual masked-uniform exploration
+    # >0 switches the BC-only agent to full-distribution sampling at this
+    # temperature (the DV3-actor analogue): every step draws from the
+    # policy softmax over all actions; epsilon and candidate pruning are
+    # bypassed. 0 keeps the default argmax+epsilon path.
+    bc_temperature: float = 0.0
     max_click_candidates: int = 64  # salience-pruned ACTION6 candidates per step
     novelty_count_power: float = 0.5  # novelty = 1 / count^power
     # Epistemic bonus when an ensemble of world models is supplied: fraction

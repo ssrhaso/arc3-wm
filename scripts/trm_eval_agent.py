@@ -49,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", default="auto")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--epsilon", type=float, default=0.05)
+    p.add_argument("--bc-temperature", type=float, default=0.0,
+                   help=">0: BC-only agent samples the full policy softmax "
+                        "at this temperature (DV3-actor analogue)")
     p.add_argument("--w-bc", type=float, default=1.0)
     p.add_argument("--w-novelty", type=float, default=1.0)
     p.add_argument("--w-reward", type=float, default=10.0)
@@ -125,6 +128,7 @@ def main(argv=None) -> int:
         w_change=args.w_change,
         w_disagree=args.w_disagree,
         epsilon=args.epsilon,
+        bc_temperature=args.bc_temperature,
         max_click_candidates=args.max_click_candidates,
         wm_predict_steps=args.wm_predict_steps,
         bc_score=args.bc_score,

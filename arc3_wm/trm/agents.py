@@ -125,6 +125,7 @@ class TRMAgent:
         self.memory = NoveltyMemory(cfg.novelty_count_power)
         self.rng = np.random.default_rng(cfg.seed)
         self._prev_grid: Optional[np.ndarray] = None
+        self._sample_gen = None  # lazy torch.Generator for bc_temperature
 
     def reset(self) -> None:
         """New episode: clear the frame-delta context (novelty persists;
@@ -136,6 +137,19 @@ class TRMAgent:
 
         cfg = self.cfg
         self.memory.observe(grid)
+        if cfg.use_bc and not cfg.use_wm and cfg.bc_temperature > 0:
+            g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
+            m = torch.from_numpy(mask.copy())[None].to(self.device)
+            if self._sample_gen is None:
+                self._sample_gen = torch.Generator(device=self.device)
+                self._sample_gen.manual_seed(cfg.seed)
+            with torch.no_grad():
+                action, _ = self.policy.act(
+                    g, mask=m, temperature=cfg.bc_temperature,
+                    generator=self._sample_gen,
+                )
+            self._prev_grid = grid.copy()
+            return int(action.item())
         cands = candidate_actions(
             mask, grid, self._prev_grid, cfg.max_click_candidates, self.rng
         )

@@ -7,7 +7,12 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from arc3_wm.action_space import ACTION6_BASE, ACTION7_INDEX, build_mask  # noqa: E402
+from arc3_wm.action_space import (  # noqa: E402
+    ACTION6_BASE,
+    ACTION7_INDEX,
+    N_ACTIONS,
+    build_mask,
+)
 from arc3_wm.trm.agents import (  # noqa: E402
     NoveltyMemory,
     TRMAgent,
@@ -142,3 +147,19 @@ def test_agent_epsilon_one_is_masked_random():
     mask = build_mask([2])
     actions = {agent.act(np.zeros((64, 64), dtype=np.uint8), mask) for _ in range(5)}
     assert actions == {1}
+
+
+def test_bc_temperature_samples_full_distribution():
+    torch.manual_seed(0)
+    pol = TRMPolicy(PolicyConfig(core=TINY_CORE, tokenizer=TINY_TOK))
+    cfg = AgentConfig(use_bc=True, use_wm=False, epsilon=0.0,
+                      bc_temperature=1.0, seed=3)
+    agent = TRMAgent(cfg, policy=pol)
+    grid = np.zeros((64, 64), dtype=np.uint8)
+    mask = np.ones(N_ACTIONS, dtype=bool)
+    a1 = [agent.act(grid, mask) for _ in range(8)]
+    assert all(0 <= a < N_ACTIONS for a in a1)
+    assert len(set(a1)) > 1  # sampling, not argmax
+    agent2 = TRMAgent(cfg, policy=pol)
+    a2 = [agent2.act(grid, mask) for _ in range(8)]
+    assert a1 == a2  # seeded generator -> reproducible
