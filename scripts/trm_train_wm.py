@@ -49,6 +49,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-supervision", type=int, default=6)
     p.add_argument("--halt-max-steps", type=int, default=6)
     p.add_argument("--y-init", choices=["buffer", "input"], default="buffer")
+    p.add_argument("--seq-mixer", choices=["attention", "mlp"], default="attention",
+                   help="token mixer inside the shared net (mlp = MLP-Mixer ablation)")
     p.add_argument("--halt-bias-init", type=float, default=0.0)
     p.add_argument("--changed-cell-weight", type=float, default=20.0)
     p.add_argument("--loss", choices=["stablemax_ce", "softmax_ce"], default="stablemax_ce")
@@ -65,6 +67,7 @@ def build_model_config(args) -> C.WorldModelConfig:
         halt_max_steps=args.halt_max_steps,
         y_init=args.y_init,
         halt_bias_init=args.halt_bias_init,
+        seq_mixer=args.seq_mixer,
     )
     tok = C.TokenizerConfig(d_model=args.d_model, patch_size=args.patch_size)
     return C.WorldModelConfig(

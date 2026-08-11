@@ -48,6 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-supervision", type=int, default=6)
     p.add_argument("--halt-max-steps", type=int, default=6)
     p.add_argument("--loss", choices=["stablemax_ce", "softmax_ce"], default="stablemax_ce")
+    p.add_argument("--seq-mixer", choices=["attention", "mlp"], default="attention",
+                   help="token mixer inside the shared net (mlp = MLP-Mixer ablation)")
     return p
 
 
@@ -59,6 +61,7 @@ def build_model_config(args) -> C.PolicyConfig:
         l_cycles=args.l_cycles,
         n_supervision=args.n_supervision,
         halt_max_steps=args.halt_max_steps,
+        seq_mixer=args.seq_mixer,
     )
     tok = C.TokenizerConfig(d_model=args.d_model, patch_size=args.patch_size)
     return C.PolicyConfig(core=core, tokenizer=tok, loss=args.loss)
