@@ -250,9 +250,14 @@ def run_episode(
     env,
     agent: TRMAgent,
     max_actions: Optional[int] = None,
+    use_mask: bool = True,
 ) -> dict:
     """Play one episode; returns the EvalRewardSink-compatible record
-    {"rewards": [...], "terminal_state": ...} plus diagnostics."""
+    {"rewards": [...], "terminal_state": ...} plus diagnostics.
+
+    ``use_mask=False`` presents the full unmasked action space to the
+    agent (the reference paper's eval protocol); the env still exposes
+    its per-game mask via ``info`` but the agent never sees it."""
     from ..dynamics_probe import quantize_to_palette
 
     obs, info = env.reset()
@@ -263,7 +268,10 @@ def run_episode(
     terminated = truncated = False
     while not (terminated or truncated) and steps < limit:
         grid = np.asarray(quantize_to_palette(obs), dtype=np.uint8)
-        action = agent.act(grid, np.asarray(info["action_mask"], dtype=bool))
+        mask = np.asarray(info["action_mask"], dtype=bool)
+        if not use_mask:
+            mask = np.ones_like(mask)
+        action = agent.act(grid, mask)
         obs, reward, terminated, truncated, info = env.step(action)
         rewards.append(float(reward))
         steps += 1

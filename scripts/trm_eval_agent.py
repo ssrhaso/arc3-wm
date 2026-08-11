@@ -60,6 +60,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--plan-depth", type=int, default=1)
     p.add_argument("--beam-width", type=int, default=8)
     p.add_argument("--no-ema", action="store_true")
+    p.add_argument("--no-mask", action="store_true",
+                   help="present the full unmasked 4102-way action space "
+                        "(reference-paper eval protocol); score agents only")
     p.add_argument(
         "--resume", action="store_true",
         help="append to an existing eval_episodes.jsonl instead of restarting",
@@ -87,6 +90,8 @@ def main(argv=None) -> int:
         wm = models if len(models) > 1 else models[0]
 
     if args.agent == "graph":
+        if args.no_mask:
+            raise SystemExit("--no-mask is only supported for --agent score")
         graph_cfg = GraphAgentConfig(
             max_click_objects=args.max_click_objects,
             wm_noop_prune=args.wm_noop_prune,
@@ -129,7 +134,7 @@ def main(argv=None) -> int:
     )
     agent = TRMAgent(agent_cfg, policy=policy, world_model=wm, device=device)
     episode_fn = lambda env, agent_, max_actions: run_episode(
-        env, agent_, max_actions=max_actions
+        env, agent_, max_actions=max_actions, use_mask=not args.no_mask
     )
     return _run_eval(args, agent, episode_fn)
 

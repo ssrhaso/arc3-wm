@@ -25,6 +25,84 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+def _svg_frame(rgb: np.ndarray, cell: float) -> str:
+    """One 64x64 RGB frame -> vector rects, merging horizontal runs and
+    identical consecutive rows."""
+    h, w, _ = rgb.shape
+    rows = [rgb[y].tobytes() for y in range(h)]
+    parts = []
+    y = 0
+    while y < h:
+        y2 = y
+        while y2 + 1 < h and rows[y2 + 1] == rows[y]:
+            y2 += 1
+        x = 0
+        while x < w:
+            c = rgb[y, x]
+            x2 = x
+            while x2 + 1 < w and (rgb[y, x2 + 1] == c).all():
+                x2 += 1
+            parts.append(
+                f'<rect x="{x * cell:g}" y="{y * cell:g}" '
+                f'width="{(x2 - x + 1) * cell:g}" '
+                f'height="{(y2 - y + 1) * cell:g}" '
+                f'fill="#{c[0]:02x}{c[1]:02x}{c[2]:02x}"/>'
+            )
+            x = x2 + 1
+        y = y2 + 1
+    return "".join(parts)
+
+
+def render_svg(trace: dict, steps_shown: list[int], title: str,
+               out: Path, cell: float = 2.0) -> None:
+    side = 64 * cell
+    pad, label_h, top = 10, 30, 26
+    panels = [(-1, trace["frames"][0])] + [
+        (s, trace["frames"][s + 1]) for s in steps_shown
+    ]
+    width = pad + len(panels) * (side + pad)
+    height = top + side + label_h + pad
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {width:g} {height:g}" '
+        f'font-family="Helvetica,Arial,sans-serif">',
+        f'<text x="{width / 2:g}" y="16" font-size="11" '
+        f'text-anchor="middle">{title}</text>',
+    ]
+    n_clears = 0
+    for i, (s, frame) in enumerate(panels):
+        ox = pad + i * (side + pad)
+        parts.append(f'<g transform="translate({ox:g},{top})">')
+        parts.append(_svg_frame(np.asarray(frame), cell))
+        if s < 0:
+            label, edge = "start", "#999"
+        else:
+            label = f"t={s + 1} {action_name(trace['actions'][s])}"
+            edge = "#999"
+            if trace["rewards"][s] > 0:
+                n_clears += 1
+                label += f" · LEVEL {n_clears} CLEAR"
+                edge = "#2a9d2a"
+            elif s == len(trace["actions"]) - 1 \
+                    and trace["terminal"] == "GAME_OVER":
+                label += " · GAME_OVER"
+                edge = "#cc2222"
+        parts.append(
+            f'<rect x="0" y="0" width="{side:g}" height="{side:g}" '
+            f'fill="none" stroke="{edge}" '
+            f'stroke-width="{3 if edge != "#999" else 1}"/>'
+        )
+        for j, chunk in enumerate(label.split(" · ")):
+            parts.append(
+                f'<text x="{side / 2:g}" y="{side + 12 + 11 * j:g}" '
+                f'font-size="8.5" text-anchor="middle" '
+                f'fill="{edge if j else "#333"}">{chunk}</text>'
+            )
+        parts.append("</g>")
+    parts.append("</svg>")
+    out.write_text("".join(parts))
+
+
 def action_name(idx: int) -> str:
     from arc3_wm.action_space import ACTION6_BASE, ACTION7_INDEX, GRID
 
@@ -124,6 +202,15 @@ def main(argv=None) -> int:
         keep.add(int(s))
     steps_shown = sorted(keep)[: args.panels]
 
+    tag = "VERIFIED vs recorded eval" if verified else "unverified replay"
+    title = (f"{args.game} eval episode {args.episode}: {n} actions, "
+             f"{len(clears)} level clear(s), terminal={trace['terminal']}  [{tag}]")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    if args.out.suffix == ".svg":
+        render_svg(trace, steps_shown, title, args.out)
+        print(f"wrote {args.out}")
+        return 0 if verified in (True, None) else 1
+
     fig, axes = plt.subplots(1, len(steps_shown) + 1,
                              figsize=(1.9 * (len(steps_shown) + 1), 2.6))
     axes[0].imshow(trace["frames"][0], interpolation="nearest")
@@ -140,14 +227,8 @@ def main(argv=None) -> int:
     for ax in axes:
         ax.set_xticks([])
         ax.set_yticks([])
-    tag = "VERIFIED vs recorded eval" if verified else "unverified replay"
-    fig.suptitle(
-        f"{args.game} eval episode {args.episode}: {n} actions, "
-        f"{len(clears)} level clear(s), terminal={trace['terminal']}  [{tag}]",
-        fontsize=10,
-    )
+    fig.suptitle(title, fontsize=10)
     fig.tight_layout()
-    args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=150)
     print(f"wrote {args.out}")
     return 0 if verified in (True, None) else 1
