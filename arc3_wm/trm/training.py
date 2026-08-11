@@ -269,6 +269,9 @@ def train_loop(
         resume_step = int(ckpt["step"])
         start_epoch = int(ckpt.get("extra", {}).get("epoch", -1)) + 1
         log.write({"resumed": True, "step": resume_step, "epoch": start_epoch})
+        # Restore the best-so-far val metric, else a post-resume epoch with
+        # a worse score would overwrite best.pt.
+        resume_best = float(ckpt.get("extra", {}).get("best_metric", -1.0))
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=cfg.batch_size,
@@ -282,7 +285,7 @@ def train_loop(
     )
     global_step = resume_step
     batch_i = 0
-    best_metric = -1.0
+    best_metric = resume_best if (resume and latest.exists()) else -1.0
     start = time.time()
     for epoch in range(start_epoch, cfg.epochs):
         model.train()
@@ -321,7 +324,9 @@ def train_loop(
                 )
         save_checkpoint(
             out_dir / "latest.pt", model, ema, optimizer, model_config,
-            global_step, extra={"val": val_metrics, "epoch": epoch},
+            global_step,
+            extra={"val": val_metrics, "epoch": epoch,
+                   "best_metric": best_metric},
         )
         if cfg.max_steps and global_step >= cfg.max_steps:
             break
