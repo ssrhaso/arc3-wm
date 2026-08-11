@@ -52,3 +52,17 @@ def test_eval_every_skips_intermediate_epochs(tmp_path):
     assert len(calls) == 3
     lines = (tmp_path / "run" / "metrics.jsonl").read_text().splitlines()
     assert sum(1 for l in lines if "val" in json.loads(l)) == 3
+
+
+def test_resume_episode_count_drops_truncated_tail(tmp_path):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from trm_eval_agent import resume_episode_count
+
+    sink = tmp_path / "eval_episodes.jsonl"
+    good = '{"rewards": [0.0, 1.0], "terminal_state": "GAME_OVER"}'
+    sink.write_text(good + "\n" + good + "\n" + '{"rewards": [0.0, 0.')
+    assert resume_episode_count(sink) == 2
+    assert sink.read_text() == good + "\n" + good + "\n"
+    assert resume_episode_count(sink) == 2  # idempotent on a clean file

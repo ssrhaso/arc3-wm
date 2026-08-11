@@ -204,3 +204,19 @@ def test_parameter_count_paper_scale():
     core = TRMCore(TRMCoreConfig(), max_seq_len=260)
     n = count_parameters(core)
     assert 3e6 < n < 8e6, n
+
+
+def test_ema_swap_is_key_based_not_positional():
+    torch.manual_seed(0)
+    model = make_core()
+    ema = EMAHelper(model, decay=0.9)
+    ema.shadow = dict(reversed(list(ema.shadow.items())))  # scramble order
+    with torch.no_grad():
+        for p in model.parameters():
+            p.add_(1.0)
+    before = {k: v.clone() for k, v in model.state_dict().items()}
+    with ema.swap(model):
+        for k, v in model.state_dict().items():
+            assert torch.equal(v, ema.shadow[k].to(v.dtype))
+    for k, v in model.state_dict().items():
+        assert torch.equal(v, before[k])

@@ -144,27 +144,36 @@ class TRMPolicy(nn.Module):
         carry: Optional[Carry] = None
         out: Optional[PolicyOutput] = None
         done: Optional[torch.Tensor] = None
-        frozen_logits: Optional[torch.Tensor] = None
+        frozen: dict[str, torch.Tensor] = {}
         for _ in range(steps):
             out = self.forward(grid, carry, mask=mask, x=x)
             carry = out.carry
             halted = out.q_halt > 0
             if done is None:
                 done = torch.zeros_like(halted)
-            if frozen_logits is None:
-                frozen_logits = out.flat_logits.clone()
-            else:
-                frozen_logits[~done] = out.flat_logits[~done]
+            # Freeze every output field at each sample's first halting step
+            # (same per-sample pattern as TRMWorldModel.predict), so the
+            # returned PolicyOutput is internally consistent.
+            for name in ("flat_logits", "type_logits", "click_logits",
+                         "value", "q_halt"):
+                value = getattr(out, name)
+                if value is None:
+                    continue
+                if name not in frozen:
+                    frozen[name] = value.clone()
+                else:
+                    idx = ~done
+                    frozen[name][idx] = value[idx]
             done = done | halted
             if bool(done.all()):
                 break
-        assert out is not None and frozen_logits is not None
+        assert out is not None and frozen
         out = PolicyOutput(
-            flat_logits=frozen_logits,
-            type_logits=out.type_logits,
-            click_logits=out.click_logits,
-            value=out.value,
-            q_halt=out.q_halt,
+            flat_logits=frozen["flat_logits"],
+            type_logits=frozen["type_logits"],
+            click_logits=frozen["click_logits"],
+            value=frozen.get("value"),
+            q_halt=frozen["q_halt"],
             carry=out.carry,
         )
         if temperature <= 0:

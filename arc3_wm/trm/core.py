@@ -257,7 +257,10 @@ class _EMASwap:
         self._backup = {
             k: v.detach().clone() for k, v in self.model.state_dict().items()
         }
-        cast = {k: v.to(dtype=b.dtype) for (k, v), b in zip(self.ema.shadow.items(), self._backup.values())}
+        cast = {
+            k: self.ema.shadow[k].to(dtype=v.dtype)
+            for k, v in self._backup.items()
+        }
         self.model.load_state_dict(cast)
         return self.model
 

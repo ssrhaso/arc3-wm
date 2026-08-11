@@ -143,6 +143,28 @@ def main(argv=None) -> int:
     return _run_eval(args, agent, episode_fn)
 
 
+def resume_episode_count(sink: Path) -> int:
+    """Completed episodes in a partially written sink.
+
+    A kill mid-write can leave a truncated final line; drop it (and
+    anything after) so the episode is re-run instead of surviving as a
+    corrupt record that would crash RHAE later.
+    """
+    lines = sink.read_text().splitlines()
+    good = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            json.loads(line)
+        except json.JSONDecodeError:
+            break
+        good.append(line)
+    if len(good) != len(lines):
+        sink.write_text("".join(line + "\n" for line in good))
+    return len(good)
+
+
 def _run_eval(args, agent, episode_fn) -> int:
     import arc_agi
 
@@ -156,7 +178,7 @@ def _run_eval(args, agent, episode_fn) -> int:
     sink = args.out / "eval_episodes.jsonl"
     done_episodes = 0
     if args.resume and sink.exists():
-        done_episodes = sum(1 for _ in open(sink))
+        done_episodes = resume_episode_count(sink)
     summary = {
         "game": args.game,
         "episodes": 0,

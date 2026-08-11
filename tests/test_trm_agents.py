@@ -163,3 +163,32 @@ def test_bc_temperature_samples_full_distribution():
     agent2 = TRMAgent(cfg, policy=pol)
     a2 = [agent2.act(grid, mask) for _ in range(8)]
     assert a1 == a2  # seeded generator -> reproducible
+
+
+def test_act_output_fields_frozen_consistently():
+    # With a random halt head some samples halt earlier than others; every
+    # returned field must come from the same (first-halt) step, so
+    # reassembling flat from type+click must reproduce it exactly.
+    torch.manual_seed(0)
+    from arc3_wm.trm.config import TRMCoreConfig, TokenizerConfig
+    core = TRMCoreConfig(d_model=32, n_heads=4, n_layers=1, l_cycles=1,
+                         h_cycles=1, n_supervision=3, halt_max_steps=3)
+    pol = TRMPolicy(PolicyConfig(core=core, tokenizer=TINY_TOK))
+    torch.nn.init.normal_(pol.core.q_head.weight, std=1.0)
+    grid = torch.randint(0, 16, (6, 64, 64))
+    _, out = pol.act(grid, temperature=0.0)
+    from arc3_wm.trm.tokenizer import assemble_flat_logits
+    rebuilt = assemble_flat_logits(out.type_logits, out.click_logits)
+    assert torch.equal(rebuilt, out.flat_logits)
+
+
+def test_stablemax_mask_bias_leak_is_negligible():
+    from arc3_wm.trm.core import stablemax_cross_entropy
+    from arc3_wm.trm.policy import MASK_BIAS
+    logits = torch.full((1, N_ACTIONS), float(MASK_BIAS))
+    logits[0, :6] = -100.0  # adversarially weak valid actions
+    x = logits.float()
+    log_s = torch.where(x >= 0, torch.log1p(x.clamp(min=0)),
+                        -torch.log1p((-x).clamp(min=0)))
+    p = torch.softmax(log_s, dim=-1)
+    assert p[0, 6:].sum().item() < 1e-3  # leaked mass to 4096 masked actions
