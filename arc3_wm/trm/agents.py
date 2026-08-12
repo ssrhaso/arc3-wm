@@ -265,18 +265,24 @@ def run_episode(
     agent: TRMAgent,
     max_actions: Optional[int] = None,
     use_mask: bool = True,
+    record_transitions: bool = False,
 ) -> dict:
     """Play one episode; returns the EvalRewardSink-compatible record
     {"rewards": [...], "terminal_state": ...} plus diagnostics.
 
     ``use_mask=False`` presents the full unmasked action space to the
     agent (the reference paper's eval protocol); the env still exposes
-    its per-game mask via ``info`` but the agent never sees it."""
+    its per-game mask via ``info`` but the agent never sees it.
+    ``record_transitions=True`` additionally returns per-step grids,
+    actions and masks (for test-time self-imitation)."""
     from ..dynamics_probe import quantize_to_palette
 
     obs, info = env.reset()
     agent.reset()
     rewards: list[float] = []
+    grids: list[np.ndarray] = []
+    actions: list[int] = []
+    masks: list[np.ndarray] = []
     steps = 0
     limit = max_actions or 10**9
     terminated = truncated = False
@@ -286,12 +292,21 @@ def run_episode(
         if not use_mask:
             mask = np.ones_like(mask)
         action = agent.act(grid, mask)
+        if record_transitions:
+            grids.append(grid)
+            actions.append(int(action))
+            masks.append(mask.copy())
         obs, reward, terminated, truncated, info = env.step(action)
         rewards.append(float(reward))
         steps += 1
-    return {
+    out = {
         "rewards": rewards,
         "terminal_state": info.get("state"),
         "levels_completed": int(info.get("levels_completed", 0)),
         "steps": steps,
     }
+    if record_transitions:
+        out["grids"] = grids
+        out["actions"] = actions
+        out["masks"] = masks
+    return out

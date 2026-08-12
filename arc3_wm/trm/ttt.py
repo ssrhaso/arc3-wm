@@ -97,3 +97,111 @@ class OnlineFineTuner:
         return {"steps": self.global_step, "fresh": fresh, "total": n, **{
             k: round(float(v), 4) for k, v in agg.items()
         }}
+
+
+class PolicySelfImitation:
+    """Test-time self-imitation for the policy (the NVARC TTFT analogue).
+
+    NVARC fine-tunes the answer producer on the test task's demonstration
+    pairs; a new interactive game has no demonstrations, so the analogue
+    is the agent's own SUCCESSFUL level segments: every stretch of play
+    that ends in a level clear is a self-earned demo of a complete level
+    solution. The policy (plain BC or plan refiner) is fine-tuned on those
+    segments with the NVARC TTFT hyperparameters (lr 1e-4, warmup 200,
+    same objective as pretraining, EMA); exploratory/failed play is never
+    imitated.
+    """
+
+    def __init__(
+        self,
+        policy,
+        lr: float = 1e-4,
+        warmup_steps: int = 200,
+        batch_size: int = 32,
+        ema_decay: float = 0.999,
+        seed: int = 0,
+    ) -> None:
+        self.policy = policy
+        self.cfg = TrainConfig(
+            lr=lr, warmup_steps=warmup_steps, batch_size=batch_size,
+            bf16=False, seed=seed,
+        )
+        self.optimizer = make_optimizer(policy, self.cfg)
+        self.ema = EMAHelper(policy, decay=ema_decay)
+        self.rng = np.random.default_rng(seed)
+        self.global_step = 0
+        # Each segment: (grids [T,64,64], actions [T], masks [T,4102]),
+        # ending at (and including) the clearing action.
+        self.segments: list[tuple] = []
+        self._pending_new = 0
+
+    def ingest(self, record: dict) -> int:
+        """Extract successful level segments from a recorded episode."""
+        rewards = record.get("rewards", [])
+        grids, actions = record.get("grids"), record.get("actions")
+        if not grids:
+            return 0
+        start = 0
+        added = 0
+        for j, r in enumerate(rewards):
+            if r > 0:
+                seg = slice(start, j + 1)
+                self.segments.append(
+                    (np.stack(grids[seg]), np.asarray(actions[seg]),
+                     np.stack(record["masks"][seg]))
+                )
+                added += 1
+                start = j + 1
+        self._pending_new += added
+        return added
+
+    def _sample_batch(self, device):
+        import torch
+
+        k = getattr(self.policy, "plan_length", 1)
+        idx = self.rng.integers(0, len(self.segments), size=self.cfg.batch_size)
+        g, a, m, pv = [], [], [], []
+        for si in idx:
+            grids, actions, masks = self.segments[si]
+            t = int(self.rng.integers(0, len(actions)))
+            g.append(grids[t])
+            m.append(masks[t])
+            if k == 1:
+                a.append(int(actions[t]))
+            else:
+                lab = np.zeros(k, dtype=np.int64)
+                val = np.zeros(k, dtype=np.float32)
+                tail = actions[t : t + k]
+                lab[: len(tail)] = tail
+                val[: len(tail)] = 1.0
+                a.append(lab)
+                pv.append(val)
+        batch = {
+            "grid": torch.from_numpy(np.stack(g).astype(np.int64)).to(device),
+            "action": torch.as_tensor(np.asarray(a), dtype=torch.long).to(device),
+            "mask": torch.from_numpy(np.stack(m)).to(device),
+        }
+        if k > 1:
+            batch["plan_valid"] = torch.from_numpy(np.stack(pv)).to(device)
+        return batch
+
+    def update(self, max_steps: int = 50) -> dict:
+        """One fine-tuning burst over the accumulated success segments."""
+        if not self.segments or self._pending_new == 0:
+            return {"steps": self.global_step, "segments": len(self.segments)}
+        n_batches = int(np.clip(self._pending_new * 4, 1, max_steps))
+        device = next(self.policy.parameters()).device
+        self.policy.train()
+        agg: dict = {}
+        for _ in range(n_batches):
+            parts, consumed = deep_supervision_batch(
+                self.policy, self._sample_batch(device), self.optimizer,
+                self.ema, self.cfg, self.global_step, mode="bc",
+            )
+            self.global_step += consumed
+            agg = parts
+        self.policy.eval()
+        self._pending_new = 0
+        return {"steps": self.global_step, "segments": len(self.segments), **{
+            k: round(float(v), 4) for k, v in agg.items()
+        }}

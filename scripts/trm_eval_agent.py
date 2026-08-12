@@ -38,6 +38,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ttt", action="store_true",
                    help="test-time training: fine-tune the WM on the graph "
                         "agent's own transitions after each episode")
+    p.add_argument("--ttt-policy", action="store_true",
+                   help="test-time self-imitation: fine-tune the policy on "
+                        "the agent's own successful level segments (score "
+                        "agents only; NVARC TTFT analogue)")
     p.add_argument("--ttt-max-steps", type=int, default=50)
     p.add_argument("--ttt-lr", type=float, default=1e-4)
     p.add_argument("--episodes", type=int, default=50)
@@ -137,6 +141,25 @@ def main(argv=None) -> int:
         seed=args.seed,
     )
     agent = TRMAgent(agent_cfg, policy=policy, world_model=wm, device=device)
+    if args.ttt_policy:
+        if policy is None:
+            raise SystemExit("--ttt-policy requires --bc-ckpt")
+        from arc3_wm.trm.ttt import PolicySelfImitation
+
+        tuner = PolicySelfImitation(policy, lr=args.ttt_lr, seed=args.seed)
+
+        def episode_fn(env, agent_, max_actions):
+            record = run_episode(env, agent_, max_actions=max_actions,
+                                 use_mask=not args.no_mask,
+                                 record_transitions=True)
+            tuner.ingest(record)
+            stats = tuner.update(max_steps=args.ttt_max_steps)
+            for key in ("grids", "actions", "masks"):
+                record.pop(key, None)
+            record["ttt"] = stats
+            return record
+
+        return _run_eval(args, agent, episode_fn)
     episode_fn = lambda env, agent_, max_actions: run_episode(
         env, agent_, max_actions=max_actions, use_mask=not args.no_mask
     )

@@ -89,3 +89,32 @@ def test_fine_tuner_skips_without_fresh_data():
     tuner.update(log, frames)
     again = tuner.update(log, frames)  # no new rows
     assert again["steps"] == tuner.global_step and again["fresh"] == 0
+
+
+def test_policy_self_imitation_learns_success_segment():
+    from arc3_wm.trm.policy import TRMPolicy
+    from arc3_wm.trm.ttt import PolicySelfImitation
+
+    torch.manual_seed(0)
+    pol = TRMPolicy(C.PolicyConfig(
+        core=TINY.core, tokenizer=TINY.tokenizer, plan_length=4))
+    tuner = PolicySelfImitation(pol, lr=1e-3, warmup_steps=1, batch_size=8)
+    rng = np.random.default_rng(0)
+    grid = rng.integers(0, 4, size=(64, 64)).astype(np.uint8)
+    mask = np.ones(4102, dtype=bool)
+    record = {
+        "rewards": [0.0, 0.0, 1.0, 0.0],
+        "grids": [grid, grid, grid, grid],
+        "actions": [7, 8, 9, 10],
+        "masks": [mask] * 4,
+    }
+    assert tuner.ingest(record) == 1  # one cleared segment (steps 0-2)
+    assert len(tuner.segments) == 1
+    assert tuner.segments[0][1].tolist() == [7, 8, 9]  # failed tail excluded
+    first = tuner.update(max_steps=6)
+    assert first["steps"] > 0
+    tuner._pending_new = 1  # force a second burst on the same data
+    second = tuner.update(max_steps=6)
+    assert second["bc"] < first["bc"]  # same demo repeated -> loss drops
+    noop = tuner.update()
+    assert noop["steps"] == tuner.global_step  # no new segments -> skip
