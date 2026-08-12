@@ -133,6 +133,53 @@ def test_train_loop_bc_end_to_end(cache_npz, tmp_path):
     assert isinstance(loaded, TRMPolicy)
 
 
+def test_train_loop_early_stops_when_val_stalls(cache_npz, tmp_path):
+    torch.manual_seed(0)
+    ds = WMTransitionDataset([cache_npz], dedup=False)
+    cfg = TrainConfig(
+        lr=1e-3, warmup_steps=1, batch_size=4, epochs=50,
+        num_workers=0, device="cpu", bf16=False, early_stop_patience=2,
+    )
+    calls = {"n": 0}
+
+    def flat_eval(model):
+        calls["n"] += 1
+        return {"exact_match": 0.0}
+
+    train_loop(
+        TRMWorldModel(WM_CFG), ds, cfg, C.to_dict(WM_CFG), tmp_path / "run",
+        mode="wm", evaluate=flat_eval,
+    )
+    # First eval improves over the -1 init (saves best.pt); two flat evals
+    # after that trip patience=2 and stop the 50-epoch run at epoch 2.
+    assert calls["n"] == 3
+    lines = [json.loads(l) for l in (tmp_path / "run" / "metrics.jsonl").read_text().splitlines()]
+    vals = [l for l in lines if "val" in l]
+    assert len(vals) == 3
+    assert any(l.get("early_stop") for l in lines)
+    assert (tmp_path / "run" / "best.pt").exists()
+
+
+def test_train_loop_early_stop_not_triggered_when_improving(cache_npz, tmp_path):
+    torch.manual_seed(0)
+    ds = WMTransitionDataset([cache_npz], dedup=False)
+    cfg = TrainConfig(
+        lr=1e-3, warmup_steps=1, batch_size=4, epochs=4,
+        num_workers=0, device="cpu", bf16=False, early_stop_patience=2,
+    )
+    calls = {"n": 0}
+
+    def improving_eval(model):
+        calls["n"] += 1
+        return {"exact_match": float(calls["n"])}
+
+    train_loop(
+        TRMWorldModel(WM_CFG), ds, cfg, C.to_dict(WM_CFG), tmp_path / "run",
+        mode="wm", evaluate=improving_eval,
+    )
+    assert calls["n"] == 4  # every epoch evaluated; no early stop
+
+
 def test_evaluate_wm_reports_copy_baseline(cache_npz):
     model = TRMWorldModel(WM_CFG)
     ds = WMTransitionDataset([cache_npz], dedup=False)

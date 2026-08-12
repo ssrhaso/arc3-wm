@@ -42,6 +42,11 @@ class TrainConfig:
     seed: int = 0
     log_every: int = 50
     eval_every: int = 1  # run the val evaluation every N epochs (and last)
+    # Early stop after this many consecutive non-improving val evaluations
+    # (0 = off). best.pt keeps the best, so patience only saves compute and
+    # avoids the overfitting tail. A supervised-training addition - the
+    # official online recipe has no val-based selection.
+    early_stop_patience: int = 5
     # When the batch carries a second transition (dataset n_steps=2), add a
     # scheduled-sampling unroll loss: the model's own (detached, argmax)
     # prediction is fed back with the next action and scored against the
@@ -309,6 +314,7 @@ def train_loop(
     global_step = resume_step
     batch_i = 0
     best_metric = resume_best if (resume and latest.exists()) else -1.0
+    evals_since_best = 0  # consecutive val evaluations without improvement
     start = time.time()
     for epoch in range(start_epoch, cfg.epochs):
         model.train()
@@ -344,10 +350,26 @@ def train_loop(
             key = val_metrics.get("exact_match", val_metrics.get("accuracy", 0.0))
             if key > best_metric:
                 best_metric = key
+                evals_since_best = 0
                 save_checkpoint(
                     out_dir / "best.pt", model, ema, optimizer, model_config,
                     global_step, extra={"val": val_metrics, "epoch": epoch},
                 )
+            else:
+                evals_since_best += 1
+            if (
+                cfg.early_stop_patience > 0
+                and evals_since_best >= cfg.early_stop_patience
+            ):
+                log.write({"epoch": epoch, "step": global_step,
+                           "early_stop": True, "best": best_metric})
+                save_checkpoint(
+                    out_dir / "latest.pt", model, ema, optimizer, model_config,
+                    global_step,
+                    extra={"val": val_metrics, "epoch": epoch,
+                           "best_metric": best_metric},
+                )
+                break
         save_checkpoint(
             out_dir / "latest.pt", model, ema, optimizer, model_config,
             global_step,
