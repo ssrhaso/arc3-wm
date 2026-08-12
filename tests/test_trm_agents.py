@@ -211,3 +211,18 @@ def test_plan_policy_shapes_loss_and_act():
     a, out2 = pol.act(grid, temperature=0.0)
     assert a.shape == (3,)
     assert torch.equal(a, out2.flat_logits.argmax(-1))  # MPC executes step 0
+
+
+def test_plan_step0_weight_interpolates_to_bc():
+    torch.manual_seed(0)
+    base = dict(core=TINY_CORE, tokenizer=TINY_TOK, plan_length=4)
+    pol = TRMPolicy(PolicyConfig(**base, plan_step0_weight=1.0))
+    grid = torch.randint(0, 16, (3, 64, 64))
+    out = pol(grid)
+    action = torch.randint(0, N_ACTIONS, (3, 4))
+    parts_w1 = pol.loss(out, action, plan_valid=torch.ones(3, 4))
+    nll0 = pol.loss(out, action[:, 0])  # plain BC loss on slot 0's logits?
+    # w0=1.0: plan bc-loss must equal CE on slot 0 alone.
+    from arc3_wm.trm.core import stablemax_cross_entropy
+    ref = stablemax_cross_entropy(out.plan_logits[:, 0], action[:, 0], reduction="mean")
+    assert torch.allclose(parts_w1["bc"], ref, atol=1e-6)

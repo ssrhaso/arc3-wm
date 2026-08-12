@@ -148,10 +148,16 @@ class PolicyConfig:
     # iteratively revises; the halt target is the WHOLE plan being right.
     # Executed MPC-style (first action, then replan). 1 = plain BC.
     plan_length: int = 1
+    # >0: slot 0 (the executed action) gets this fraction of the plan
+    # loss; remaining slots share the rest. 0 = uniform average over
+    # valid slots. At 1.0 the loss reduces exactly to plain BC.
+    plan_step0_weight: float = 0.0
 
     def __post_init__(self) -> None:
         _require(self.core.d_model == self.tokenizer.d_model, "d_model mismatch core/tokenizer")
         _require(self.plan_length >= 1, "plan_length must be >= 1")
+        _require(0.0 <= self.plan_step0_weight <= 1.0,
+                 "plan_step0_weight must be in [0, 1]")
         _require(self.loss in ("stablemax_ce", "softmax_ce"), f"bad loss {self.loss!r}")
 
 

@@ -50,6 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--loss", choices=["stablemax_ce", "softmax_ce"], default="stablemax_ce")
     p.add_argument("--seq-mixer", choices=["attention", "mlp"], default="attention",
                    help="token mixer inside the shared net (mlp = MLP-Mixer ablation)")
+    p.add_argument("--plan-step0-weight", type=float, default=0.0,
+                   help="fraction of plan loss on the executed slot 0 "
+                        "(1.0 reduces exactly to plain BC)")
     p.add_argument("--plan-length", type=int, default=1,
                    help=">1: plan-refinement policy (ARC-AGI-2 usage pattern) - "
                         "y carries the next K human actions, halt = whole plan right")
@@ -68,7 +71,8 @@ def build_model_config(args) -> C.PolicyConfig:
     )
     tok = C.TokenizerConfig(d_model=args.d_model, patch_size=args.patch_size)
     return C.PolicyConfig(core=core, tokenizer=tok, loss=args.loss,
-                          plan_length=args.plan_length)
+                          plan_length=args.plan_length,
+                          plan_step0_weight=args.plan_step0_weight)
 
 
 def main(argv=None) -> int:

@@ -141,7 +141,17 @@ class TRMPolicy(nn.Module):
                 else torch.ones(b, k, device=action.device)
             )
             nll_k = ce(logits_k.reshape(b * k, -1), action.reshape(b * k)).view(b, k)
-            nll = (nll_k * pv).sum(-1) / pv.sum(-1).clamp(min=1.0)
+            w0 = self.cfg.plan_step0_weight
+            if w0 > 0:
+                tail_pv = pv.clone()
+                tail_pv[:, 0] = 0.0
+                tail_n = tail_pv.sum(-1)
+                tail_mean = (nll_k * tail_pv).sum(-1) / tail_n.clamp(min=1.0)
+                nll = w0 * nll_k[:, 0] + (1.0 - w0) * torch.where(
+                    tail_n > 0, tail_mean, nll_k[:, 0]
+                )
+            else:
+                nll = (nll_k * pv).sum(-1) / pv.sum(-1).clamp(min=1.0)
             with torch.no_grad():
                 step_hit = logits_k.argmax(-1) == action.long()
                 correct = ((step_hit | (pv < 0.5)).all(-1))
