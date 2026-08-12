@@ -30,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--weight-decay", type=float, default=0.1)
     p.add_argument("--warmup-steps", type=int, default=2000)
+    p.add_argument("--log-every", type=int, default=50)
     p.add_argument("--ema-decay", type=float, default=0.999)
     p.add_argument("--val-fraction", type=float, default=0.1)
     p.add_argument("--num-workers", type=int, default=4)
@@ -115,6 +116,7 @@ def main(argv=None) -> int:
         lr=args.lr,
         weight_decay=args.weight_decay,
         warmup_steps=args.warmup_steps,
+        log_every=args.log_every,
         ema_decay=args.ema_decay,
         batch_size=args.batch_size,
         epochs=args.epochs,

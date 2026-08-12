@@ -104,6 +104,7 @@ scripts/fetch_trm_official.sh
 scripts/sync_hephaestus.sh
 scripts/submit_elastic.sh
 slurm/trm_paper_retrain.sbatch
+slurm/trm_paper_smoke.sbatch
 
 # --- Dry-run analysis scaffolding (kept on disk, never published) ---
 analysis/build_p4_vc33_diagnosis.py
