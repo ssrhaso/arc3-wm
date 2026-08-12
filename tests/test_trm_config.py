@@ -32,6 +32,8 @@ def test_core_defaults_follow_paper():
     cfg = TRMCoreConfig()
     assert (cfg.d_model, cfg.n_heads, cfg.n_layers) == (512, 8, 2)
     assert (cfg.h_cycles, cfg.l_cycles) == (3, 6)
+    assert (cfg.n_supervision, cfg.halt_max_steps) == (16, 16)  # official trm.yaml
+    assert cfg.halt_bias_init == -5.0  # official: weight zero + bias -5
     assert cfg.seq_mixer == "attention"
     assert cfg.pos_encoding == "rope"
     assert cfg.y_init == "buffer"

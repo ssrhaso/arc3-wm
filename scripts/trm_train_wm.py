@@ -46,8 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--patch-size", type=int, default=4)
     p.add_argument("--h-cycles", type=int, default=3)
     p.add_argument("--l-cycles", type=int, default=6)
-    p.add_argument("--n-supervision", type=int, default=6)
-    p.add_argument("--halt-max-steps", type=int, default=6)
+    p.add_argument("--n-supervision", type=int, default=16)
+    p.add_argument("--halt-max-steps", type=int, default=16)
     p.add_argument("--y-init", choices=["buffer", "input"], default="buffer")
     p.add_argument("--seq-mixer", choices=["attention", "mlp"], default="attention",
                    help="token mixer inside the shared net (mlp = MLP-Mixer ablation)")

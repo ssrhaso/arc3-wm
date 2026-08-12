@@ -7,19 +7,27 @@ they are built from. ``to_dict``/``from_dict`` round-trip through plain JSON
 types for CLI flags and run manifests.
 
 Defaults follow the TRM paper (arXiv:2510.04871) and its official repo
-(SamsungSAILMontreal/TinyRecursiveModels) unless a deviation is documented
-inline. Deviations, with reasons:
+(SamsungSAILMontreal/TinyRecursiveModels, linked via the pinned third_party
+clone - see _official.py; nothing there is modified) unless a deviation is
+documented inline. Deviations, with reasons:
 
 - no puzzle-ID embedding: follow-up analysis (arXiv:2512.11847) shows it is
   a brittle per-task memory (wrong ID -> 0 percent); an interactive agent
-  must not depend on it. Optional per-game embedding replaces it for
-  cross-game training only.
+  must not depend on it. A learned halt/summary slot at sequence position 0
+  (world_model.py/policy.py) replaces its role as the q-head read-out.
 - deep supervision is an explicit inner loop (``n_supervision``), not the
   official repo's carry-across-batches trick (their issue #26 documents the
   paper/code divergence); the explicit form suits transition-level training.
 - data augmentation defaults off: ARC-AGI-3 dynamics are not colour- or
   rotation-equivariant (game code branches on specific colours/directions),
   unlike the static ARC puzzles the paper augments.
+- the input front-end is ours: 64x64 palette frames -> 4x4 patch tokens with
+  learned 2D positions, instead of per-cell tokens with sqrt(d) embedding
+  scaling (the official front-end targets <=30x30 ARC grids).
+- supervised model selection has no official counterpart (theirs is online
+  puzzle training): the episode-grouped train/val split, best-checkpoint-by
+  -val and early-stop patience are additions of ours.
+- batch size 96 vs official 768 (per-game replay corpora are small).
 """
 
 from __future__ import annotations
@@ -56,18 +64,22 @@ class TRMCoreConfig:
     # all but the last block run under no_grad, the last backprops fully.
     h_cycles: int = 3
     l_cycles: int = 6
-    # Deep supervision / ACT.
-    n_supervision: int = 6
-    halt_max_steps: int = 6
+    # Deep supervision / ACT. Official values: 16 supervision steps with the
+    # halt cap at 16 (arch/trm.yaml); NVARC uses 10 during test-time tuning.
+    n_supervision: int = 16
+    halt_max_steps: int = 16
     halt_exploration_prob: float = 0.1
     # "buffer" = fixed random init states (paper). "input" initialises y from
     # the input embedding, biasing the world model toward copy-then-refine.
     y_init: str = "buffer"
-    # Halt-head bias init. The official TRM zero-init (default) lets the
-    # head learn both directions; the original sweep-1 runs used -5, which
-    # trapped the head in a never-halt regime (measured: 0 percent halt
-    # rate at every step). Recorded per-run in run.json.
-    halt_bias_init: float = 0.0
+    # Halt-head bias init. The official TRM init is weight-zero + bias -5
+    # ("Init Q to (almost) zero for faster learning during bootstrapping");
+    # we follow it. Caveat: when positive halt targets are rare the head can
+    # settle into a never-halt regime (the sweep-1 runs measured a 0 percent
+    # halt rate at every step under bias -5 with n_supervision=6) - watch
+    # halt_rate in metrics.jsonl and flip to 0.0 if it flatlines. Recorded
+    # per-run in run.json.
+    halt_bias_init: float = -5.0
 
     def __post_init__(self) -> None:
         _require(self.d_model % self.n_heads == 0, "d_model must divide n_heads")
@@ -150,6 +162,11 @@ class PolicyConfig:
     # transplanted): y carries a K-step action plan that the recursion
     # iteratively revises; the halt target is the WHOLE plan being right.
     # Executed MPC-style (first action, then replan). 1 = plain BC.
+    # Caveat: human play is stochastic, so an exact whole-plan match can be
+    # vanishingly rare at large K (K=32), leaving the halt head without
+    # positive targets - ACT then degenerates to fixed-depth supervision
+    # (halt_rate ~ 0 in metrics.jsonl). Borne by design: inference returns
+    # the last supervision step regardless; watch halt_rate/q_halt_accuracy.
     plan_length: int = 1
     # >0: slot 0 (the executed action) gets this fraction of the plan
     # loss; remaining slots share the rest. 0 = uniform average over
