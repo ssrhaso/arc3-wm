@@ -16,7 +16,7 @@ from typing import Optional
 import numpy as np
 import torch
 
-from .core import EMAHelper
+from ._official import OfficialEMAHelper
 from .training import TrainConfig, deep_supervision_batch, make_optimizer
 
 STATE_INDEX = {"NOT_FINISHED": 0, None: 0, "WIN": 1, "GAME_OVER": 2}
@@ -41,7 +41,8 @@ class OnlineFineTuner:
             bf16=False, seed=seed,
         )
         self.optimizer = make_optimizer(model, self.cfg)
-        self.ema = EMAHelper(model, decay=ema_decay)
+        self.ema = OfficialEMAHelper(mu=ema_decay)
+        self.ema.register(model)
         self.rng = np.random.default_rng(seed)
         self.global_step = 0
         self.seen = 0  # transitions already consumed at least once
@@ -127,7 +128,8 @@ class PolicySelfImitation:
             bf16=False, seed=seed,
         )
         self.optimizer = make_optimizer(policy, self.cfg)
-        self.ema = EMAHelper(policy, decay=ema_decay)
+        self.ema = OfficialEMAHelper(mu=ema_decay)
+        self.ema.register(policy)
         self.rng = np.random.default_rng(seed)
         self.global_step = 0
         # Each segment: (grids [T,64,64], actions [T], masks [T,4102]),

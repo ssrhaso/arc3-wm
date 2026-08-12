@@ -128,7 +128,8 @@ def test_unroll_loss_included_in_training(seq_cache):
     batch = torch.utils.data.default_collate([ds[i] for i in range(4)])
     cfg = TrainConfig(lr=1e-3, warmup_steps=1, unroll_weight=0.5)
     opt = make_optimizer(model, cfg)
-    ema = EMAHelper(model)
+    ema = EMAHelper()
+    ema.register(model)
     parts, _ = deep_supervision_batch(model, batch, opt, ema, cfg, 0, mode="wm")
     assert "unroll" in parts and parts["unroll"] > 0
 
@@ -195,7 +196,8 @@ def test_training_exits_when_all_halt(tmp_path):
     model = TRMWorldModel(cfg_model)
     cfg = TrainConfig(lr=1e-3, warmup_steps=1)
     opt = make_optimizer(model, cfg)
-    ema = EMAHelper(model)
+    ema = EMAHelper()
+    ema.register(model)
     _, consumed = deep_supervision_batch(model, batch, opt, ema, cfg, 0, mode="wm")
     assert consumed == 1  # every sample halts at step 1 -> loop exits
 

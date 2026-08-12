@@ -80,7 +80,8 @@ def test_deep_supervision_batch_updates_weights(cache_npz):
     batch = torch.utils.data.default_collate([ds[i] for i in range(4)])
     cfg = TrainConfig(lr=1e-3, warmup_steps=1)
     opt = make_optimizer(model, cfg)
-    ema = EMAHelper(model, decay=0.9)
+    ema = EMAHelper(mu=0.9)
+    ema.register(model)
     before = model.grid_head.decode.weight.detach().clone()
     parts, steps = deep_supervision_batch(
         model, batch, opt, ema, cfg, 0, mode="wm",
@@ -139,7 +140,8 @@ def test_evaluate_wm_reports_copy_baseline(cache_npz):
 
 def test_checkpoint_round_trip_preserves_ema(tmp_path):
     model = TRMWorldModel(WM_CFG)
-    ema = EMAHelper(model, decay=0.5)
+    ema = EMAHelper(mu=0.5)
+    ema.register(model)
     with torch.no_grad():
         for p in model.parameters():
             p.add_(1.0)

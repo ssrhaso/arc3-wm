@@ -6,9 +6,12 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+from adam_atan2_pytorch import AdamAtan2  # noqa: E402
+from arc3_wm.trm._official import (  # noqa: E402
+    TinyRecursiveReasoningModel_ACTV1ReasoningModule,
+)
 from arc3_wm.trm.config import TRMCoreConfig  # noqa: E402
 from arc3_wm.trm.core import (  # noqa: E402
-    AdamATan2,
     EMAHelper,
     TRMCore,
     count_parameters,
@@ -50,8 +53,13 @@ def test_carry_threads_between_supervision_steps():
 
 def test_single_shared_net_is_used_for_both_updates():
     core = make_core()
-    # One ReasoningNet instance only (paper: no separate H/L networks).
-    nets = [m for m in core.modules() if type(m).__name__ == "ReasoningNet"]
+    # One reasoning-module instance only (paper: no separate H/L networks);
+    # the module is the official ReasoningModule, linked from third_party.
+    nets = [
+        m
+        for m in core.modules()
+        if isinstance(m, TinyRecursiveReasoningModel_ACTV1ReasoningModule)
+    ]
     assert len(nets) == 1
 
 
@@ -110,15 +118,16 @@ def test_determinism_same_seed_same_output():
 def test_stablemax_matches_uniform_at_zero_logits():
     logits = torch.zeros(5, 4)
     target = torch.tensor([0, 1, 2, 3, 0])
+    # Official implementation: per-element NLL in fp64 (no reduction).
     loss = stablemax_cross_entropy(logits, target)
-    assert torch.isclose(loss, torch.tensor(4.0).log(), atol=1e-5)
+    assert torch.isclose(loss.mean().float(), torch.tensor(4.0).log(), atol=1e-5)
 
 
 def test_stablemax_extreme_logits_finite():
     logits = torch.tensor([[1e6, -1e6, 0.0]])
-    loss = stablemax_cross_entropy(logits, torch.tensor([0]))
+    loss = stablemax_cross_entropy(logits, torch.tensor([0]))[0]
     assert torch.isfinite(loss)
-    loss_bad = stablemax_cross_entropy(logits, torch.tensor([1]))
+    loss_bad = stablemax_cross_entropy(logits, torch.tensor([1]))[0]
     assert torch.isfinite(loss_bad) and loss_bad > loss
 
 
@@ -141,38 +150,43 @@ def test_grid_ce_weighting_upweights_changed_cells():
 
 def test_ema_converges_toward_model():
     core = make_core()
-    ema = EMAHelper(core, decay=0.5)
+    # Official helper API: register the model once, then update per step;
+    # the shadow covers requires-grad parameters only.
+    ema = EMAHelper(mu=0.5)
+    ema.register(core)
     with torch.no_grad():
         for p in core.parameters():
             p.add_(1.0)
     for _ in range(20):
         ema.update(core)
-    name, param = next(iter(core.state_dict().items()))
-    assert torch.allclose(ema.shadow[name], param.float(), atol=1e-4)
+    name, param = next(iter(core.named_parameters()))
+    assert torch.allclose(ema.shadow[name], param, atol=1e-4)
 
 
-def test_ema_swap_restores_training_weights():
+def test_ema_copy_loads_shadow_and_leaves_training_weights():
     core = make_core()
-    ema = EMAHelper(core, decay=0.999)
+    ema = EMAHelper(mu=0.999)
+    ema.register(core)
     with torch.no_grad():
         for p in core.parameters():
             p.add_(1.0)
     trained = {k: v.clone() for k, v in core.state_dict().items()}
-    # Inside the context the (near-initial) EMA weights are loaded ...
-    with ema.swap(core) as m:
-        inside = next(iter(m.parameters())).clone()
-    # ... and on exit the training weights come back exactly.
+    # The official eval protocol: evaluate the EMA copy ...
+    eval_model = ema.ema_copy(core)
+    name, param = next(iter(core.named_parameters()))
+    assert torch.allclose(dict(eval_model.named_parameters())[name], ema.shadow[name])
+    # ... while the training weights stay exactly as they were.
     for k, v in core.state_dict().items():
         assert torch.equal(v, trained[k]), k
-    outside = next(iter(core.parameters())).clone()
-    assert not torch.allclose(inside, outside)
+    # ... and the EMA copy still holds the near-init shadow, not +1.0.
+    assert not torch.allclose(dict(eval_model.named_parameters())[name], trained[name])
 
 
 def test_adam_atan2_step_reduces_loss():
     torch.manual_seed(0)
     w = torch.nn.Parameter(torch.randn(8))
     target = torch.zeros(8)
-    opt = AdamATan2([w], lr=0.05)
+    opt = AdamAtan2([w], lr=0.05)
     initial = ((w - target) ** 2).sum().item()
     for _ in range(200):
         opt.zero_grad()
@@ -180,6 +194,21 @@ def test_adam_atan2_step_reduces_loss():
         loss.backward()
         opt.step()
     assert loss.item() < initial * 0.01
+
+
+def test_adam_atan2_matches_reference_formula():
+    # adam-atan2-pytorch 0.2.4: p -= lr * a * atan2(m_hat, b * sqrt(v_hat))
+    # with a=1.27, b=1 by default. One step from zero state: m_hat = g,
+    # sqrt(v_hat) = |g|; weight_decay=0 isolates the atan2 rule.
+    torch.manual_seed(0)
+    w = torch.nn.Parameter(torch.randn(8))
+    g = torch.randn(8)
+    opt = AdamAtan2([w], lr=0.05, betas=(0.9, 0.95), weight_decay=0.0)
+    w.grad = g.clone()
+    p0 = w.detach().clone()
+    opt.step()
+    expected = p0 - 0.05 * 1.27 * torch.atan2(g, g.abs())
+    assert torch.allclose(w.detach(), expected, atol=1e-6)
 
 
 def test_warmup_schedule():
@@ -206,17 +235,16 @@ def test_parameter_count_paper_scale():
     assert 3e6 < n < 8e6, n
 
 
-def test_ema_swap_is_key_based_not_positional():
+def test_ema_state_dict_round_trip():
     torch.manual_seed(0)
     model = make_core()
-    ema = EMAHelper(model, decay=0.9)
-    ema.shadow = dict(reversed(list(ema.shadow.items())))  # scramble order
-    with torch.no_grad():
-        for p in model.parameters():
-            p.add_(1.0)
-    before = {k: v.clone() for k, v in model.state_dict().items()}
-    with ema.swap(model):
-        for k, v in model.state_dict().items():
-            assert torch.equal(v, ema.shadow[k].to(v.dtype))
-    for k, v in model.state_dict().items():
-        assert torch.equal(v, before[k])
+    ema = EMAHelper(mu=0.9)
+    ema.register(model)
+    ema.update(model)
+    # The official helper serialises the shadow dict directly (name-keyed).
+    shadow = ema.state_dict()
+    assert set(shadow) == {k for k, _ in model.named_parameters()}
+    clone = EMAHelper()
+    clone.load_state_dict(shadow)
+    for k, v in shadow.items():
+        assert torch.equal(clone.shadow[k], v)

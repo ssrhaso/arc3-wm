@@ -72,7 +72,8 @@ def test_novel_indices_exclude_seen_inputs(data_dir):
 def test_audit_main_end_to_end(data_dir, tmp_path):
     torch.manual_seed(0)
     model = TRMWorldModel(TINY)
-    ema = EMAHelper(model)
+    ema = EMAHelper()
+    ema.register(model)
     opt = make_optimizer(model, TrainConfig())
     ckpt_dir = tmp_path / "run"
     save_checkpoint(ckpt_dir / "best.pt", model, ema, opt, C.to_dict(TINY), 1)

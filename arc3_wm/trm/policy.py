@@ -128,7 +128,8 @@ class TRMPolicy(nn.Module):
 
         def ce(logits: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
             if self.cfg.loss == "stablemax_ce":
-                return stablemax_cross_entropy(logits, target.long(), reduction="none")
+                # Official fp64 implementation; per-element NLL, no reduction.
+                return stablemax_cross_entropy(logits, target.long())
             return F.cross_entropy(logits.float(), target.long(), reduction="none")
 
         if action.dim() == 2:

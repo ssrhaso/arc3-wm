@@ -47,6 +47,7 @@ from models.layers import (  # noqa: E402
 from models.losses import softmax_cross_entropy, stablemax_cross_entropy  # noqa: E402
 from models.recursive_reasoning.trm import (  # noqa: E402
     TinyRecursiveReasoningModel_ACTV1Block,
+    TinyRecursiveReasoningModel_ACTV1Config,
     TinyRecursiveReasoningModel_ACTV1ReasoningModule,
 )
 
@@ -57,6 +58,7 @@ __all__ = [
     "RotaryEmbedding",
     "SwiGLU",
     "TinyRecursiveReasoningModel_ACTV1Block",
+    "TinyRecursiveReasoningModel_ACTV1Config",
     "TinyRecursiveReasoningModel_ACTV1ReasoningModule",
     "rms_norm",
     "softmax_cross_entropy",

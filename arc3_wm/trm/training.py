@@ -21,13 +21,15 @@ import torch
 from torch import nn
 
 from . import config as C
-from .core import AdamATan2, EMAHelper, sample_min_halt_steps, warmup_constant_lr
+from ._official import OfficialEMAHelper
+from .core import sample_min_halt_steps, warmup_constant_lr
 
 
 @dataclass
 class TrainConfig:
     lr: float = 1e-4
     weight_decay: float = 0.1
+    betas: tuple = (0.9, 0.95)  # official cfg_pretrain.yaml
     warmup_steps: int = 2000
     ema_decay: float = 0.999
     batch_size: int = 96
@@ -62,7 +64,15 @@ def resolve_device(device: str) -> str:
 
 
 def make_optimizer(model: nn.Module, cfg: TrainConfig) -> torch.optim.Optimizer:
-    return AdamATan2(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    # adam-atan2-pytorch 0.2.4 (the package NVARC pins for TRM training).
+    # betas (0.9, 0.95) per the official cfg_pretrain.yaml; the package's
+    # a=1.27, b=1 atan2 rule and decoupled weight decay p *= (1 - lr*wd)
+    # match the official recipe.
+    from adam_atan2_pytorch import AdamAtan2
+
+    return AdamAtan2(
+        model.parameters(), lr=cfg.lr, betas=cfg.betas, weight_decay=cfg.weight_decay
+    )
 
 
 class MetricsLog:
@@ -128,10 +138,12 @@ def load_policy(path: Path, device: str = "cpu", use_ema: bool = True):
 
 
 def _load_ema_into(model: nn.Module, ema_state: dict) -> None:
-    shadow = ema_state["shadow"]
+    """Load the official EMA shadow (requires-grad parameters only) into the
+    model. Buffers are not shadowed by the official helper; ours are the
+    constant init states, so they keep their own values."""
     own = model.state_dict()
-    cast = {k: shadow[k].to(own[k].dtype) for k in own}
-    model.load_state_dict(cast)
+    cast = {k: v.to(own[k].dtype) for k, v in ema_state.items() if k in own}
+    model.load_state_dict(cast, strict=False)
 
 
 def deep_supervision_batch(
@@ -257,7 +269,8 @@ def train_loop(
     torch.manual_seed(cfg.seed)
     gen = torch.Generator().manual_seed(cfg.seed)
     optimizer = make_optimizer(model, cfg)
-    ema = EMAHelper(model, decay=cfg.ema_decay)
+    ema = OfficialEMAHelper(mu=cfg.ema_decay)
+    ema.register(model)
     log = MetricsLog(out_dir / "metrics.jsonl")
     start_epoch = 0
     resume_step = 0
@@ -312,9 +325,12 @@ def train_loop(
             or (cfg.max_steps and global_step >= cfg.max_steps)
         )
         if evaluate is not None and is_eval_epoch:
-            model.eval()
-            with ema.swap(model):
-                val_metrics = evaluate(model)
+            # Official protocol: evaluate the EMA copy (ema_copy deep-copies
+            # the model and loads the shadow; raw weights stay untouched).
+            eval_model = ema.ema_copy(model)
+            eval_model.eval()
+            val_metrics = evaluate(eval_model)
+            del eval_model
             log.write({"epoch": epoch, "step": global_step, "val": val_metrics})
             key = val_metrics.get("exact_match", val_metrics.get("accuracy", 0.0))
             if key > best_metric:

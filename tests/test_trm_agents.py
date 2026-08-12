@@ -224,5 +224,5 @@ def test_plan_step0_weight_interpolates_to_bc():
     nll0 = pol.loss(out, action[:, 0])  # plain BC loss on slot 0's logits?
     # w0=1.0: plan bc-loss must equal CE on slot 0 alone.
     from arc3_wm.trm.core import stablemax_cross_entropy
-    ref = stablemax_cross_entropy(out.plan_logits[:, 0], action[:, 0], reduction="mean")
+    ref = stablemax_cross_entropy(out.plan_logits[:, 0], action[:, 0]).mean()  # official: per-element fp64
     assert torch.allclose(parts_w1["bc"], ref, atol=1e-6)
