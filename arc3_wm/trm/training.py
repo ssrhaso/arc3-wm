@@ -50,7 +50,7 @@ class TrainConfig:
     loss_weights: dict = field(
         default_factory=lambda: {
             "grid": 1.0, "change": 0.5, "reward": 1.0, "state": 0.5,
-            "bc": 1.0, "value": 0.2, "halt": 0.5,
+            "bc": 1.0, "halt": 0.5,
         }
     )
 
@@ -215,7 +215,8 @@ def deep_supervision_batch(
             loss = sum(
                 cfg.loss_weights.get(k, 1.0) * v
                 for k, v in parts.items()
-                if k not in ("exact_match", "accuracy", "step0_accuracy")
+                if k not in ("exact_match", "accuracy", "step0_accuracy",
+                             "q_halt_accuracy")
             )
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
@@ -237,7 +238,14 @@ def deep_supervision_batch(
             x = model.embed(batch["grid"], batch["action"])
         else:
             x = model.embed(batch["grid"])
-    return {k: v / steps_done for k, v in agg.items()}, steps_done
+    metrics = {k: v / steps_done for k, v in agg.items()}
+    metrics["sup_steps"] = float(steps_done)
+    # Fraction of the batch whose halt head fired (subject to the ACT
+    # exploration minimum) before the n_supervision cap. Read: 0.0 = ACT is
+    # dead (fixed-depth supervision - harmless at inference, since predict/
+    # act return the last step anyway); ~1.0 = everyone halted early.
+    metrics["halt_rate"] = float((~active).sum().item()) / b
+    return metrics, steps_done
 
 
 class _nullcontext:
@@ -351,9 +359,9 @@ def train_loop(
 
 
 @torch.no_grad()
-def evaluate_wm(model, dataset, batch_size: int = 64, max_batches: int = 50, rollout_horizon: int = 8) -> dict:
+def evaluate_wm(model, dataset, batch_size: int = 64, max_batches: int = 50) -> dict:
     """WM validation: exact match, per-cell and changed-cell accuracy vs the
-    copy-last-frame baseline, plus an open-loop rollout probe."""
+    copy-last-frame baseline, plus reward recall."""
     device = next(model.parameters()).device
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
     n = correct_cells = total_cells = 0

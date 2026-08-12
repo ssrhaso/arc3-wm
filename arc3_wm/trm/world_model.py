@@ -148,11 +148,15 @@ class TRMWorldModel(nn.Module):
         # ACT halt target: the decoded next frame is exactly right.
         with torch.no_grad():
             exact = (out.next_logits.argmax(-1) == next_grid.long()).flatten(1).all(-1)
+            q_acc = ((out.q_halt > 0) == exact).float()
         parts["halt"] = masked_mean(
             F.binary_cross_entropy_with_logits(
                 out.q_halt, exact.float(), reduction="none"
             )
         )
+        # Official metric: how often the halt decision matches actual
+        # correctness (detached; never enters the loss).
+        parts["q_halt_accuracy"] = masked_mean(q_acc).detach()
         parts["exact_match"] = masked_mean(exact.float()).detach()
         return parts
 

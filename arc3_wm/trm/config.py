@@ -141,7 +141,10 @@ class PolicyConfig:
 
     core: TRMCoreConfig = field(default_factory=TRMCoreConfig)
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
-    value_head: bool = True
+    # The official TRM has no value head; ours currently has no training
+    # target or consumer either, so it defaults off. Re-enable only together
+    # with a return target and an agent that reads it.
+    value_head: bool = False
     loss: str = "stablemax_ce"
     # >1 turns the policy into a plan refiner (the ARC-AGI-2 usage pattern
     # transplanted): y carries a K-step action plan that the recursion

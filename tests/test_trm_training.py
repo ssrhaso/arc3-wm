@@ -88,6 +88,11 @@ def test_deep_supervision_batch_updates_weights(cache_npz):
     )
     assert 1 <= steps <= TINY_CORE.n_supervision
     assert "grid" in parts and "halt" in parts and "loss" in parts
+    # ACT observability: supervision steps consumed, halt rate, halt-decision
+    # accuracy (the official q_halt_accuracy analogue).
+    assert parts["sup_steps"] == float(steps)
+    assert 0.0 <= parts["halt_rate"] <= 1.0
+    assert 0.0 <= parts["q_halt_accuracy"] <= 1.0
     assert not torch.allclose(model.grid_head.decode.weight, before)
 
 

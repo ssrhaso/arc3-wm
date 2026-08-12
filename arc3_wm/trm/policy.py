@@ -179,6 +179,10 @@ class TRMPolicy(nn.Module):
             )
         )
         parts["accuracy"] = masked_mean(correct.float()).detach()
+        # Official metric: halt decision vs actual correctness (detached).
+        parts["q_halt_accuracy"] = masked_mean(
+            ((out.q_halt > 0) == correct).float()
+        ).detach()
         return parts
 
     @torch.no_grad()

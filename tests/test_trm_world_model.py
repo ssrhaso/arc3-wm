@@ -66,7 +66,8 @@ def test_wm_loss_parts_and_backward():
         state=torch.tensor([0, 1]),
         prev_grid=g,
     )
-    assert set(parts) == {"grid", "change", "reward", "state", "halt", "exact_match"}
+    assert set(parts) == {"grid", "change", "reward", "state", "halt", "exact_match",
+                          "q_halt_accuracy"}
     total = parts["grid"] + parts["change"] + parts["reward"] + parts["state"] + parts["halt"]
     total.backward()
     grads = [p.grad for p in wm.parameters() if p.grad is not None]
@@ -103,7 +104,7 @@ def test_wm_optional_heads_off():
     out = wm(grids(1), torch.tensor([0]))
     assert out.change_logits is None and out.reward_logit is None and out.state_logits is None
     parts = wm.loss(out, grids(1))
-    assert set(parts) == {"grid", "halt", "exact_match"}
+    assert set(parts) == {"grid", "halt", "exact_match", "q_halt_accuracy"}
 
 
 def test_policy_forward_and_mask():
@@ -124,11 +125,19 @@ def test_policy_forward_and_mask():
 
 def test_policy_bc_loss_and_halt_target():
     torch.manual_seed(0)
-    pol = TRMPolicy(POL_CFG)
+    pol = TRMPolicy(PolicyConfig(core=TINY_CORE, tokenizer=TINY_TOK, value_head=True))
     out = pol(grids())
     parts = pol.loss(out, torch.tensor([0, 5]), value_target=torch.tensor([0.0, 1.0]))
-    assert set(parts) == {"bc", "value", "halt", "accuracy"}
+    assert set(parts) == {"bc", "value", "halt", "accuracy", "q_halt_accuracy"}
     (parts["bc"] + parts["value"] + parts["halt"]).backward()
+
+
+def test_policy_value_head_off_by_default():
+    # The value head has no training target or consumer; default off.
+    pol = TRMPolicy(PolicyConfig(core=TINY_CORE, tokenizer=TINY_TOK))
+    assert pol.value_head is None
+    parts = pol.loss(pol(grids()), torch.tensor([0, 5]))
+    assert "value" not in parts
 
 
 def test_policy_act_respects_mask_and_temperature():
