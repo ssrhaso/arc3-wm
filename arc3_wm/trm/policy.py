@@ -47,7 +47,9 @@ class TRMPolicy(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.tokenizer = GridTokenizer(cfg.tokenizer)
-        self.seq_len = cfg.tokenizer.n_tokens
+        # Learned halt/summary slot at sequence position 0 (see world_model).
+        self.halt_token = nn.Parameter(torch.zeros(cfg.core.d_model))
+        self.seq_len = cfg.tokenizer.n_tokens + 1  # + halt token
         self.core = TRMCore(cfg.core, max_seq_len=self.seq_len)
         d = cfg.core.d_model
         self.plan_length = cfg.plan_length
@@ -57,7 +59,9 @@ class TRMPolicy(nn.Module):
 
     def embed(self, grid: torch.Tensor) -> torch.Tensor:
         rgb_free_grid_check(grid)
-        return self.tokenizer(grid)
+        tokens = self.tokenizer(grid)
+        halt = self.halt_token.view(1, 1, -1).expand(tokens.shape[0], 1, -1)
+        return torch.cat([halt, tokens], dim=1)
 
     def forward(
         self,
@@ -71,11 +75,12 @@ class TRMPolicy(nn.Module):
         if x is None:
             x = self.embed(grid)
         y, q_halt, carry_out = self.core(x, carry)
-        pooled = pool_tokens(y)
+        body = y[:, 1:]  # position 0 is the learned halt/summary slot
+        pooled = pool_tokens(body)
         k = self.plan_length
         b = grid.shape[0]
         type_k = self.type_head(pooled).view(b, k, -1)  # [B, K, 7]
-        maps = self.click_head(y)  # [B, 64, 64] or [B, K, 64, 64]
+        maps = self.click_head(body)  # [B, 64, 64] or [B, K, 64, 64]
         click_k = maps.reshape(b, k, -1)  # [B, K, 4096]
         flat_k = assemble_flat_logits(
             type_k.reshape(b * k, -1), click_k.reshape(b * k, -1)

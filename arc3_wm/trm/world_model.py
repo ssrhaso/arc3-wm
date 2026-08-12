@@ -52,7 +52,11 @@ class TRMWorldModel(nn.Module):
         self.cfg = cfg
         self.tokenizer = GridTokenizer(cfg.tokenizer)
         self.action_encoder = ActionEncoder(cfg.tokenizer)
-        self.seq_len = cfg.tokenizer.n_tokens + 1  # + action token
+        # Learned halt/summary slot at sequence position 0: the official q
+        # head reads a learned slot (the puzzle-emb token), not a content
+        # token. Zero-init mirrors the official puzzle-emb init_std=0.
+        self.halt_token = nn.Parameter(torch.zeros(cfg.core.d_model))
+        self.seq_len = cfg.tokenizer.n_tokens + 2  # + halt token + action token
         self.core = TRMCore(cfg.core, max_seq_len=self.seq_len)
         self.grid_head = GridHead(cfg.tokenizer)
         self.change_head = CellHead(cfg.tokenizer) if cfg.change_head else None
@@ -64,7 +68,8 @@ class TRMWorldModel(nn.Module):
         rgb_free_grid_check(grid)
         tokens = self.tokenizer(grid)
         act = self.action_encoder(action).unsqueeze(1)
-        return torch.cat([tokens, act], dim=1)
+        halt = self.halt_token.view(1, 1, -1).expand(tokens.shape[0], 1, -1)
+        return torch.cat([halt, tokens, act], dim=1)
 
     def forward(
         self,
@@ -78,7 +83,7 @@ class TRMWorldModel(nn.Module):
         if x is None:
             x = self.embed(grid, action)
         y, q_halt, carry_out = self.core(x, carry)
-        grid_tokens = y[:, : self.cfg.tokenizer.n_tokens]
+        grid_tokens = y[:, 1 : self.cfg.tokenizer.n_tokens + 1]  # skip the halt slot
         pooled = pool_tokens(grid_tokens)
         return WMOutput(
             next_logits=self.grid_head(grid_tokens),

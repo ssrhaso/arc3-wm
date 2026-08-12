@@ -150,3 +150,31 @@ def test_paper_scale_param_counts():
     pol = TRMPolicy(PolicyConfig())
     for n in (count_parameters(wm), count_parameters(pol)):
         assert 4e6 < n < 12e6, n
+
+
+def test_wm_halt_token_slot_feeds_q_halt():
+    # Position 0 is a learned halt/summary slot (the official q head reads a
+    # learned slot, not a content token): perturbing it must move q_halt.
+    torch.manual_seed(0)
+    wm = TRMWorldModel(WM_CFG)
+    assert wm.seq_len == TINY_TOK.n_tokens + 2  # halt + patches + action
+    g, a = grids(1), torch.tensor([0])
+    torch.nn.init.normal_(wm.core.q_head.weight, std=0.5)
+    with torch.no_grad():
+        base = wm(g, a).q_halt.clone()
+        wm.halt_token.add_(1.0)
+        moved = wm(g, a).q_halt
+    assert not torch.allclose(base, moved)
+
+
+def test_policy_halt_token_slot_feeds_q_halt():
+    torch.manual_seed(0)
+    pol = TRMPolicy(POL_CFG)
+    assert pol.seq_len == TINY_TOK.n_tokens + 1  # halt + patches
+    g = grids(1)
+    torch.nn.init.normal_(pol.core.q_head.weight, std=0.5)
+    with torch.no_grad():
+        base = pol(g).q_halt.clone()
+        pol.halt_token.add_(1.0)
+        moved = pol(g).q_halt
+    assert not torch.allclose(base, moved)
