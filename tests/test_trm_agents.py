@@ -166,9 +166,9 @@ def test_bc_temperature_samples_full_distribution():
 
 
 def test_act_output_fields_frozen_consistently():
-    # With a random halt head some samples halt earlier than others; every
-    # returned field must come from the same (first-halt) step, so
-    # reassembling flat from type+click must reproduce it exactly.
+    # Every returned field must come from the same supervision step under
+    # both inference protocols (default: last step; early_halt: first-halt
+    # freeze), so reassembling flat from type+click must reproduce it exactly.
     torch.manual_seed(0)
     from arc3_wm.trm.config import TRMCoreConfig, TokenizerConfig
     core = TRMCoreConfig(d_model=32, n_heads=4, n_layers=1, l_cycles=1,
@@ -176,10 +176,15 @@ def test_act_output_fields_frozen_consistently():
     pol = TRMPolicy(PolicyConfig(core=core, tokenizer=TINY_TOK))
     torch.nn.init.normal_(pol.core.q_head.weight, std=1.0)
     grid = torch.randint(0, 16, (6, 64, 64))
-    _, out = pol.act(grid, temperature=0.0)
     from arc3_wm.trm.tokenizer import assemble_flat_logits
-    rebuilt = assemble_flat_logits(out.type_logits, out.click_logits)
-    assert torch.equal(rebuilt, out.flat_logits)
+    _, out = pol.act(grid, temperature=0.0)
+    assert torch.equal(assemble_flat_logits(out.type_logits, out.click_logits),
+                       out.flat_logits)
+    _, out_early = pol.act(grid, temperature=0.0, early_halt=True)
+    assert torch.equal(
+        assemble_flat_logits(out_early.type_logits, out_early.click_logits),
+        out_early.flat_logits,
+    )
 
 
 def test_stablemax_mask_bias_leak_is_negligible():

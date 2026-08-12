@@ -189,46 +189,56 @@ class TRMPolicy(nn.Module):
         temperature: float = 1.0,
         max_steps: Optional[int] = None,
         generator: Optional[torch.Generator] = None,
+        early_halt: bool = False,
     ) -> tuple[torch.Tensor, PolicyOutput]:
-        """Inference: recurse until halt, then sample (or argmax at T=0)."""
+        """Inference. Default is the official/NVARC protocol: recurse for all
+        ``max_steps`` supervision steps (default ``core.halt_max_steps``) and
+        decode the LAST step's output, then sample (or argmax at T=0).
+        ``early_halt=True`` restores per-sample freezing at the first halting
+        step."""
         steps = max_steps or self.cfg.core.halt_max_steps
         x = self.embed(grid)
         carry: Optional[Carry] = None
         out: Optional[PolicyOutput] = None
-        done: Optional[torch.Tensor] = None
-        frozen: dict[str, torch.Tensor] = {}
-        for _ in range(steps):
-            out = self.forward(grid, carry, mask=mask, x=x)
-            carry = out.carry
-            halted = out.q_halt > 0
-            if done is None:
-                done = torch.zeros_like(halted)
-            # Freeze every output field at each sample's first halting step
-            # (same per-sample pattern as TRMWorldModel.predict), so the
-            # returned PolicyOutput is internally consistent.
-            for name in ("flat_logits", "type_logits", "click_logits",
-                         "value", "q_halt", "plan_logits"):
-                value = getattr(out, name)
-                if value is None:
-                    continue
-                if name not in frozen:
-                    frozen[name] = value.clone()
-                else:
-                    idx = ~done
-                    frozen[name][idx] = value[idx]
-            done = done | halted
-            if bool(done.all()):
-                break
-        assert out is not None and frozen
-        out = PolicyOutput(
-            flat_logits=frozen["flat_logits"],
-            type_logits=frozen["type_logits"],
-            click_logits=frozen["click_logits"],
-            value=frozen.get("value"),
-            q_halt=frozen["q_halt"],
-            carry=out.carry,
-            plan_logits=frozen.get("plan_logits"),
-        )
+        if not early_halt:
+            for _ in range(steps):
+                out = self.forward(grid, carry, mask=mask, x=x)
+                carry = out.carry
+        else:
+            done: Optional[torch.Tensor] = None
+            frozen: dict[str, torch.Tensor] = {}
+            for _ in range(steps):
+                out = self.forward(grid, carry, mask=mask, x=x)
+                carry = out.carry
+                halted = out.q_halt > 0
+                if done is None:
+                    done = torch.zeros_like(halted)
+                # Freeze every output field at each sample's first halting
+                # step, so the returned PolicyOutput is internally consistent.
+                for name in ("flat_logits", "type_logits", "click_logits",
+                             "value", "q_halt", "plan_logits"):
+                    value = getattr(out, name)
+                    if value is None:
+                        continue
+                    if name not in frozen:
+                        frozen[name] = value.clone()
+                    else:
+                        idx = ~done
+                        frozen[name][idx] = value[idx]
+                done = done | halted
+                if bool(done.all()):
+                    break
+            assert out is not None and frozen
+            out = PolicyOutput(
+                flat_logits=frozen["flat_logits"],
+                type_logits=frozen["type_logits"],
+                click_logits=frozen["click_logits"],
+                value=frozen.get("value"),
+                q_halt=frozen["q_halt"],
+                carry=out.carry,
+                plan_logits=frozen.get("plan_logits"),
+            )
+        assert out is not None
         if temperature <= 0:
             return out.flat_logits.argmax(-1), out
         probs = torch.softmax(out.flat_logits / temperature, dim=-1)

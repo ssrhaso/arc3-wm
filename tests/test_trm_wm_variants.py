@@ -202,7 +202,9 @@ def test_training_exits_when_all_halt(tmp_path):
     assert consumed == 1  # every sample halts at step 1 -> loop exits
 
 
-def test_predict_freezes_per_sample_outputs():
+def test_predict_returns_last_step_output_by_default():
+    # Official/NVARC protocol: eval never early-halts; the returned output is
+    # the final supervision step's, even when the halt head fires at step 1.
     torch.manual_seed(0)
     cfg_model = C.WorldModelConfig(
         core=C.TRMCoreConfig(
@@ -213,7 +215,29 @@ def test_predict_freezes_per_sample_outputs():
     )
     model = TRMWorldModel(cfg_model)
     g = torch.randint(0, 4, (2, 64, 64))
-    out = model.predict(g, torch.tensor([0, 1]))
+    a = torch.tensor([0, 1])
+    out = model.predict(g, a)
+    x = model.embed(g, a)
+    carry = None
+    for _ in range(4):
+        step = model(g, a, carry=carry, x=x)
+        carry = step.carry
+    assert torch.allclose(out.next_logits, step.next_logits)
+    assert not torch.allclose(out.next_logits, model(g, a).next_logits)
+
+
+def test_predict_early_halt_freezes_per_sample_outputs():
+    torch.manual_seed(0)
+    cfg_model = C.WorldModelConfig(
+        core=C.TRMCoreConfig(
+            d_model=32, n_heads=4, n_layers=1, l_cycles=1, h_cycles=1,
+            halt_max_steps=4, halt_bias_init=5.0,
+        ),
+        tokenizer=C.TokenizerConfig(d_model=32, patch_size=16, cell_embed_dim=4),
+    )
+    model = TRMWorldModel(cfg_model)
+    g = torch.randint(0, 4, (2, 64, 64))
     # bias +5 -> all halt at step 1; frozen output equals a single step.
+    out = model.predict(g, torch.tensor([0, 1]), early_halt=True)
     single = model(g, torch.tensor([0, 1]))
     assert torch.allclose(out.next_logits, single.next_logits)

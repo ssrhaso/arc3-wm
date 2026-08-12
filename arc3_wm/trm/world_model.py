@@ -162,15 +162,24 @@ class TRMWorldModel(nn.Module):
         grid: torch.Tensor,
         action: torch.Tensor,
         max_steps: Optional[int] = None,
+        early_halt: bool = False,
     ) -> WMOutput:
-        """Inference with per-sample adaptive compute: each sample's output
-        is frozen at its first halting supervision step; recursion stops
-        when every sample has halted or at ``max_steps`` (default
-        ``core.halt_max_steps``)."""
+        """Inference. Default is the official/NVARC protocol: at eval the ACT
+        halt signal never fires, the model runs all ``max_steps`` supervision
+        steps (default ``core.halt_max_steps``), and the returned output is
+        the LAST step's. ``early_halt=True`` restores the previous behaviour:
+        each sample's output frozen at its first halting step, stopping when
+        every sample has halted."""
         steps = max_steps or self.cfg.core.halt_max_steps
         x = self.embed(grid, action)
         carry: Optional[Carry] = None
         out: Optional[WMOutput] = None
+        if not early_halt:
+            for _ in range(steps):
+                out = self.forward(grid, action, carry, x=x)
+                carry = out.carry
+            assert out is not None
+            return out
         done: Optional[torch.Tensor] = None
         frozen: dict[str, torch.Tensor] = {}
         for _ in range(steps):
