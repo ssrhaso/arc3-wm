@@ -195,7 +195,7 @@ class TRMPolicy(nn.Module):
         generator: Optional[torch.Generator] = None,
         early_halt: bool = False,
     ) -> tuple[torch.Tensor, PolicyOutput]:
-        """Inference. Default is the official/NVARC protocol: recurse for all
+        """Inference. Default is the official protocol: recurse for all
         ``max_steps`` supervision steps (default ``core.halt_max_steps``) and
         decode the LAST step's output, then sample (or argmax at T=0).
         ``early_halt=True`` restores per-sample freezing at the first halting

@@ -1,12 +1,20 @@
-"""Test-time training: fine-tune the world model on the agent's own
-experience during evaluation.
+"""Test-time tuning: fine-tune on the agent's own experience during evaluation.
 
-The NVARC recipe (ARC Prize 2025 winner) applied to the interactive
-setting: no demonstrations of the target game are needed - the graph
-agent's transition log is the training stream. Between episodes the WM
-takes a burst of deep-supervision steps on fresh transitions (recent data
-mixed with a replay of older ones), using the NVARC test-time
-hyperparameters (lr 1e-4, warmup 200).
+The reference ARC-AGI-2 recipe's ingredients carried over: per-task reset
+(the eval process reloads the checkpoint per game), the test-time
+hyperparameters (lr 1e-4, warmup 200, batch 128), the test-time recursion
+schedule (H_cycles=4, L_cycles=4, halt/supervision cap 10, applied only
+during ``update``), and EMA-weight inference (the agent acts on the EMA
+copy - ``trm_eval_agent`` syncs it after every burst via the official
+helper's ``ema()``).
+
+What does NOT carry over: the reference recipe fine-tunes the answer
+producer on the test task's demonstration pairs (ground truth) with
+128-way augmentation voting. A new interactive game has no demonstrations,
+so the WM tunes on the agent's own transition log (fresh transitions mixed
+with replay) and the policy analogue is self-imitation on its own
+successful level segments. Augmentation stays off (ARC-AGI-3 dynamics are
+not equivariant).
 """
 
 from __future__ import annotations
@@ -31,9 +39,15 @@ class OnlineFineTuner:
         model,
         lr: float = 1e-4,
         warmup_steps: int = 200,
-        batch_size: int = 32,
+        batch_size: int = 128,  # reference test-time value
         ema_decay: float = 0.999,
         seed: int = 0,
+        # Reference test-time recursion schedule (eval-time overrides),
+        # applied only during update(); None keeps the training schedule.
+        ttt_h_cycles: Optional[int] = 4,
+        ttt_l_cycles: Optional[int] = 4,
+        ttt_n_supervision: Optional[int] = 10,
+        ttt_halt_max: Optional[int] = 10,
     ) -> None:
         self.model = model
         self.cfg = TrainConfig(
@@ -44,17 +58,36 @@ class OnlineFineTuner:
         self.ema = OfficialEMAHelper(mu=ema_decay)
         self.ema.register(model)
         self.rng = np.random.default_rng(seed)
+        self.torch_gen = torch.Generator().manual_seed(seed)
+        self.ttt_schedule = (ttt_h_cycles, ttt_l_cycles, ttt_n_supervision, ttt_halt_max)
         self.global_step = 0
         self.seen = 0  # transitions already consumed at least once
 
     def _batches(self, log, frames, n_steps: int):
-        """Sample batches mixing fresh transitions with replay."""
+        """Sample batches mixing fresh transitions with replay.
+
+        Each batch is at most half fresh transitions (drawn without
+        replacement across the burst) and the rest replay of older ones,
+        shuffled together. (Previously fresh rows could crowd replay out
+        entirely and were fed in trajectory order.)
+        """
         n = len(log)
         fresh = list(range(self.seen, n))
+        self.rng.shuffle(fresh)
+        cursor = 0
         device = next(self.model.parameters()).device
         for _ in range(n_steps):
-            replay = self.rng.integers(0, n, size=self.cfg.batch_size // 2).tolist()
-            idx = (fresh + replay)[: self.cfg.batch_size] if fresh else replay
+            take_fresh = min(self.cfg.batch_size // 2, len(fresh) - cursor)
+            fresh_idx = fresh[cursor : cursor + take_fresh]
+            cursor += take_fresh
+            # Replay = already-consumed rows (the whole log once nothing is
+            # older yet); fresh rows only enter via the capped fresh draw.
+            pool_hi = self.seen if self.seen > 0 else n
+            replay = self.rng.integers(
+                0, pool_hi, size=self.cfg.batch_size - len(fresh_idx)
+            ).tolist()
+            idx = fresh_idx + replay
+            self.rng.shuffle(idx)
             take = [log[i] for i in idx]
             batch = {
                 "grid": torch.stack(
@@ -84,15 +117,24 @@ class OnlineFineTuner:
             return {"steps": self.global_step, "fresh": fresh, "total": n}
         n_batches = int(np.clip(fresh // 8 + 1, 1, max_steps))
         self.model.train()
+        core = self.model.cfg.core
+        saved = (core.h_cycles, core.l_cycles, core.n_supervision, core.halt_max_steps)
+        if self.ttt_schedule[0] is not None:
+            (core.h_cycles, core.l_cycles,
+             core.n_supervision, core.halt_max_steps) = self.ttt_schedule
         agg = {}
-        for batch in self._batches(log, frames, n_batches):
-            parts, consumed = deep_supervision_batch(
-                self.model, batch, self.optimizer, self.ema, self.cfg,
-                self.global_step, mode="wm",
-            )
-            self.global_step += consumed
-            for k, v in parts.items():
-                agg[k] = v
+        try:
+            for batch in self._batches(log, frames, n_batches):
+                parts, consumed = deep_supervision_batch(
+                    self.model, batch, self.optimizer, self.ema, self.cfg,
+                    self.global_step, mode="wm", generator=self.torch_gen,
+                )
+                self.global_step += consumed
+                for k, v in parts.items():
+                    agg[k] = v
+        finally:
+            (core.h_cycles, core.l_cycles,
+             core.n_supervision, core.halt_max_steps) = saved
         self.model.eval()
         self.seen = n
         return {"steps": self.global_step, "fresh": fresh, "total": n, **{
@@ -101,16 +143,19 @@ class OnlineFineTuner:
 
 
 class PolicySelfImitation:
-    """Test-time self-imitation for the policy (the NVARC TTFT analogue).
+    """Test-time self-imitation for the policy.
 
-    NVARC fine-tunes the answer producer on the test task's demonstration
-    pairs; a new interactive game has no demonstrations, so the analogue
-    is the agent's own SUCCESSFUL level segments: every stretch of play
-    that ends in a level clear is a self-earned demo of a complete level
-    solution. The policy (plain BC or plan refiner) is fine-tuned on those
-    segments with the NVARC TTFT hyperparameters (lr 1e-4, warmup 200,
-    same objective as pretraining, EMA); exploratory/failed play is never
-    imitated.
+    The reference recipe fine-tunes the answer producer on the test task's
+    demonstration pairs; a new interactive game has no demonstrations, so
+    the analogue is the agent's own SUCCESSFUL level segments: every stretch
+    of play that ends in a level clear is a self-earned demo of a complete
+    level solution. The policy (plain BC or plan refiner) is fine-tuned on
+    those segments with the reference test-time settings (lr 1e-4, warmup
+    200, batch 128, same objective as pretraining, EMA, test-time recursion
+    schedule). Exploratory/failed play is never imitated: only segments
+    ending in a clear are used, and within them only greedy (non-epsilon)
+    steps become training inputs - epsilon-random moves inside a lucky
+    segment are not demonstrations worth cloning.
     """
 
     def __init__(
@@ -118,9 +163,13 @@ class PolicySelfImitation:
         policy,
         lr: float = 1e-4,
         warmup_steps: int = 200,
-        batch_size: int = 32,
+        batch_size: int = 128,  # reference test-time value
         ema_decay: float = 0.999,
         seed: int = 0,
+        ttt_h_cycles: Optional[int] = 4,
+        ttt_l_cycles: Optional[int] = 4,
+        ttt_n_supervision: Optional[int] = 10,
+        ttt_halt_max: Optional[int] = 10,
     ) -> None:
         self.policy = policy
         self.cfg = TrainConfig(
@@ -131,9 +180,11 @@ class PolicySelfImitation:
         self.ema = OfficialEMAHelper(mu=ema_decay)
         self.ema.register(policy)
         self.rng = np.random.default_rng(seed)
+        self.torch_gen = torch.Generator().manual_seed(seed)
+        self.ttt_schedule = (ttt_h_cycles, ttt_l_cycles, ttt_n_supervision, ttt_halt_max)
         self.global_step = 0
-        # Each segment: (grids [T,64,64], actions [T], masks [T,4102]),
-        # ending at (and including) the clearing action.
+        # Each segment: (grids [T,64,64], actions [T], masks [T,4102],
+        # greedy [T]), ending at (and including) the clearing action.
         self.segments: list[tuple] = []
         self._pending_new = 0
 
@@ -143,14 +194,19 @@ class PolicySelfImitation:
         grids, actions = record.get("grids"), record.get("actions")
         if not grids:
             return 0
+        greedy = record.get("greedy")  # per-step flags from run_episode
         start = 0
         added = 0
         for j, r in enumerate(rewards):
             if r > 0:
                 seg = slice(start, j + 1)
+                if greedy is not None:
+                    g = np.asarray(greedy[seg], dtype=bool)
+                else:
+                    g = np.ones(j + 1 - start, dtype=bool)
                 self.segments.append(
                     (np.stack(grids[seg]), np.asarray(actions[seg]),
-                     np.stack(record["masks"][seg]))
+                     np.stack(record["masks"][seg]), g)
                 )
                 added += 1
                 start = j + 1
@@ -164,8 +220,14 @@ class PolicySelfImitation:
         idx = self.rng.integers(0, len(self.segments), size=self.cfg.batch_size)
         g, a, m, pv = [], [], [], []
         for si in idx:
-            grids, actions, masks = self.segments[si]
-            t = int(self.rng.integers(0, len(actions)))
+            grids, actions, masks, greedy = self.segments[si]
+            # Only greedy steps become inputs (their slot-0 label is the
+            # action the agent chose deliberately); the plan tail stays as
+            # recorded, epsilon steps included - dropping them would break
+            # the tail's time continuity.
+            cand = np.nonzero(greedy)[0]
+            pool = cand if len(cand) else np.arange(len(actions))
+            t = int(pool[self.rng.integers(0, len(pool))])
             g.append(grids[t])
             m.append(masks[t])
             if k == 1:
@@ -194,14 +256,24 @@ class PolicySelfImitation:
         n_batches = int(np.clip(self._pending_new * 4, 1, max_steps))
         device = next(self.policy.parameters()).device
         self.policy.train()
+        core = self.policy.cfg.core
+        saved = (core.h_cycles, core.l_cycles, core.n_supervision, core.halt_max_steps)
+        if self.ttt_schedule[0] is not None:
+            (core.h_cycles, core.l_cycles,
+             core.n_supervision, core.halt_max_steps) = self.ttt_schedule
         agg: dict = {}
-        for _ in range(n_batches):
-            parts, consumed = deep_supervision_batch(
-                self.policy, self._sample_batch(device), self.optimizer,
-                self.ema, self.cfg, self.global_step, mode="bc",
-            )
-            self.global_step += consumed
-            agg = parts
+        try:
+            for _ in range(n_batches):
+                parts, consumed = deep_supervision_batch(
+                    self.policy, self._sample_batch(device), self.optimizer,
+                    self.ema, self.cfg, self.global_step, mode="bc",
+                    generator=self.torch_gen,
+                )
+                self.global_step += consumed
+                agg = parts
+        finally:
+            (core.h_cycles, core.l_cycles,
+             core.n_supervision, core.halt_max_steps) = saved
         self.policy.eval()
         self._pending_new = 0
         return {"steps": self.global_step, "segments": len(self.segments), **{

@@ -203,7 +203,7 @@ def test_training_exits_when_all_halt(tmp_path):
 
 
 def test_predict_returns_last_step_output_by_default():
-    # Official/NVARC protocol: eval never early-halts; the returned output is
+    # Official protocol: eval never early-halts; the returned output is
     # the final supervision step's, even when the halt head fires at step 1.
     torch.manual_seed(0)
     cfg_model = C.WorldModelConfig(

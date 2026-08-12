@@ -168,7 +168,7 @@ class TRMWorldModel(nn.Module):
         max_steps: Optional[int] = None,
         early_halt: bool = False,
     ) -> WMOutput:
-        """Inference. Default is the official/NVARC protocol: at eval the ACT
+        """Inference. Default is the official protocol: at eval the ACT
         halt signal never fires, the model runs all ``max_steps`` supervision
         steps (default ``core.halt_max_steps``), and the returned output is
         the LAST step's. ``early_halt=True`` restores the previous behaviour:

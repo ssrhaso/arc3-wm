@@ -64,7 +64,8 @@ def resolve_device(device: str) -> str:
 
 
 def make_optimizer(model: nn.Module, cfg: TrainConfig) -> torch.optim.Optimizer:
-    # adam-atan2-pytorch 0.2.4 (the package NVARC pins for TRM training).
+    # adam-atan2-pytorch 0.2.4 (the reference PyTorch build of the TRM
+    # optimizer).
     # betas (0.9, 0.95) per the official cfg_pretrain.yaml; the package's
     # a=1.27, b=1 atan2 rule and decoupled weight decay p *= (1 - lr*wd)
     # match the official recipe.

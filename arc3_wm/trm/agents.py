@@ -126,17 +126,22 @@ class TRMAgent:
         self.rng = np.random.default_rng(cfg.seed)
         self._prev_grid: Optional[np.ndarray] = None
         self._sample_gen = None  # lazy torch.Generator for bc_temperature
+        # Whether the last act() pick was an epsilon-random draw (used by
+        # run_episode's greedy flag for test-time self-imitation filtering).
+        self.last_was_epsilon = False
 
     def reset(self) -> None:
         """New episode: clear the frame-delta context (novelty persists;
         revisiting a start state should not look novel)."""
         self._prev_grid = None
+        self.last_was_epsilon = False
 
     def act(self, grid: np.ndarray, mask: np.ndarray) -> int:
         import torch
 
         cfg = self.cfg
         self.memory.observe(grid)
+        self.last_was_epsilon = False
         if cfg.use_bc and not cfg.use_wm and cfg.bc_temperature > 0:
             g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
             m = torch.from_numpy(mask.copy())[None].to(self.device)
@@ -156,6 +161,7 @@ class TRMAgent:
         if self.rng.random() < cfg.epsilon:
             choice = int(self.rng.choice(cands))
             self._prev_grid = grid.copy()
+            self.last_was_epsilon = True
             return choice
 
         scores = np.zeros(len(cands), dtype=np.float64)
@@ -283,6 +289,7 @@ def run_episode(
     grids: list[np.ndarray] = []
     actions: list[int] = []
     masks: list[np.ndarray] = []
+    greedy: list[bool] = []
     steps = 0
     limit = max_actions or 10**9
     terminated = truncated = False
@@ -296,6 +303,7 @@ def run_episode(
             grids.append(grid)
             actions.append(int(action))
             masks.append(mask.copy())
+            greedy.append(not getattr(agent, "last_was_epsilon", False))
         obs, reward, terminated, truncated, info = env.step(action)
         rewards.append(float(reward))
         steps += 1
@@ -309,4 +317,5 @@ def run_episode(
         out["grids"] = grids
         out["actions"] = actions
         out["masks"] = masks
+        out["greedy"] = greedy
     return out

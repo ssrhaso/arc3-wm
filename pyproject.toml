@@ -51,7 +51,7 @@ dev = [
 # TRM component library (arc3_wm.trm). torch>=2.5 matches the oldest
 # runtime we target (NGC 24.09 container). einops/pydantic are required by
 # the linked official TinyRecursiveModels code (see trm/_official.py);
-# adam-atan2-pytorch is the optimizer NVARC pins for TRM training.
+# adam-atan2-pytorch is the reference PyTorch build of the TRM optimizer.
 trm = [
     "torch>=2.5",
     "einops",

@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ttt-policy", action="store_true",
                    help="test-time self-imitation: fine-tune the policy on "
                         "the agent's own successful level segments (score "
-                        "agents only; NVARC TTFT analogue)")
+                        "agents only; test-time fine-tune analogue)")
     p.add_argument("--ttt-max-steps", type=int, default=50)
     p.add_argument("--ttt-lr", type=float, default=1e-4)
     p.add_argument("--episodes", type=int, default=50)
@@ -106,18 +106,26 @@ def main(argv=None) -> int:
             w_bc=args.w_bc if policy is not None else 0.0,
             seed=args.seed,
         )
-        agent = GraphAgent(graph_cfg, world_model=wm, policy=policy, device=device)
         tuner = None
+        wm_for_agent = wm
         if args.ttt and wm is not None:
+            import copy as _copy
+
             from arc3_wm.trm.ttt import OnlineFineTuner
 
             tuner = OnlineFineTuner(wm, lr=args.ttt_lr, seed=args.seed)
+            # The agent acts on an EMA copy of the fine-tuning target
+            # (official eval protocol); synced after every burst below.
+            wm_for_agent = _copy.deepcopy(wm)
+            wm_for_agent.eval()
+        agent = GraphAgent(graph_cfg, world_model=wm_for_agent, policy=policy, device=device)
 
         def episode_fn(env, agent_, max_actions):
             record = run_graph_episode(env, agent_, max_actions=max_actions)
             if tuner is not None:
                 stats = tuner.update(agent_._log, agent_._frames,
                                      max_steps=args.ttt_max_steps)
+                tuner.ema.ema(wm_for_agent)  # act on the EMA shadow
                 record["ttt"] = stats
             return record
 
@@ -140,13 +148,21 @@ def main(argv=None) -> int:
         beam_width=args.beam_width,
         seed=args.seed,
     )
-    agent = TRMAgent(agent_cfg, policy=policy, world_model=wm, device=device)
+    policy_for_agent = policy
     if args.ttt_policy:
         if policy is None:
             raise SystemExit("--ttt-policy requires --bc-ckpt")
+        import copy as _copy
+
         from arc3_wm.trm.ttt import PolicySelfImitation
 
         tuner = PolicySelfImitation(policy, lr=args.ttt_lr, seed=args.seed)
+        # The agent acts on an EMA copy of the fine-tuning target (official
+        # eval protocol); synced after every burst below.
+        policy_for_agent = _copy.deepcopy(policy)
+        policy_for_agent.eval()
+        agent = TRMAgent(agent_cfg, policy=policy_for_agent, world_model=wm,
+                         device=device)
 
         def episode_fn(env, agent_, max_actions):
             record = run_episode(env, agent_, max_actions=max_actions,
@@ -154,12 +170,14 @@ def main(argv=None) -> int:
                                  record_transitions=True)
             tuner.ingest(record)
             stats = tuner.update(max_steps=args.ttt_max_steps)
-            for key in ("grids", "actions", "masks"):
+            tuner.ema.ema(policy_for_agent)  # act on the EMA shadow
+            for key in ("grids", "actions", "masks", "greedy"):
                 record.pop(key, None)
             record["ttt"] = stats
             return record
 
         return _run_eval(args, agent, episode_fn)
+    agent = TRMAgent(agent_cfg, policy=policy_for_agent, world_model=wm, device=device)
     episode_fn = lambda env, agent_, max_actions: run_episode(
         env, agent_, max_actions=max_actions, use_mask=not args.no_mask
     )

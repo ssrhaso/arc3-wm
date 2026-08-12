@@ -65,7 +65,8 @@ class TRMCoreConfig:
     h_cycles: int = 3
     l_cycles: int = 6
     # Deep supervision / ACT. Official values: 16 supervision steps with the
-    # halt cap at 16 (arch/trm.yaml); NVARC uses 10 during test-time tuning.
+    # halt cap at 16 (official arch/trm.yaml); the reference test-time
+    # tuning recipe uses 10.
     n_supervision: int = 16
     halt_max_steps: int = 16
     halt_exploration_prob: float = 0.1

@@ -1,11 +1,11 @@
 """Procedural synthetic games for world-model pretraining (the SDG move).
 
-NVARC's decisive ingredient on ARC-AGI-2 was a corpus of synthetic tasks
-that turned a memorising TRM into a cross-task prior. The interactive
-analogue: sample small grid *games* from parametrised rule families, roll
-policies in them, and emit transition corpora in exactly the npz cache
-format the training pipeline already consumes - so a synthetic-pretrained
-WM drops into every existing script unchanged.
+The decisive ingredient of the ARC-AGI-2 reference solution was a corpus of
+synthetic tasks that turned a memorising TRM into a cross-task prior. The
+interactive analogue: sample small grid *games* from parametrised rule
+families, roll policies in them, and emit transition corpora in exactly the
+npz cache format the training pipeline already consumes - so a
+synthetic-pretrained WM drops into every existing script unchanged.
 
 Rule families (each instance samples colours, sizes, layouts):
 - maze:    avatar block, walls, goal cell; directional moves w/ collision;
