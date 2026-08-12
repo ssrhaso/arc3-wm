@@ -101,6 +101,9 @@ tests/test_validate_5070.py
 
 # --- Ops scripts (kept on disk, never published; per-user rule: new scripts don't go into git) ---
 scripts/fetch_trm_official.sh
+scripts/sync_hephaestus.sh
+scripts/submit_elastic.sh
+slurm/trm_paper_retrain.sbatch
 
 # --- Dry-run analysis scaffolding (kept on disk, never published) ---
 analysis/build_p4_vc33_diagnosis.py
