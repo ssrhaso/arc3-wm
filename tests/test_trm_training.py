@@ -180,6 +180,74 @@ def test_train_loop_early_stop_not_triggered_when_improving(cache_npz, tmp_path)
     assert calls["n"] == 4  # every epoch evaluated; no early stop
 
 
+def test_init_from_checkpoint_loads_ema_weights(tmp_path):
+    from arc3_wm.trm.training import init_from_checkpoint
+
+    torch.manual_seed(0)
+    src = TRMWorldModel(WM_CFG)
+    ema = EMAHelper(mu=0.5)
+    ema.register(src)
+    with torch.no_grad():
+        for p in src.parameters():
+            p.add_(1.0)
+    save_checkpoint(tmp_path / "src.pt", src, ema, make_optimizer(src, TrainConfig()),
+                    C.to_dict(WM_CFG), 1)
+    torch.manual_seed(1)
+    dst = TRMWorldModel(WM_CFG)
+    init_from_checkpoint(dst, tmp_path / "src.pt")
+    # The EMA shadow (near-init values) is what eval uses: dst must carry the
+    # shadow, not the +1.0 raw weights.
+    name = next(iter(dict(src.named_parameters())))
+    assert torch.allclose(dict(dst.named_parameters())[name], ema.shadow[name])
+
+
+def test_init_from_checkpoint_rejects_arch_mismatch(tmp_path):
+    from arc3_wm.trm.training import init_from_checkpoint
+
+    pol4 = TRMPolicy(C.PolicyConfig(core=TINY_CORE, tokenizer=TINY_TOK, plan_length=4))
+    ema4 = EMAHelper()
+    ema4.register(pol4)
+    save_checkpoint(tmp_path / "p4.pt", pol4, ema4, make_optimizer(pol4, TrainConfig()),
+                    C.to_dict(pol4.cfg), 1)
+    pol8 = TRMPolicy(C.PolicyConfig(core=TINY_CORE, tokenizer=TINY_TOK, plan_length=8))
+    with pytest.raises(RuntimeError):  # strict load: plan heads differ
+        init_from_checkpoint(pol8, tmp_path / "p4.pt")
+
+
+def test_bc_script_warm_flag_loads_pretrain(cache_npz, tmp_path):
+    import importlib
+
+    trm_train_bc = importlib.import_module("trm_train_bc")
+    data_dir = cache_npz.parent
+    (data_dir / "toygame.npz").write_bytes(cache_npz.read_bytes())
+    base = tmp_path / "paper"
+    # A pretrain checkpoint at the conventional --warm location:
+    # <out>/../../pretrain/bc_s0/best.pt with out = base/bc_warm/toygame_s0.
+    pre = base / "pretrain" / "bc_s0"
+    pre.mkdir(parents=True)
+    torch.manual_seed(0)
+    # Match the script's CLI-built config (TokenizerConfig defaults: cell_embed_dim=16).
+    pol = TRMPolicy(C.PolicyConfig(
+        core=TINY_CORE, tokenizer=C.TokenizerConfig(d_model=32, patch_size=16)
+    ))
+    ema = EMAHelper()
+    ema.register(pol)
+    save_checkpoint(pre / "best.pt", pol, ema, make_optimizer(pol, TrainConfig()),
+                    C.to_dict(pol.cfg), 0)
+    rc = trm_train_bc.main(
+        [
+            "--data", str(data_dir), "--games", "toygame",
+            "--out", str(base / "bc_warm" / "toygame_s0"),
+            "--epochs", "1", "--batch-size", "4", "--num-workers", "0",
+            "--device", "cpu", "--no-bf16", "--warmup-steps", "1",
+            "--d-model", "32", "--n-layers", "1", "--patch-size", "16",
+            "--h-cycles", "1", "--l-cycles", "1", "--n-supervision", "1",
+            "--halt-max-steps", "1", "--val-fraction", "0.5", "--warm",
+        ]
+    )
+    assert rc == 0
+
+
 def test_evaluate_wm_reports_copy_baseline(cache_npz):
     model = TRMWorldModel(WM_CFG)
     ds = WMTransitionDataset([cache_npz], dedup=False)

@@ -38,6 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--device", default="auto")
     p.add_argument("--no-bf16", action="store_true")
     p.add_argument("--resume", action="store_true", help="continue from out/latest.pt if present")
+    p.add_argument("--warm", action="store_true",
+                   help="Regime-B warm start from the shared cross-game pretrain at "
+                        "<out>/../../pretrain/wm_s<seed>/best.pt; fresh optimizer/EMA. "
+                        "Ignored when --resume finds out/latest.pt")
+    p.add_argument("--init-from", type=Path, default=None,
+                   help="explicit warm-start checkpoint path (overrides --warm)")
     p.add_argument("--no-dedup", action="store_true")
     p.add_argument("--unroll-weight", type=float, default=0.0,
                    help="scheduled-sampling 2-step unroll loss weight (0 = off)")
@@ -85,7 +91,13 @@ def main(argv=None) -> int:
     import torch
 
     from arc3_wm.trm.data import WMTransitionDataset, train_val_split_episodes
-    from arc3_wm.trm.training import TrainConfig, evaluate_wm, train_loop
+    from arc3_wm.trm.training import (
+        TrainConfig,
+        evaluate_wm,
+        init_from_checkpoint,
+        resolve_warm_source,
+        train_loop,
+    )
     from arc3_wm.trm.world_model import TRMWorldModel
 
     paths = []
@@ -111,6 +123,13 @@ def main(argv=None) -> int:
     model_cfg = build_model_config(args)
     torch.manual_seed(args.seed)
     model = TRMWorldModel(model_cfg)
+    if args.warm or args.init_from:
+        warm_src = resolve_warm_source(args.out, args.seed, "wm", args.init_from)
+        if not (args.resume and (args.out / "latest.pt").exists()):
+            if not warm_src.exists():
+                raise SystemExit(f"warm start source missing: {warm_src}")
+            init_from_checkpoint(model, warm_src)
+            print(f"warm start from {warm_src}")
 
     train_cfg = TrainConfig(
         lr=args.lr,

@@ -41,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="train over the full unmasked 4102-way action space "
                         "(reference-paper protocol)")
     p.add_argument("--resume", action="store_true", help="continue from out/latest.pt if present")
+    p.add_argument("--warm", action="store_true",
+                   help="Regime-B warm start from the shared cross-game pretrain at "
+                        "<out>/../../pretrain/plan<K>_s<seed>/best.pt (bc when K=1); "
+                        "fresh optimizer/EMA. Ignored when --resume finds out/latest.pt")
+    p.add_argument("--init-from", type=Path, default=None,
+                   help="explicit warm-start checkpoint path (overrides --warm)")
     p.add_argument("--d-model", type=int, default=512)
     p.add_argument("--n-layers", type=int, default=2)
     p.add_argument("--patch-size", type=int, default=4)
@@ -83,7 +89,13 @@ def main(argv=None) -> int:
 
     from arc3_wm.trm.data import BCDataset, train_val_split_episodes
     from arc3_wm.trm.policy import TRMPolicy
-    from arc3_wm.trm.training import TrainConfig, evaluate_bc, train_loop
+    from arc3_wm.trm.training import (
+        TrainConfig,
+        evaluate_bc,
+        init_from_checkpoint,
+        resolve_warm_source,
+        train_loop,
+    )
 
     paths = []
     for game in args.games:
@@ -107,6 +119,14 @@ def main(argv=None) -> int:
     model_cfg = build_model_config(args)
     torch.manual_seed(args.seed)
     model = TRMPolicy(model_cfg)
+    if args.warm or args.init_from:
+        tag = "bc" if args.plan_length == 1 else f"plan{args.plan_length}"
+        warm_src = resolve_warm_source(args.out, args.seed, tag, args.init_from)
+        if not (args.resume and (args.out / "latest.pt").exists()):
+            if not warm_src.exists():
+                raise SystemExit(f"warm start source missing: {warm_src}")
+            init_from_checkpoint(model, warm_src)
+            print(f"warm start from {warm_src}")
 
     train_cfg = TrainConfig(
         lr=args.lr,

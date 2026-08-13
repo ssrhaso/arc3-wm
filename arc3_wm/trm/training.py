@@ -152,6 +152,27 @@ def _load_ema_into(model: nn.Module, ema_state: dict) -> None:
     model.load_state_dict(cast, strict=False)
 
 
+def init_from_checkpoint(model: nn.Module, path, device: str = "cpu") -> None:
+    """Warm start: load weights from another run's checkpoint (its EMA
+    shadow when present, matching how best.pt is evaluated). Strict load -
+    architecture or plan_length mismatches raise loudly. The caller starts
+    optimizer/EMA/step count fresh (this is Regime-B warm start, not
+    resume)."""
+    ckpt = torch.load(path, map_location=device, weights_only=False)
+    model.load_state_dict(ckpt["model"])
+    if ckpt.get("ema"):
+        _load_ema_into(model, ckpt["ema"])
+
+
+def resolve_warm_source(out_dir, seed: int, tag: str, init_from=None) -> Path:
+    """The warm-start checkpoint path: ``--init-from`` wins; ``--warm`` uses
+    the conventional shared-pretrain layout
+    ``<out>/../../pretrain/<tag>_s<seed>/best.pt`` (tag: wm | bc | plan<K>)."""
+    if init_from is not None:
+        return Path(init_from)
+    return Path(out_dir).parents[1] / "pretrain" / f"{tag}_s{seed}" / "best.pt"
+
+
 def deep_supervision_batch(
     model: nn.Module,
     batch: dict,
