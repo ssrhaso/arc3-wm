@@ -35,6 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--val-fraction", type=float, default=0.1)
     p.add_argument("--num-workers", type=int, default=4)
     p.add_argument("--eval-every", type=int, default=1)
+    p.add_argument("--early-stop-patience", type=int, default=None,
+                   help="stop after this many val evaluations without "
+                        "improvement (default: TrainConfig's 5)")
     p.add_argument("--device", default="auto")
     p.add_argument("--no-bf16", action="store_true")
     p.add_argument("--resume", action="store_true", help="continue from out/latest.pt if present")
@@ -148,6 +151,8 @@ def main(argv=None) -> int:
         eval_every=args.eval_every,
         unroll_weight=args.unroll_weight,
     )
+    if args.early_stop_patience is not None:
+        train_cfg.early_stop_patience = args.early_stop_patience
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "run.json").write_text(
         json.dumps(
