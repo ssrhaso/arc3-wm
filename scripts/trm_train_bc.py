@@ -66,6 +66,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--plan-length", type=int, default=1,
                    help=">1: plan-refinement policy (ARC-AGI-2 usage pattern) - "
                         "y carries the next K human actions, halt = whole plan right")
+    p.add_argument("--action-head", choices=["cell", "xy", "flat", "flatsh"],
+                   default="cell",
+                   help="action-representation ablation: cell = spatial per-cell "
+                        "map (default), xy = independent x/y coordinate heads "
+                        "(Track-B grammar), flat = monolithic 4102-way linear "
+                        "per slot, flatsh = slot-shared 4102-way linear "
+                        "(parameter-matched flat control)")
     return p
 
 
@@ -82,7 +89,8 @@ def build_model_config(args) -> C.PolicyConfig:
     tok = C.TokenizerConfig(d_model=args.d_model, patch_size=args.patch_size)
     return C.PolicyConfig(core=core, tokenizer=tok, loss=args.loss,
                           plan_length=args.plan_length,
-                          plan_step0_weight=args.plan_step0_weight)
+                          plan_step0_weight=args.plan_step0_weight,
+                          action_head=args.action_head)
 
 
 def main(argv=None) -> int:

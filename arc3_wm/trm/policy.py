@@ -17,6 +17,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from ..action_space import ACTION6_BASE, ACTION6_COUNT, GRID, N_ACTIONS
 from .config import N_ACTION_TYPES, PolicyConfig
 from .core import Carry, TRMCore, stablemax_cross_entropy
 from .tokenizer import (
@@ -53,8 +54,23 @@ class TRMPolicy(nn.Module):
         self.core = TRMCore(cfg.core, max_seq_len=self.seq_len)
         d = cfg.core.d_model
         self.plan_length = cfg.plan_length
-        self.type_head = nn.Linear(d, N_ACTION_TYPES * self.plan_length)
-        self.click_head = CellHead(cfg.tokenizer, n_maps=self.plan_length)
+        if cfg.action_head not in ("cell", "xy", "flat", "flatsh"):
+            raise ValueError(f"unknown action_head: {cfg.action_head!r}")
+        if cfg.action_head == "flat":
+            self.flat_head = nn.Linear(d, N_ACTIONS * self.plan_length)
+        elif cfg.action_head == "flatsh":
+            self.slot_mix = nn.Linear(d, d)
+            self.slot_emb = nn.Parameter(
+                0.02 * torch.randn(self.plan_length, d)
+            )
+            self.flat_head = nn.Linear(d, N_ACTIONS)
+        else:
+            self.type_head = nn.Linear(d, N_ACTION_TYPES * self.plan_length)
+            if cfg.action_head == "xy":
+                self.x_head = nn.Linear(d, GRID * self.plan_length)
+                self.y_head = nn.Linear(d, GRID * self.plan_length)
+            else:
+                self.click_head = CellHead(cfg.tokenizer, n_maps=self.plan_length)
         self.value_head = nn.Linear(d, 1) if cfg.value_head else None
 
     def embed(self, grid: torch.Tensor) -> torch.Tensor:
@@ -79,12 +95,39 @@ class TRMPolicy(nn.Module):
         pooled = pool_tokens(body)
         k = self.plan_length
         b = grid.shape[0]
-        type_k = self.type_head(pooled).view(b, k, -1)  # [B, K, 7]
-        maps = self.click_head(body)  # [B, 64, 64] or [B, K, 64, 64]
-        click_k = maps.reshape(b, k, -1)  # [B, K, 4096]
-        flat_k = assemble_flat_logits(
-            type_k.reshape(b * k, -1), click_k.reshape(b * k, -1)
-        ).view(b, k, -1)
+        if self.cfg.action_head in ("flat", "flatsh"):
+            if self.cfg.action_head == "flat":
+                flat_k = self.flat_head(pooled).view(b, k, N_ACTIONS)
+            else:
+                # Slot-shared decoder: nonlinear slot conditioning (a
+                # linear one would collapse to input-independent offsets).
+                feats = F.gelu(
+                    self.slot_mix(pooled)[:, None, :] + self.slot_emb[None]
+                )
+                flat_k = self.flat_head(feats)  # [B, K, 4102]
+            # Derived views only (logging/agents); flat IS the distribution.
+            click_k = flat_k[..., ACTION6_BASE : ACTION6_BASE + ACTION6_COUNT]
+            type_k = torch.cat(
+                [
+                    flat_k[..., :ACTION6_BASE],
+                    click_k.logsumexp(-1, keepdim=True),
+                    flat_k[..., ACTION6_BASE + ACTION6_COUNT :],
+                ],
+                dim=-1,
+            )
+        else:
+            type_k = self.type_head(pooled).view(b, k, -1)  # [B, K, 7]
+            if self.cfg.action_head == "xy":
+                xl = self.x_head(pooled).view(b, k, GRID)
+                yl = self.y_head(pooled).view(b, k, GRID)
+                # click index = y*64 + x (matches assemble_flat_logits)
+                click_k = (yl[..., :, None] + xl[..., None, :]).reshape(b, k, -1)
+            else:
+                maps = self.click_head(body)  # [B, 64, 64] or [B, K, 64, 64]
+                click_k = maps.reshape(b, k, -1)  # [B, K, 4096]
+            flat_k = assemble_flat_logits(
+                type_k.reshape(b * k, -1), click_k.reshape(b * k, -1)
+            ).view(b, k, -1)
         # The availability mask is only known for the current frame, so it
         # biases plan step 0 alone; later plan steps stay unmasked.
         if mask is not None:

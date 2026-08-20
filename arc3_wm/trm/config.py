@@ -173,6 +173,19 @@ class PolicyConfig:
     # loss; remaining slots share the rest. 0 = uniform average over
     # valid slots. At 1.0 the loss reduces exactly to plain BC.
     plan_step0_weight: float = 0.0
+    # Action-representation ablation. "cell" (shipped default): 7 type
+    # logits + a spatial per-cell click map decoded from the patch tokens.
+    # "xy": independent 64-way x and y coordinate heads, click logit at
+    # (y, x) = y_logit[y] + x_logit[x] (the Track-B factored grammar).
+    # "flat": one monolithic 4102-way linear per plan slot, every action
+    # an unrelated label (the DreamerV3-A0 analogue; parameter count
+    # scales with plan_length, by design - that IS the flat cost).
+    # "flatsh": the parameter-matched flat control - one 4102-way linear
+    # SHARED across slots, fed slot-conditioned features (GELU of a
+    # mixed pooled vector plus a learned slot embedding). Actions remain
+    # mutually unrelated output rows; only the slot axis is shared, so
+    # the head stays ~2.4M at any plan_length.
+    action_head: str = "cell"
 
     def __post_init__(self) -> None:
         _require(self.core.d_model == self.tokenizer.d_model, "d_model mismatch core/tokenizer")
