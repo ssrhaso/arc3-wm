@@ -1,0 +1,42 @@
+# Per-game named blocks for arc3_<game> tasks.
+# Layered on top of dreamerv3 defaults via:
+#   python scripts/launch_pergame.py --configs size12m arc3 --task arc3_vc33
+#
+# The defaults for env.arc3.{max_steps,use_seed} live in scripts/launch_pergame.py
+# (DEFAULT_ARC3_ENV). They are injected into dreamerv3's 'defaults' block so
+# elements.Config.update accepts overrides like --env.arc3.max_steps=500.
+
+arc3:
+  task: arc3_vc33
+  # No replay pre-population (Phase 4 concern); buffer fills from online steps.
+  # No actor masking (D11); the env exposes log/action_mask but the agent
+  # does not consume it.
+
+# Phase 3: cross-game WM pretraining. Layered on top of size12m + arc3 by
+# scripts/pretrain_wm.py. The 'script' override is the belt-and-braces
+# guard from concern-group #7 of tests/test_pretrain_wm.py: a stray
+# embodied.run.train invocation against this config trips on an unknown
+# script name. The actual loop is scripts.pretrain_wm.pretrain_wm_loop.
+pretrain:
+  script: pretrain_wm
+  task: arc3_pretrain  # logical-only - no env is constructed during pretrain
+  # Offline WM-only pretraining has no actor, so the enc/dyn/dec entry keys
+  # that replay_context > 0 expects in every batch are never written into
+  # the buffer. Set to 0 so ext_space drops those keys and chunks start
+  # cold via is_first. See design decision D14.
+  replay_context: 0
+  run:
+    # Wall-clock-bounded; targets ~5h on H100 at size12m's ~12k FPS
+    # ~ ~220M training steps. The buffer is ~180k transitions so this
+    # is many epochs - by design (DreamerV3 trains to convergence on
+    # the buffer, not by epoch count).
+    steps: 2.2e8
+    log_every: 120
+    report_every: 300
+    save_every: 1800   # 30 min - Phase-3 gate row 5
+
+# Note: no Crafter "sanity" block. Use the dreamerv3-shipped 'crafter' block
+# (train_ratio=512, envs=1, task=crafter_reward) and override --run.steps on
+# the CLI for short runs. An earlier crafter_sanity block here overrode
+# train_ratio=32, which silently breaks the Hafner-tuned Crafter regime -
+# removed to avoid that footgun.

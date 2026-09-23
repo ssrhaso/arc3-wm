@@ -1,0 +1,321 @@
+"""Composable online agents for the ARC3 Gym env.
+
+``TRMAgent`` scores candidate actions by summing whichever component
+signals are enabled (AgentConfig):
+
+    score(a) = w_bc * log pi_BC(a | s)                   [policy component]
+             + w_reward * P(level clear | WM(s, a))      [world model]
+             + w_novelty * novelty(predicted next state) [world model]
+             + w_change * P(frame changes | WM(s, a))    [world model]
+             - w_reward * P(GAME_OVER | WM(s, a))        [world model]
+
+Novelty is count-based over exact grid hashes (the environment is
+deterministic and discrete, where hash-frontier exploration is the strong
+known baseline). The per-game action mask is always enforced. ACTION6
+candidates are pruned to salient cells (non-background + recently changed)
+capped at ``max_click_candidates``.
+
+Degenerate compositions: use_bc only -> BC agent; use_wm only -> model-based
+novelty planner; neither -> masked random agent.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from typing import Optional
+
+import numpy as np
+
+from ..action_space import ACTION6_BASE, ACTION6_COUNT, ACTION7_INDEX, GRID, N_ACTIONS
+from .config import AgentConfig
+
+
+def salient_click_cells(
+    grid: np.ndarray,
+    prev_grid: Optional[np.ndarray],
+    max_cells: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Candidate (y, x) cells for ACTION6, most-salient first.
+
+    Priority: cells that changed since the previous frame, then cells not of
+    the background colour (the modal colour), then a uniform grid subsample.
+    Returns flat cell indices (y * 64 + x), at most ``max_cells``.
+    """
+    changed = (
+        np.nonzero((grid != prev_grid).ravel())[0]
+        if prev_grid is not None
+        else np.array([], dtype=np.int64)
+    )
+    background = np.bincount(grid.ravel(), minlength=16).argmax()
+    non_bg = np.nonzero((grid != background).ravel())[0]
+    stride = np.arange(0, GRID * GRID, 8 * GRID + 8)  # sparse fallback lattice
+    ordered: list[int] = []
+    seen: set[int] = set()
+    for pool in (changed, rng.permutation(non_bg), stride):
+        for cell in pool:
+            c = int(cell)
+            if c not in seen:
+                seen.add(c)
+                ordered.append(c)
+            if len(ordered) >= max_cells:
+                return np.asarray(ordered, dtype=np.int64)
+    return np.asarray(ordered, dtype=np.int64)
+
+
+def candidate_actions(
+    mask: np.ndarray,
+    grid: np.ndarray,
+    prev_grid: Optional[np.ndarray],
+    max_click_candidates: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Masked flat action candidates: all simple actions + pruned clicks."""
+    if mask.shape != (N_ACTIONS,):
+        raise ValueError("mask must be the flat 4102 availability mask")
+    simple = [i for i in (0, 1, 2, 3, 4, ACTION7_INDEX) if mask[i]]
+    actions = list(simple)
+    if mask[ACTION6_BASE : ACTION6_BASE + ACTION6_COUNT].any():
+        cells = salient_click_cells(grid, prev_grid, max_click_candidates, rng)
+        actions.extend(int(ACTION6_BASE + c) for c in cells if mask[ACTION6_BASE + c])
+    if not actions:  # degenerate mask; fall back to whatever is available
+        actions = np.nonzero(mask)[0].tolist()
+    return np.asarray(actions, dtype=np.int64)
+
+
+class NoveltyMemory:
+    """Exact-hash visit counts over grids; novelty = 1 / count^power."""
+
+    def __init__(self, power: float = 0.5) -> None:
+        self.power = power
+        self.counts: Counter[bytes] = Counter()
+
+    def observe(self, grid: np.ndarray) -> None:
+        self.counts[grid.astype(np.uint8).tobytes()] += 1
+
+    def novelty(self, grid: np.ndarray) -> float:
+        count = self.counts[grid.astype(np.uint8).tobytes()]
+        if count == 0:
+            return 1.0
+        return float(1.0 / (count + 1) ** self.power)
+
+
+class TRMAgent:
+    """Composition of TRM policy and/or TRM world model for online play.
+
+    ``policy`` and ``world_model`` are torch modules (or None, per config);
+    the agent itself is numpy-facing: ``act(obs_grid, mask)`` -> flat index.
+    """
+
+    def __init__(
+        self,
+        cfg: AgentConfig,
+        policy=None,
+        world_model=None,
+        device: str = "cpu",
+    ) -> None:
+        if cfg.use_bc and policy is None:
+            raise ValueError("use_bc requires a policy")
+        if cfg.use_wm and world_model is None:
+            raise ValueError("use_wm requires a world_model")
+        self.cfg = cfg
+        self.policy = policy
+        self.world_model = world_model
+        self.device = device
+        self.memory = NoveltyMemory(cfg.novelty_count_power)
+        self.rng = np.random.default_rng(cfg.seed)
+        self._prev_grid: Optional[np.ndarray] = None
+        self._sample_gen = None  # lazy torch.Generator for bc_temperature
+        # Whether the last act() pick was an epsilon-random draw (used by
+        # run_episode's greedy flag for test-time self-imitation filtering).
+        self.last_was_epsilon = False
+
+    def reset(self) -> None:
+        """New episode: clear the frame-delta context (novelty persists;
+        revisiting a start state should not look novel)."""
+        self._prev_grid = None
+        self.last_was_epsilon = False
+
+    def act(self, grid: np.ndarray, mask: np.ndarray) -> int:
+        import torch
+
+        cfg = self.cfg
+        self.memory.observe(grid)
+        self.last_was_epsilon = False
+        if cfg.use_bc and not cfg.use_wm and cfg.bc_temperature > 0:
+            g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
+            m = torch.from_numpy(mask.copy())[None].to(self.device)
+            if self._sample_gen is None:
+                self._sample_gen = torch.Generator(device=self.device)
+                self._sample_gen.manual_seed(cfg.seed)
+            with torch.no_grad():
+                action, _ = self.policy.act(
+                    g, mask=m, temperature=cfg.bc_temperature,
+                    generator=self._sample_gen,
+                )
+            self._prev_grid = grid.copy()
+            return int(action.item())
+        cands = candidate_actions(
+            mask, grid, self._prev_grid, cfg.max_click_candidates, self.rng
+        )
+        if self.rng.random() < cfg.epsilon:
+            choice = int(self.rng.choice(cands))
+            self._prev_grid = grid.copy()
+            self.last_was_epsilon = True
+            return choice
+
+        scores = np.zeros(len(cands), dtype=np.float64)
+        with torch.no_grad():
+            if cfg.use_bc:
+                g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
+                m = torch.from_numpy(mask.copy())[None].to(self.device)
+                _, out = self.policy.act(g, mask=m, temperature=0.0)
+                if cfg.bc_score == "prob":
+                    bc = torch.softmax(out.flat_logits[0].float(), dim=-1)
+                else:
+                    bc = torch.log_softmax(out.flat_logits[0].float(), dim=-1)
+                scores += cfg.w_bc * bc.cpu().numpy()[cands]
+            if cfg.use_wm:
+                wm_scores, pred = self._wm_scores(grid, cands)
+                scores += wm_scores
+                if cfg.plan_depth >= 2:
+                    scores += self._beam_bonus(grid, mask, cands, scores, pred)
+
+        best = np.flatnonzero(scores == scores.max())
+        choice = int(cands[self.rng.choice(best)])
+        self._prev_grid = grid.copy()
+        return choice
+
+    def _wm_scores(self, grid: np.ndarray, cands: np.ndarray):
+        """One-step WM scores for candidate actions + predicted next grids.
+
+        ``world_model`` may be a single model or a list (ensemble): member 0
+        drives prediction/novelty; the per-cell argmax disagreement of the
+        other members against member 0 adds an epistemic ``w_disagree``
+        bonus (uncertain transitions are worth trying).
+        """
+        import torch
+
+        cfg = self.cfg
+        members = (
+            self.world_model
+            if isinstance(self.world_model, (list, tuple))
+            else [self.world_model]
+        )
+        g = torch.from_numpy(grid.astype(np.int64))[None].to(self.device)
+        batch = g.expand(len(cands), -1, -1)
+        acts = torch.from_numpy(cands).to(self.device)
+        out = members[0].predict(batch, acts, max_steps=cfg.wm_predict_steps)
+        pred = out.next_logits.argmax(-1).cpu().numpy()
+        scores = np.zeros(len(cands), dtype=np.float64)
+        if len(members) > 1 and cfg.w_disagree != 0.0:
+            # Per-cell Jensen-Shannon divergence between member predictive
+            # distributions (argmax mismatch masks distributional
+            # uncertainty; JSD is the discrete-space score used by
+            # MAX-style decision-time exploration).
+            p0 = torch.softmax(out.next_logits.float(), dim=-1)
+            disagree = np.zeros(len(cands), dtype=np.float64)
+            for member in members[1:]:
+                other = member.predict(batch, acts, max_steps=cfg.wm_predict_steps)
+                p1 = torch.softmax(other.next_logits.float(), dim=-1)
+                m = 0.5 * (p0 + p1)
+                log_m = m.clamp_min(1e-9).log()
+                kl0 = (p0 * (p0.clamp_min(1e-9).log() - log_m)).sum(-1)
+                kl1 = (p1 * (p1.clamp_min(1e-9).log() - log_m)).sum(-1)
+                jsd = 0.5 * (kl0 + kl1)  # [B, 64, 64], in [0, ln 2]
+                disagree += jsd.mean(dim=(1, 2)).cpu().numpy()
+            scores += cfg.w_disagree * disagree / (len(members) - 1)
+        if out.reward_logit is not None:
+            scores += cfg.w_reward * torch.sigmoid(out.reward_logit).cpu().numpy()
+        if out.state_logits is not None:
+            p_state = torch.softmax(out.state_logits.float(), dim=-1).cpu().numpy()
+            scores -= cfg.w_reward * p_state[:, 2]  # avoid predicted GAME_OVER
+        if out.change_logits is not None:
+            p_change = torch.sigmoid(out.change_logits.float()).mean((1, 2))
+            scores += cfg.w_change * p_change.cpu().numpy()
+        scores += cfg.w_novelty * np.asarray(
+            [self.memory.novelty(pred[i]) for i in range(len(cands))]
+        )
+        return scores, pred
+
+    def _beam_bonus(
+        self,
+        grid: np.ndarray,
+        mask: np.ndarray,
+        cands: np.ndarray,
+        scores: np.ndarray,
+        pred: np.ndarray,
+    ) -> np.ndarray:
+        """Depth-2 lookahead: for the top ``beam_width`` first actions, add
+        the discounted best second-step WM score from the predicted state.
+
+        The action-type mask is reused for the second step (per-game
+        availability is near-static); second-step novelty counts are read
+        against the shared memory without observing the imagined states.
+        """
+        cfg = self.cfg
+        bonus = np.zeros(len(cands), dtype=np.float64)
+        beam = np.argsort(scores)[::-1][: cfg.beam_width]
+        for i in beam:
+            g2 = pred[i].astype(np.uint8)
+            cands2 = candidate_actions(
+                mask, g2, grid, cfg.second_step_candidates, self.rng
+            )
+            s2, _ = self._wm_scores(g2, cands2)
+            bonus[i] = cfg.plan_discount * float(s2.max())
+        return bonus
+
+
+def run_episode(
+    env,
+    agent: TRMAgent,
+    max_actions: Optional[int] = None,
+    use_mask: bool = True,
+    record_transitions: bool = False,
+) -> dict:
+    """Play one episode; returns the EvalRewardSink-compatible record
+    {"rewards": [...], "terminal_state": ...} plus diagnostics.
+
+    ``use_mask=False`` presents the full unmasked action space to the
+    agent (the reference paper's eval protocol); the env still exposes
+    its per-game mask via ``info`` but the agent never sees it.
+    ``record_transitions=True`` additionally returns per-step grids,
+    actions and masks (for test-time self-imitation)."""
+    from ..dynamics_probe import quantize_to_palette
+
+    obs, info = env.reset()
+    agent.reset()
+    rewards: list[float] = []
+    grids: list[np.ndarray] = []
+    actions: list[int] = []
+    masks: list[np.ndarray] = []
+    greedy: list[bool] = []
+    steps = 0
+    limit = max_actions or 10**9
+    terminated = truncated = False
+    while not (terminated or truncated) and steps < limit:
+        grid = np.asarray(quantize_to_palette(obs), dtype=np.uint8)
+        mask = np.asarray(info["action_mask"], dtype=bool)
+        if not use_mask:
+            mask = np.ones_like(mask)
+        action = agent.act(grid, mask)
+        if record_transitions:
+            grids.append(grid)
+            actions.append(int(action))
+            masks.append(mask.copy())
+            greedy.append(not getattr(agent, "last_was_epsilon", False))
+        obs, reward, terminated, truncated, info = env.step(action)
+        rewards.append(float(reward))
+        steps += 1
+    out = {
+        "rewards": rewards,
+        "terminal_state": info.get("state"),
+        "levels_completed": int(info.get("levels_completed", 0)),
+        "steps": steps,
+    }
+    if record_transitions:
+        out["grids"] = grids
+        out["actions"] = actions
+        out["masks"] = masks
+        out["greedy"] = greedy
+    return out
