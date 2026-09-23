@@ -1,0 +1,60 @@
+{
+  "game_id": "vc33",
+  "step": 500000,
+  "trained_ref_rhae": 0.05476190476190477,
+  "config": {
+    "n_episodes": 300,
+    "max_steps": 1000,
+    "env_seed": 0,
+    "action_seed": 0,
+    "baselines": "data\\human_baselines.json"
+  },
+  "arms": [
+    {
+      "arm": "masked",
+      "random_per_game_rhae": 0.0,
+      "levels_completed": 0,
+      "level_scores": {},
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": 0.05476190476190477,
+      "trained_over_random_ratio": "inf",
+      "diagnostics": {
+        "game_id": "vc33",
+        "masked": true,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 15000,
+        "invalid_action_count": 0,
+        "episode_len_min": 50,
+        "episode_len_max": 50,
+        "episode_len_mean": 50.0,
+        "sink_path": "results\\random-eval\\vc33-masked\\eval_episodes.jsonl"
+      }
+    },
+    {
+      "arm": "unmasked",
+      "random_per_game_rhae": 0.0,
+      "levels_completed": 0,
+      "level_scores": {},
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": 0.05476190476190477,
+      "trained_over_random_ratio": "inf",
+      "diagnostics": {
+        "game_id": "vc33",
+        "masked": false,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 15031,
+        "invalid_action_count": 31,
+        "episode_len_min": 50,
+        "episode_len_max": 51,
+        "episode_len_mean": 50.10333333333333,
+        "sink_path": "results\\random-eval\\vc33-unmasked\\eval_episodes.jsonl"
+      }
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "game_id": "ls20",
+  "step": 500000,
+  "trained_ref_rhae": null,
+  "config": {
+    "n_episodes": 300,
+    "max_steps": 1000,
+    "env_seed": 0,
+    "action_seed": 0,
+    "baselines": "data\\human_baselines.json"
+  },
+  "arms": [
+    {
+      "arm": "masked",
+      "random_per_game_rhae": 0.0,
+      "levels_completed": 0,
+      "level_scores": {},
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": null,
+      "trained_over_random_ratio": null,
+      "diagnostics": {
+        "game_id": "ls20",
+        "masked": true,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 38960,
+        "invalid_action_count": 0,
+        "episode_len_min": 129,
+        "episode_len_max": 137,
+        "episode_len_mean": 129.86666666666667,
+        "sink_path": "results\\random-eval\\ls20-masked\\eval_episodes.jsonl"
+      }
+    },
+    {
+      "arm": "unmasked",
+      "random_per_game_rhae": 0.0,
+      "levels_completed": 0,
+      "level_scores": {},
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": null,
+      "trained_over_random_ratio": null,
+      "diagnostics": {
+        "game_id": "ls20",
+        "masked": false,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 300000,
+        "invalid_action_count": 299716,
+        "episode_len_min": 1000,
+        "episode_len_max": 1000,
+        "episode_len_mean": 1000.0,
+        "sink_path": "results\\random-eval\\ls20-unmasked\\eval_episodes.jsonl"
+      }
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "game_id": "sb26",
+  "step": 500000,
+  "trained_ref_rhae": null,
+  "config": {
+    "n_episodes": 300,
+    "max_steps": 1000,
+    "env_seed": 0,
+    "action_seed": 0,
+    "baselines": "data\\human_baselines.json"
+  },
+  "arms": [
+    {
+      "arm": "masked",
+      "random_per_game_rhae": 0.0,
+      "levels_completed": 0,
+      "level_scores": {},
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": null,
+      "trained_over_random_ratio": null,
+      "diagnostics": {
+        "game_id": "sb26",
+        "masked": true,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 300000,
+        "invalid_action_count": 0,
+        "episode_len_min": 1000,
+        "episode_len_max": 1000,
+        "episode_len_mean": 1000.0,
+        "sink_path": "results\\random-eval\\sb26-masked\\eval_episodes.jsonl"
+      }
+    },
+    {
+      "arm": "unmasked",
+      "random_per_game_rhae": 0.0,
+      "levels_completed": 0,
+      "level_scores": {},
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": null,
+      "trained_over_random_ratio": null,
+      "diagnostics": {
+        "game_id": "sb26",
+        "masked": false,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 300000,
+        "invalid_action_count": 284,
+        "episode_len_min": 1000,
+        "episode_len_max": 1000,
+        "episode_len_mean": 1000.0,
+        "sink_path": "results\\random-eval\\sb26-unmasked\\eval_episodes.jsonl"
+      }
+    }
+  ]
+}

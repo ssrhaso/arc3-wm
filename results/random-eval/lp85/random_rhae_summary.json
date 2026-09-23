@@ -1,0 +1,64 @@
+{
+  "game_id": "lp85",
+  "step": 500000,
+  "trained_ref_rhae": null,
+  "config": {
+    "n_episodes": 300,
+    "max_steps": 1000,
+    "env_seed": 0,
+    "action_seed": 0,
+    "baselines": "data\\human_baselines.json"
+  },
+  "arms": [
+    {
+      "arm": "masked",
+      "random_per_game_rhae": 5.545642719194994e-06,
+      "levels_completed": 1,
+      "level_scores": {
+        "1": 0.00015527799613745984
+      },
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": null,
+      "trained_over_random_ratio": null,
+      "diagnostics": {
+        "game_id": "lp85",
+        "masked": true,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 300000,
+        "invalid_action_count": 0,
+        "episode_len_min": 1000,
+        "episode_len_max": 1000,
+        "episode_len_mean": 1000.0,
+        "sink_path": "results\\random-eval\\lp85-masked\\eval_episodes.jsonl"
+      }
+    },
+    {
+      "arm": "unmasked",
+      "random_per_game_rhae": 1.1490851845574441e-05,
+      "levels_completed": 1,
+      "level_scores": {
+        "1": 0.00032174385167608435
+      },
+      "n_eval_episodes": 300,
+      "trained_ref_rhae": null,
+      "trained_over_random_ratio": null,
+      "diagnostics": {
+        "game_id": "lp85",
+        "masked": false,
+        "n_episodes": 300,
+        "max_steps": 1000,
+        "env_seed": 0,
+        "action_seed": 0,
+        "total_steps": 298593,
+        "invalid_action_count": 446,
+        "episode_len_min": 452,
+        "episode_len_max": 1000,
+        "episode_len_mean": 995.31,
+        "sink_path": "results\\random-eval\\lp85-unmasked\\eval_episodes.jsonl"
+      }
+    }
+  ]
+}
